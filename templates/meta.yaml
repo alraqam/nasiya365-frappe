@@ -1,0 +1,110 @@
+name: Nasiya365
+description: |
+  Nasiya365 is a comprehensive BNPL (Buy Now Pay Later) and installment management 
+  system built on Frappe Framework v16. It provides a complete solution for managing 
+  customers, products, sales orders, installment plans, and payment transactions.
+  
+  Key features include:
+  - Customer Profile Management with phone number tracking
+  - Product Catalog with custom attributes by category
+  - Sales Orders and Contracts
+  - Installment Plans with flexible scheduling
+  - Payment Transaction tracking
+  - Stock Management (Warehouse, Stock Entry, Stock Ledger)
+  - Cashbox for cash flow tracking
+  - Collector management for field collections
+  - Full Russian localization
+
+instructions: |
+  After deployment, open the backend terminal and run:
+  ```
+  bench new-site $(PRIMARY_DOMAIN) --db-host mariadb --db-root-password $(DB_PASSWORD) --admin-password $(ADMIN_PASSWORD)
+  bench --site $(PRIMARY_DOMAIN) install-app nasiya365
+  bench --site $(PRIMARY_DOMAIN) migrate
+  bench use $(PRIMARY_DOMAIN)
+  ```
+
+changeLog:
+  - date: 2026-01-18
+    description: Initial release with full Russian localization
+
+links:
+  - label: GitHub
+    url: https://github.com/alraqam/nasiya365-frappe
+  - label: Frappe Framework
+    url: https://frappeframework.com/
+
+contributors:
+  - name: Alraqam
+    url: https://github.com/alraqam
+
+schema:
+  type: object
+  required:
+    - appServiceName
+    - databaseServiceName
+    - redisServiceName
+    - adminPassword
+    - databasePassword
+  properties:
+    appServiceName:
+      type: string
+      title: App Service Name
+      default: nasiya365
+    databaseServiceName:
+      type: string
+      title: Database Service Name
+      default: mariadb
+    redisServiceName:
+      type: string
+      title: Redis Service Name
+      default: redis
+    adminPassword:
+      type: string
+      title: Administrator Password
+      default: admin123
+    databasePassword:
+      type: string
+      title: Database Root Password
+      default: ""
+
+benefits:
+  - title: Complete BNPL Solution
+    description: |
+      Manage your entire installment business from customer onboarding to payment collection.
+      Track customers, products, contracts, and payments all in one place.
+  - title: Russian Localization
+    description: |
+      Fully translated interface in Russian language, designed for Uzbekistan and CIS markets.
+  - title: Built on Frappe Framework
+    description: |
+      Leverages the powerful Frappe Framework v16 with built-in workflows, 
+      permissions, reports, and API capabilities.
+  - title: Stock Management
+    description: |
+      Complete inventory tracking with warehouses, stock entries, and stock ledger.
+
+features:
+  - title: Customer Management
+    description: |
+      Comprehensive customer profiles with multiple phone numbers, passport data, 
+      and address management.
+  - title: Product Catalog
+    description: |
+      Products with categories, custom attributes per category, and pricing.
+  - title: Installment Plans
+    description: |
+      Flexible installment scheduling with payment tracking and reminders.
+  - title: Payment Processing
+    description: |
+      Track all payment transactions with multiple payment methods.
+  - title: Reporting Dashboard
+    description: |
+      Visual dashboard with key metrics and quick access to all modules.
+
+tags:
+  - Finance
+  - BNPL
+  - ERP
+  - Business Apps
+  - Frappe
