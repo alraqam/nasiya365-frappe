@@ -2,7 +2,7 @@
 # Domain: my.nasiya365.uz
 
 services:
-  # MariaDB database (in same network)
+  # MariaDB database
   mariadb:
     image: mariadb:10.6
     restart: always
@@ -23,6 +23,67 @@ services:
     networks:
       - nasiya365-network
 
+  # Redis for caching
+  redis-cache:
+    image: redis:alpine
+    restart: always
+    volumes:
+      - redis-cache-data:/data
+    networks:
+      - nasiya365-network
+
+  # Redis for queue
+  redis-queue:
+    image: redis:alpine
+    restart: always
+    volumes:
+      - redis-queue-data:/data
+    networks:
+      - nasiya365-network
+
+  # Site setup and configuration (runs once)
+  setup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      sh -c "
+      echo 'Waiting for MariaDB to be ready...' &&
+      sleep 10 &&
+      cd /home/frappe/frappe-bench &&
+      if [ ! -f sites/my.nasiya365.uz/site_config.json ]; then
+        echo 'Creating new site...' &&
+        bench new-site my.nasiya365.uz \
+          --mariadb-root-password NasiyaSecure2026 \
+          --admin-password Admin@2026 \
+          --db-host mariadb \
+          --db-port 3306 \
+          --no-mariadb-socket &&
+        echo 'Installing ERPNext...' &&
+        bench --site my.nasiya365.uz install-app erpnext &&
+        echo 'Site setup complete!'
+      else
+        echo 'Site already exists, updating configuration...' &&
+        bench --site my.nasiya365.uz set-config db_host mariadb &&
+        bench --site my.nasiya365.uz set-config redis_cache redis://redis-cache:6379 &&
+        bench --site my.nasiya365.uz set-config redis_queue redis://redis-queue:6379 &&
+        echo 'Configuration updated!'
+      fi
+      "
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    networks:
+      - nasiya365-network
+    restart: "no"
+
   # Main Frappe/ERPNext backend
   backend:
     build:
@@ -38,6 +99,8 @@ services:
         condition: service_started
       redis-queue:
         condition: service_started
+      setup:
+        condition: service_completed_successfully
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
@@ -130,24 +193,6 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-    networks:
-      - nasiya365-network
-
-  # Redis for caching
-  redis-cache:
-    image: redis:alpine
-    restart: always
-    volumes:
-      - redis-cache-data:/data
-    networks:
-      - nasiya365-network
-
-  # Redis for queue
-  redis-queue:
-    image: redis:alpine
-    restart: always
-    volumes:
-      - redis-queue-data:/data
     networks:
       - nasiya365-network
 

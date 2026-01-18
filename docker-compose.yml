@@ -1,7 +1,28 @@
-# Nasiya365 Docker Compose for EasyPanel
+# Nasiya365 Production Docker Compose for EasyPanel
 # Domain: my.nasiya365.uz
 
 services:
+  # MariaDB database (in same network)
+  mariadb:
+    image: mariadb:10.6
+    restart: always
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MYSQL_ROOT_PASSWORD: NasiyaSecure2026
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pNasiyaSecure2026"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    networks:
+      - nasiya365-network
+
   # Main Frappe/ERPNext backend
   backend:
     build:
@@ -127,27 +148,6 @@ services:
     restart: always
     volumes:
       - redis-queue-data:/data
-    networks:
-      - nasiya365-network
-
-  # MariaDB database
-  mariadb:
-    image: mariadb:10.6
-    restart: always
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
-      - --skip-character-set-client-handshake
-      - --skip-innodb-read-only-compressed
-    environment:
-      MYSQL_ROOT_PASSWORD: NasiyaSecure2026
-    volumes:
-      - mariadb-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pNasiyaSecure2026"]
-      interval: 10s
-      timeout: 10s
-      retries: 30
     networks:
       - nasiya365-network
 
