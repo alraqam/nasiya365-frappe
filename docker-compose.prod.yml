@@ -1,7 +1,5 @@
-version: "3.8"
-
 # Nasiya365 Production Docker Compose for EasyPanel
-# This file is optimized for production deployment
+# Domain: my.nasiya365.uz
 
 services:
   # Main Frappe/ERPNext backend
@@ -11,7 +9,7 @@ services:
       dockerfile: Dockerfile
     restart: always
     command: >
-      sh -c "cd sites && ../env/bin/gunicorn -b 0.0.0.0:8000 -w ${GUNICORN_WORKERS:-4} -t 120 frappe.app:application --preload"
+      sh -c "cd sites && ../env/bin/gunicorn -b 0.0.0.0:8000 -w 4 -t 120 frappe.app:application --preload"
     depends_on:
       mariadb:
         condition: service_healthy
@@ -23,7 +21,7 @@ services:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
     environment:
-      - FRAPPE_SITE_NAME_HEADER=${FRAPPE_SITE_NAME}
+      - FRAPPE_SITE_NAME_HEADER=my.nasiya365.uz
     networks:
       - nasiya365-network
 
@@ -40,7 +38,7 @@ services:
       - "8080:8080"
     environment:
       BACKEND: backend:8000
-      FRAPPE_SITE_NAME_HEADER: ${FRAPPE_SITE_NAME}
+      FRAPPE_SITE_NAME_HEADER: my.nasiya365.uz
       SOCKETIO: websocket:9000
       UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
@@ -66,7 +64,7 @@ services:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
     environment:
-      - FRAPPE_SITE_NAME_HEADER=${FRAPPE_SITE_NAME}
+      - FRAPPE_SITE_NAME_HEADER=my.nasiya365.uz
     networks:
       - nasiya365-network
 
@@ -156,11 +154,11 @@ services:
       - --skip-character-set-client-handshake
       - --skip-innodb-read-only-compressed
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: NasiyaSecure2026
     volumes:
       - mariadb-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pNasiyaSecure2026"]
       interval: 10s
       timeout: 10s
       retries: 30
