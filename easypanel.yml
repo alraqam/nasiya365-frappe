@@ -1,9 +1,25 @@
 # EasyPanel Configuration for Nasiya365
-# This file defines the complete stack for deployment
+# Domain: my.nasiya365.uz
 
 name: nasiya365
 
 services:
+  # MariaDB Database
+  mariadb:
+    type: mariadb
+    image: mariadb:10.6
+    rootPassword: ${MARIADB_ROOT_PASSWORD}
+    
+  # Redis Cache
+  redis-cache:
+    type: redis
+    image: redis:alpine
+
+  # Redis Queue  
+  redis-queue:
+    type: redis
+    image: redis:alpine
+
   # Main Frappe Backend
   backend:
     type: app
@@ -15,10 +31,12 @@ services:
       type: dockerfile
       file: Dockerfile
     deploy:
-      replicas: 1
       command: sh -c "cd sites && ../env/bin/gunicorn -b 0.0.0.0:8000 -w 4 -t 120 frappe.app:application --preload"
     env:
-      - FRAPPE_SITE_NAME_HEADER=${{services.frontend.domain}}
+      FRAPPE_SITE_NAME_HEADER: my.nasiya365.uz
+      DB_HOST: mariadb
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
     mounts:
       - type: volume
         name: sites
@@ -27,23 +45,25 @@ services:
         name: logs
         mountPath: /home/frappe/frappe-bench/logs
 
-  # Nginx Frontend (Exposed)
+  # Nginx Frontend
   frontend:
     type: app
     image: frappe/erpnext:v16
     deploy:
-      replicas: 1
       command: nginx-entrypoint.sh
     domains:
-      - host: $(PRIMARY_DOMAIN)
-        port: 8080
+      - host: my.nasiya365.uz
+        https: true
+    ports:
+      - published: 443
+        target: 8080
     env:
-      - BACKEND=backend:8000
-      - FRAPPE_SITE_NAME_HEADER=$(PRIMARY_DOMAIN)
-      - SOCKETIO=websocket:9000
-      - UPSTREAM_REAL_IP_ADDRESS=127.0.0.1
-      - UPSTREAM_REAL_IP_HEADER=X-Forwarded-For
-      - CLIENT_MAX_BODY_SIZE=50m
+      BACKEND: backend:8000
+      FRAPPE_SITE_NAME_HEADER: my.nasiya365.uz
+      SOCKETIO: websocket:9000
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      CLIENT_MAX_BODY_SIZE: 50m
     mounts:
       - type: volume
         name: sites
@@ -57,16 +77,15 @@ services:
     type: app
     image: frappe/erpnext:v16
     deploy:
-      replicas: 1
       command: node /home/frappe/frappe-bench/apps/frappe/socketio.js
     env:
-      - FRAPPE_SITE_NAME_HEADER=$(PRIMARY_DOMAIN)
+      FRAPPE_SITE_NAME_HEADER: my.nasiya365.uz
     mounts:
       - type: volume
         name: sites
         mountPath: /home/frappe/frappe-bench/sites
 
-  # Workers
+  # Worker Default Queue
   worker-default:
     type: app
     source:
@@ -77,25 +96,7 @@ services:
       type: dockerfile
       file: Dockerfile
     deploy:
-      replicas: 1
       command: bench worker --queue default
-    mounts:
-      - type: volume
-        name: sites
-        mountPath: /home/frappe/frappe-bench/sites
-
-  worker-short:
-    type: app
-    source:
-      type: github
-      owner: alraqam
-      repo: nasiya365-frappe
-    build:
-      type: dockerfile
-      file: Dockerfile
-    deploy:
-      replicas: 1
-      command: bench worker --queue short
     mounts:
       - type: volume
         name: sites
@@ -112,44 +113,12 @@ services:
       type: dockerfile
       file: Dockerfile
     deploy:
-      replicas: 1
       command: bench schedule
     mounts:
       - type: volume
         name: sites
         mountPath: /home/frappe/frappe-bench/sites
 
-  # MariaDB Database
-  mariadb:
-    type: mariadb
-    image: mariadb:10.6
-    password: ${{MARIADB_ROOT_PASSWORD}}
-    mounts:
-      - type: volume
-        name: mariadb-data
-        mountPath: /var/lib/mysql
-
-  # Redis Cache
-  redis-cache:
-    type: redis
-    image: redis:alpine
-    mounts:
-      - type: volume
-        name: redis-cache-data
-        mountPath: /data
-
-  # Redis Queue
-  redis-queue:
-    type: redis
-    image: redis:alpine
-    mounts:
-      - type: volume
-        name: redis-queue-data
-        mountPath: /data
-
 volumes:
   sites:
   logs:
-  mariadb-data:
-  redis-cache-data:
-  redis-queue-data:
