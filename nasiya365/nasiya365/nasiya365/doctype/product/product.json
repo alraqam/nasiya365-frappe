@@ -1,0 +1,213 @@
+{
+    "actions": [],
+    "allow_rename": 1,
+    "autoname": "format:PROD-{####}",
+    "creation": "2026-01-03 00:55:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "product_section",
+        "product_name",
+        "product_code",
+        "barcode",
+        "column_break_1",
+        "category",
+        "brand",
+        "is_active",
+        "attributes_section",
+        "attributes",
+        "details_section",
+        "description",
+        "image",
+        "pricing_section",
+        "product_cost",
+        "bnpl_section",
+        "allow_installment",
+        "min_down_payment_percent",
+        "column_break_3",
+        "max_installment_months",
+        "warranty_section",
+        "warranty_months"
+    ],
+    "fields": [
+        {
+            "fieldname": "product_section",
+            "fieldtype": "Section Break",
+            "label": "Информация о товаре"
+        },
+        {
+            "fieldname": "product_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Название товара",
+            "reqd": 1
+        },
+        {
+            "fieldname": "product_code",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Код товара / SKU",
+            "unique": 1
+        },
+        {
+            "fieldname": "barcode",
+            "fieldtype": "Data",
+            "label": "Штрих-код"
+        },
+        {
+            "fieldname": "column_break_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "category",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Категория",
+            "options": "Product Category"
+        },
+        {
+            "fieldname": "brand",
+            "fieldtype": "Data",
+            "in_standard_filter": 1,
+            "label": "Бренд"
+        },
+        {
+            "default": "1",
+            "fieldname": "is_active",
+            "fieldtype": "Check",
+            "in_list_view": 1,
+            "label": "Активен"
+        },
+        {
+            "depends_on": "category",
+            "fieldname": "attributes_section",
+            "fieldtype": "Section Break",
+            "label": "Атрибуты товара"
+        },
+        {
+            "fieldname": "attributes",
+            "fieldtype": "Table",
+            "label": "Атрибуты",
+            "options": "Product Attribute Value"
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "details_section",
+            "fieldtype": "Section Break",
+            "label": "Детали"
+        },
+        {
+            "fieldname": "description",
+            "fieldtype": "Text Editor",
+            "label": "Описание"
+        },
+        {
+            "fieldname": "image",
+            "fieldtype": "Attach Image",
+            "label": "Изображение"
+        },
+        {
+            "fieldname": "pricing_section",
+            "fieldtype": "Section Break",
+            "label": "Цены"
+        },
+        {
+            "fieldname": "product_cost",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Себестоимость",
+            "reqd": 1
+        },
+        {
+            "fieldname": "bnpl_section",
+            "fieldtype": "Section Break",
+            "label": "Настройки рассрочки"
+        },
+        {
+            "default": "1",
+            "fieldname": "allow_installment",
+            "fieldtype": "Check",
+            "label": "Разрешить покупку в рассрочку"
+        },
+        {
+            "default": "20",
+            "depends_on": "allow_installment",
+            "fieldname": "min_down_payment_percent",
+            "fieldtype": "Percent",
+            "label": "Мин. первоначальный взнос %"
+        },
+        {
+            "fieldname": "column_break_3",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "12",
+            "depends_on": "allow_installment",
+            "fieldname": "max_installment_months",
+            "fieldtype": "Int",
+            "label": "Макс. срок рассрочки (мес.)"
+        },
+        {
+            "fieldname": "warranty_section",
+            "fieldtype": "Section Break",
+            "label": "Гарантия"
+        },
+        {
+            "default": "12",
+            "fieldname": "warranty_months",
+            "fieldtype": "Int",
+            "label": "Гарантия (месяцев)"
+        }
+    ],
+    "image_field": "image",
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2026-01-18 10:56:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Product",
+    "naming_rule": "Expression",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Nasiya365 Admin",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Salesperson",
+            "share": 1
+        }
+    ],
+    "search_fields": "product_name,product_code,brand",
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "title_field": "product_name",
+    "track_changes": 1
+}

@@ -1,0 +1,184 @@
+version: "3.8"
+
+services:
+  # Main Frappe/ERPNext backend
+  backend:
+    image: frappe/erpnext:v16
+    restart: unless-stopped
+    command: >
+      sh -c "env/bin/pip install -e apps/nasiya365 --no-deps && cd sites && ../env/bin/gunicorn -b 0.0.0.0:8000 -w 4 -t 120 frappe.app:application --preload"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+      - apps:/home/frappe/frappe-bench/apps
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365
+    environment:
+      - SHELL=/bin/bash
+
+  # Nginx frontend
+  frontend:
+    image: frappe/erpnext:v16
+    restart: unless-stopped
+    command:
+      - nginx-entrypoint.sh
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+      - apps:/home/frappe/frappe-bench/apps
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365
+    ports:
+      - "8089:8080"
+    environment:
+      BACKEND: backend:8000
+      FRAPPE_SITE_NAME_HEADER: nasiya365.local
+      SOCKETIO: websocket:9000
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+      PROXY_READ_TIMEOUT: 120
+      CLIENT_MAX_BODY_SIZE: 50m
+    depends_on:
+      - backend
+      - websocket
+
+  # WebSocket server for realtime updates
+  websocket:
+    image: frappe/erpnext:v16
+    restart: unless-stopped
+    command:
+      - node
+      - /home/frappe/frappe-bench/apps/frappe/socketio.js
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+      backend:
+        condition: service_started
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+      - apps:/home/frappe/frappe-bench/apps
+    environment:
+      - FRAPPE_SITE_NAME_HEADER=nasiya365.local
+      - ORIGIN=http://localhost:8089
+    extra_hosts:
+      - "localhost:host-gateway"
+
+  # Scheduler for cron jobs
+  scheduler:
+    image: frappe/bench:latest
+    restart: unless-stopped
+    command: sleep infinity
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365
+
+  # Default queue worker
+  worker-default:
+    image: frappe/bench:latest
+    restart: unless-stopped
+    command: sleep infinity
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365
+
+  # Short queue worker
+  worker-short:
+    image: frappe/bench:latest
+    restart: unless-stopped
+    command: sleep infinity
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365
+
+  # Long queue worker
+  worker-long:
+    image: frappe/bench:latest
+    restart: unless-stopped
+    command: sleep infinity
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365
+
+  # Redis for caching
+  redis-cache:
+    image: redis:alpine
+    restart: unless-stopped
+    volumes:
+      - redis-cache-data:/data
+
+  # Redis for queue
+  redis-queue:
+    image: redis:alpine
+    restart: unless-stopped
+    volumes:
+      - redis-queue-data:/data
+
+  # MariaDB database
+  mariadb:
+    image: mariadb:10.6
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MYSQL_ROOT_PASSWORD: admin
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-padmin"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+volumes:
+  sites:
+  apps:
+  logs:
+  mariadb-data:
+  redis-cache-data:
+  redis-queue-data:

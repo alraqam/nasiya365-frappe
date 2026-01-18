@@ -1,0 +1,272 @@
+{
+    "actions": [],
+    "allow_rename": 1,
+    "autoname": "format:CUST-{####}",
+    "creation": "2026-01-03 00:55:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "personal_section",
+        "first_name",
+        "last_name",
+        "middle_name",
+        "column_break_1",
+        "date_of_birth",
+        "gender",
+        "message_language",
+        "column_break_2",
+        "status",
+        "kyc_verified",
+        "phone_numbers_section",
+        "phone_numbers",
+        "identity_section",
+        "passport_series",
+        "passport_number",
+        "passport_issue_date",
+        "passport_expiry_date",
+        "pinfl",
+        "column_break_identity",
+        "passport_image",
+        "address_section",
+        "registration_address",
+        "current_address",
+        "same_as_registration",
+        "column_break_address",
+        "city",
+        "employment_section",
+        "workplace",
+        "position",
+        "column_break_employment",
+        "monthly_income"
+    ],
+    "fields": [
+        {
+            "fieldname": "personal_section",
+            "fieldtype": "Section Break",
+            "label": "Личная информация"
+        },
+        {
+            "fieldname": "first_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Имя",
+            "reqd": 1
+        },
+        {
+            "fieldname": "last_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Фамилия",
+            "reqd": 1
+        },
+        {
+            "fieldname": "middle_name",
+            "fieldtype": "Data",
+            "label": "Отчество"
+        },
+        {
+            "fieldname": "column_break_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "date_of_birth",
+            "fieldtype": "Date",
+            "label": "Дата рождения"
+        },
+        {
+            "fieldname": "gender",
+            "fieldtype": "Select",
+            "label": "Пол",
+            "options": "\nМужской\nЖенский"
+        },
+        {
+            "default": "Uzbek",
+            "fieldname": "message_language",
+            "fieldtype": "Select",
+            "label": "Язык сообщений",
+            "options": "Узбекский\nРусский\nАнглийский"
+        },
+        {
+            "fieldname": "column_break_2",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "Active",
+            "fieldname": "status",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Статус",
+            "options": "Активный\nПриостановлен\nЧерный список"
+        },
+        {
+            "default": "0",
+            "fieldname": "kyc_verified",
+            "fieldtype": "Check",
+            "in_list_view": 1,
+            "label": "KYC подтвержден"
+        },
+        {
+            "fieldname": "phone_numbers_section",
+            "fieldtype": "Section Break",
+            "label": "Номера телефонов"
+        },
+        {
+            "fieldname": "phone_numbers",
+            "fieldtype": "Table",
+            "label": "Телефоны",
+            "options": "Customer Phone Number"
+        },
+        {
+            "fieldname": "identity_section",
+            "fieldtype": "Section Break",
+            "label": "Документы"
+        },
+        {
+            "fieldname": "passport_series",
+            "fieldtype": "Data",
+            "label": "Серия паспорта",
+            "length": 2
+        },
+        {
+            "fieldname": "passport_number",
+            "fieldtype": "Data",
+            "label": "Номер паспорта",
+            "length": 7
+        },
+        {
+            "fieldname": "passport_issue_date",
+            "fieldtype": "Date",
+            "label": "Дата выдачи паспорта"
+        },
+        {
+            "fieldname": "passport_expiry_date",
+            "fieldtype": "Date",
+            "label": "Срок действия паспорта"
+        },
+        {
+            "fieldname": "pinfl",
+            "fieldtype": "Data",
+            "label": "PINFL",
+            "length": 14,
+            "unique": 1
+        },
+        {
+            "fieldname": "column_break_identity",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "passport_image",
+            "fieldtype": "Attach Image",
+            "label": "Фото паспорта"
+        },
+        {
+            "fieldname": "address_section",
+            "fieldtype": "Section Break",
+            "label": "Адресная информация"
+        },
+        {
+            "fieldname": "registration_address",
+            "fieldtype": "Small Text",
+            "label": "Адрес прописки"
+        },
+        {
+            "fieldname": "current_address",
+            "fieldtype": "Small Text",
+            "label": "Адрес проживания"
+        },
+        {
+            "default": "0",
+            "fieldname": "same_as_registration",
+            "fieldtype": "Check",
+            "label": "Совпадает с пропиской"
+        },
+        {
+            "fieldname": "column_break_address",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "city",
+            "fieldtype": "Data",
+            "in_standard_filter": 1,
+            "label": "Город"
+        },
+        {
+            "fieldname": "employment_section",
+            "fieldtype": "Section Break",
+            "label": "Информация о работе"
+        },
+        {
+            "fieldname": "workplace",
+            "fieldtype": "Data",
+            "label": "Место работы"
+        },
+        {
+            "fieldname": "position",
+            "fieldtype": "Data",
+            "label": "Должность"
+        },
+        {
+            "fieldname": "column_break_employment",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "monthly_income",
+            "fieldtype": "Currency",
+            "label": "Ежемесячный доход"
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2026-01-18 09:45:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Customer Profile",
+    "naming_rule": "Expression",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Salesperson",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Nasiya365 Admin",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "quick_entry": 0,
+    "search_fields": "first_name,last_name,phone",
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "title_field": "first_name",
+    "track_changes": 1
+}

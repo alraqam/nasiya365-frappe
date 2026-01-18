@@ -1,0 +1,153 @@
+{
+    "actions": [],
+    "autoname": "format:STE-{YYYY}-{#####}",
+    "creation": "2026-01-18 12:55:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "entry_type",
+        "posting_date",
+        "posting_time",
+        "column_break_1",
+        "warehouse",
+        "to_warehouse",
+        "items_section",
+        "items",
+        "totals_section",
+        "total_quantity",
+        "column_break_2",
+        "total_value",
+        "additional_info",
+        "remarks"
+    ],
+    "fields": [
+        {
+            "fieldname": "entry_type",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Тип операции",
+            "options": "Поступление\nОтпуск\nПеремещение\nКорректировка",
+            "reqd": 1
+        },
+        {
+            "default": "Today",
+            "fieldname": "posting_date",
+            "fieldtype": "Date",
+            "in_list_view": 1,
+            "label": "Дата",
+            "reqd": 1
+        },
+        {
+            "default": "now",
+            "fieldname": "posting_time",
+            "fieldtype": "Time",
+            "label": "Время"
+        },
+        {
+            "fieldname": "column_break_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "warehouse",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Склад",
+            "options": "Warehouse",
+            "reqd": 1
+        },
+        {
+            "depends_on": "eval:doc.entry_type=='Перемещение'",
+            "fieldname": "to_warehouse",
+            "fieldtype": "Link",
+            "label": "На склад",
+            "options": "Warehouse"
+        },
+        {
+            "fieldname": "items_section",
+            "fieldtype": "Section Break",
+            "label": "Товары"
+        },
+        {
+            "fieldname": "items",
+            "fieldtype": "Table",
+            "label": "Позиции",
+            "options": "Stock Entry Item",
+            "reqd": 1
+        },
+        {
+            "fieldname": "totals_section",
+            "fieldtype": "Section Break",
+            "label": "Итого"
+        },
+        {
+            "default": "0",
+            "fieldname": "total_quantity",
+            "fieldtype": "Float",
+            "label": "Всего количество",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_2",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "0",
+            "fieldname": "total_value",
+            "fieldtype": "Currency",
+            "label": "Общая стоимость",
+            "read_only": 1
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "additional_info",
+            "fieldtype": "Section Break",
+            "label": "Дополнительно"
+        },
+        {
+            "fieldname": "remarks",
+            "fieldtype": "Small Text",
+            "label": "Примечания"
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "is_submittable": 1,
+    "links": [],
+    "modified": "2026-01-18 12:55:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Stock Entry",
+    "naming_rule": "Expression",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "submit": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Nasiya365 Admin",
+            "share": 1,
+            "submit": 1,
+            "write": 1
+        }
+    ],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": [],
+    "track_changes": 1
+}

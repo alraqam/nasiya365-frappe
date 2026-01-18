@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment
+.env
+.env.local
+.env.prod
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes (local dev)
+sites/
+logs/
+
+# Temp files
+*.log
+*.tmp
+*.bak
+
+# Python
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+
+# Fix scripts (dev only)
+fix_workspace*.py
+build_dashboard.py
+add_stock_entry_workspace.py
+fix_nasiya_workspace*.py

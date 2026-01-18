@@ -1,0 +1,153 @@
+{
+    "actions": [],
+    "autoname": "format:CASH-{YYYY}-{#####}",
+    "creation": "2026-01-18 11:00:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "cashbox_name",
+        "branch",
+        "responsible_user",
+        "column_break_1",
+        "opening_date",
+        "opening_balance",
+        "status",
+        "transactions_section",
+        "transactions",
+        "summary_section",
+        "total_income",
+        "total_expense",
+        "column_break_2",
+        "closing_date",
+        "closing_balance"
+    ],
+    "fields": [
+        {
+            "fieldname": "cashbox_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Cashbox Name",
+            "reqd": 1
+        },
+        {
+            "fieldname": "branch",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Branch",
+            "options": "Branch"
+        },
+        {
+            "default": "user",
+            "fieldname": "responsible_user",
+            "fieldtype": "Link",
+            "label": "Responsible User",
+            "options": "User"
+        },
+        {
+            "fieldname": "column_break_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "Today",
+            "fieldname": "opening_date",
+            "fieldtype": "Date",
+            "in_list_view": 1,
+            "label": "Opening Date",
+            "reqd": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "opening_balance",
+            "fieldtype": "Currency",
+            "label": "Opening Balance",
+            "reqd": 1
+        },
+        {
+            "default": "Open",
+            "fieldname": "status",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Status",
+            "options": "Open\nClosed"
+        },
+        {
+            "fieldname": "transactions_section",
+            "fieldtype": "Section Break",
+            "label": "Transactions"
+        },
+        {
+            "fieldname": "transactions",
+            "fieldtype": "Table",
+            "label": "Transactions",
+            "options": "Cashbox Transaction"
+        },
+        {
+            "fieldname": "summary_section",
+            "fieldtype": "Section Break",
+            "label": "Summary"
+        },
+        {
+            "default": "0",
+            "fieldname": "total_income",
+            "fieldtype": "Currency",
+            "label": "Total Income",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "total_expense",
+            "fieldtype": "Currency",
+            "label": "Total Expense",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_2",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "closing_date",
+            "fieldtype": "Date",
+            "label": "Closing Date",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "closing_balance",
+            "fieldtype": "Currency",
+            "label": "Closing Balance",
+            "read_only": 1
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2026-01-18 11:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Cashbox",
+    "naming_rule": "Expression",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "read": 1,
+            "role": "Cashier",
+            "write": 1
+        }
+    ],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "title_field": "cashbox_name",
+    "track_changes": 1
+}

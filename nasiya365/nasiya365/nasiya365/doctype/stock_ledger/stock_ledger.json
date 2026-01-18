@@ -1,0 +1,105 @@
+{
+ "actions": [],
+ "creation": "2026-01-03 00:55:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "product",
+  "warehouse",
+  "quantity_change",
+  "balance_quantity",
+  "valuation_rate",
+  "reference_doctype",
+  "reference_name",
+  "posting_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "product",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Product",
+   "options": "Product",
+   "reqd": 1
+  },
+  {
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Warehouse",
+   "options": "Warehouse",
+   "reqd": 1
+  },
+  {
+   "fieldname": "quantity_change",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Quantity Change"
+  },
+  {
+   "fieldname": "balance_quantity",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Balance Quantity"
+  },
+  {
+   "fieldname": "valuation_rate",
+   "fieldtype": "Currency",
+   "label": "Valuation Rate"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Data",
+   "label": "Reference DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doctype"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Posting Date"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-01-03 00:55:00.000000",
+ "modified_by": "Administrator",
+ "module": "nasiya365",
+ "name": "Stock Ledger",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nasiya365 Admin"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Warehouse Manager"
+  }
+ ],
+ "search_fields": "product,warehouse",
+ "sort_field": "posting_date",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

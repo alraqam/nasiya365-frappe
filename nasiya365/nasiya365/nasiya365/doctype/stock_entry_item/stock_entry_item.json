@@ -1,0 +1,56 @@
+{
+    "actions": [],
+    "creation": "2026-01-18 12:55:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "product",
+        "quantity",
+        "rate",
+        "amount"
+    ],
+    "fields": [
+        {
+            "fieldname": "product",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Товар",
+            "options": "Product",
+            "reqd": 1
+        },
+        {
+            "fieldname": "quantity",
+            "fieldtype": "Float",
+            "in_list_view": 1,
+            "label": "Количество",
+            "reqd": 1
+        },
+        {
+            "fieldname": "rate",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Цена",
+            "reqd": 1
+        },
+        {
+            "fieldname": "amount",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Сумма",
+            "read_only": 1
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "istable": 1,
+    "links": [],
+    "modified": "2026-01-18 12:55:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Stock Entry Item",
+    "owner": "Administrator",
+    "permissions": [],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": [],
+    "track_changes": 1
+}

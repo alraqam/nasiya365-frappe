@@ -1,0 +1,179 @@
+version: "3.8"
+
+# Nasiya365 Production Docker Compose for EasyPanel
+# This file is optimized for production deployment
+
+services:
+  # Main Frappe/ERPNext backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: >
+      sh -c "cd sites && ../env/bin/gunicorn -b 0.0.0.0:8000 -w ${GUNICORN_WORKERS:-4} -t 120 frappe.app:application --preload"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    environment:
+      - FRAPPE_SITE_NAME_HEADER=${FRAPPE_SITE_NAME}
+    networks:
+      - nasiya365-network
+
+  # Nginx frontend
+  frontend:
+    image: frappe/erpnext:v16
+    restart: always
+    command:
+      - nginx-entrypoint.sh
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    ports:
+      - "8080:8080"
+    environment:
+      BACKEND: backend:8000
+      FRAPPE_SITE_NAME_HEADER: ${FRAPPE_SITE_NAME}
+      SOCKETIO: websocket:9000
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
+      PROXY_READ_TIMEOUT: 120
+      CLIENT_MAX_BODY_SIZE: 50m
+    depends_on:
+      - backend
+      - websocket
+    networks:
+      - nasiya365-network
+
+  # WebSocket server for realtime updates
+  websocket:
+    image: frappe/erpnext:v16
+    restart: always
+    command:
+      - node
+      - /home/frappe/frappe-bench/apps/frappe/socketio.js
+    depends_on:
+      - backend
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    environment:
+      - FRAPPE_SITE_NAME_HEADER=${FRAPPE_SITE_NAME}
+    networks:
+      - nasiya365-network
+
+  # Background workers
+  worker-default:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: bench worker --queue default
+    depends_on:
+      - backend
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    networks:
+      - nasiya365-network
+
+  worker-short:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: bench worker --queue short
+    depends_on:
+      - backend
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    networks:
+      - nasiya365-network
+
+  worker-long:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: bench worker --queue long
+    depends_on:
+      - backend
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    networks:
+      - nasiya365-network
+
+  # Scheduler for cron jobs
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: bench schedule
+    depends_on:
+      - backend
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    networks:
+      - nasiya365-network
+
+  # Redis for caching
+  redis-cache:
+    image: redis:alpine
+    restart: always
+    volumes:
+      - redis-cache-data:/data
+    networks:
+      - nasiya365-network
+
+  # Redis for queue
+  redis-queue:
+    image: redis:alpine
+    restart: always
+    volumes:
+      - redis-queue-data:/data
+    networks:
+      - nasiya365-network
+
+  # MariaDB database
+  mariadb:
+    image: mariadb:10.6
+    restart: always
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    networks:
+      - nasiya365-network
+
+networks:
+  nasiya365-network:
+    driver: bridge
+
+volumes:
+  sites:
+  logs:
+  mariadb-data:
+  redis-cache-data:
+  redis-queue-data:

@@ -1,0 +1,274 @@
+{
+ "actions": [],
+ "creation": "2026-01-03 00:55:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "company_section",
+  "company_name",
+  "logo",
+  "column_break_1",
+  "primary_color",
+  "currency",
+  "credit_section",
+  "default_interest_rate",
+  "max_credit_limit",
+  "column_break_2",
+  "late_fee_percentage",
+  "grace_period_days",
+  "installment_section",
+  "default_down_payment_percent",
+  "min_installment_months",
+  "column_break_3",
+  "max_installment_months",
+  "allowed_frequencies",
+  "notifications_section",
+  "enable_sms_notifications",
+  "sms_provider",
+  "sms_api_key",
+  "column_break_4",
+  "enable_telegram_notifications",
+  "telegram_bot_token",
+  "telegram_chat_id",
+  "payment_section",
+  "enable_click",
+  "click_merchant_id",
+  "click_service_id",
+  "click_secret_key",
+  "column_break_5",
+  "enable_payme",
+  "payme_merchant_id",
+  "payme_secret_key"
+ ],
+ "fields": [
+  {
+   "fieldname": "company_section",
+   "fieldtype": "Section Break",
+   "label": "Company Information"
+  },
+  {
+   "fieldname": "company_name",
+   "fieldtype": "Data",
+   "label": "Company Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "primary_color",
+   "fieldtype": "Color",
+   "label": "Primary Color"
+  },
+  {
+   "default": "UZS",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "credit_section",
+   "fieldtype": "Section Break",
+   "label": "Credit Settings"
+  },
+  {
+   "default": "0",
+   "fieldname": "default_interest_rate",
+   "fieldtype": "Percent",
+   "label": "Default Interest Rate (Monthly %)"
+  },
+  {
+   "default": "50000000",
+   "fieldname": "max_credit_limit",
+   "fieldtype": "Currency",
+   "label": "Max Credit Limit Per Customer"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "late_fee_percentage",
+   "fieldtype": "Percent",
+   "label": "Late Fee Percentage"
+  },
+  {
+   "default": "3",
+   "fieldname": "grace_period_days",
+   "fieldtype": "Int",
+   "label": "Grace Period (Days)"
+  },
+  {
+   "fieldname": "installment_section",
+   "fieldtype": "Section Break",
+   "label": "Installment Settings"
+  },
+  {
+   "default": "20",
+   "fieldname": "default_down_payment_percent",
+   "fieldtype": "Percent",
+   "label": "Default Down Payment %"
+  },
+  {
+   "default": "1",
+   "fieldname": "min_installment_months",
+   "fieldtype": "Int",
+   "label": "Min Installment Months"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "12",
+   "fieldname": "max_installment_months",
+   "fieldtype": "Int",
+   "label": "Max Installment Months"
+  },
+  {
+   "default": "Monthly",
+   "fieldname": "allowed_frequencies",
+   "fieldtype": "Select",
+   "label": "Allowed Frequencies",
+   "options": "Weekly\nBi-weekly\nMonthly"
+  },
+  {
+   "fieldname": "notifications_section",
+   "fieldtype": "Section Break",
+   "label": "Notifications"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_sms_notifications",
+   "fieldtype": "Check",
+   "label": "Enable SMS Notifications"
+  },
+  {
+   "depends_on": "enable_sms_notifications",
+   "fieldname": "sms_provider",
+   "fieldtype": "Select",
+   "label": "SMS Provider",
+   "options": "\nEskiz\nPlaymobile"
+  },
+  {
+   "depends_on": "enable_sms_notifications",
+   "fieldname": "sms_api_key",
+   "fieldtype": "Password",
+   "label": "SMS API Key"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_telegram_notifications",
+   "fieldtype": "Check",
+   "label": "Enable Telegram Notifications"
+  },
+  {
+   "depends_on": "enable_telegram_notifications",
+   "fieldname": "telegram_bot_token",
+   "fieldtype": "Password",
+   "label": "Telegram Bot Token"
+  },
+  {
+   "depends_on": "enable_telegram_notifications",
+   "fieldname": "telegram_chat_id",
+   "fieldtype": "Data",
+   "label": "Telegram Chat ID"
+  },
+  {
+   "fieldname": "payment_section",
+   "fieldtype": "Section Break",
+   "label": "Payment Gateways"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_click",
+   "fieldtype": "Check",
+   "label": "Enable Click"
+  },
+  {
+   "depends_on": "enable_click",
+   "fieldname": "click_merchant_id",
+   "fieldtype": "Data",
+   "label": "Click Merchant ID"
+  },
+  {
+   "depends_on": "enable_click",
+   "fieldname": "click_service_id",
+   "fieldtype": "Data",
+   "label": "Click Service ID"
+  },
+  {
+   "depends_on": "enable_click",
+   "fieldname": "click_secret_key",
+   "fieldtype": "Password",
+   "label": "Click Secret Key"
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_payme",
+   "fieldtype": "Check",
+   "label": "Enable Payme"
+  },
+  {
+   "depends_on": "enable_payme",
+   "fieldname": "payme_merchant_id",
+   "fieldtype": "Data",
+   "label": "Payme Merchant ID"
+  },
+  {
+   "depends_on": "enable_payme",
+   "fieldname": "payme_secret_key",
+   "fieldtype": "Password",
+   "label": "Payme Secret Key"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-01-03 00:55:00.000000",
+ "modified_by": "Administrator",
+ "module": "nasiya365",
+ "name": "Merchant Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Nasiya365 Admin",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}
