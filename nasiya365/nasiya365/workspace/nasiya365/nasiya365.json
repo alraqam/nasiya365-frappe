@@ -1,0 +1,217 @@
+{
+    "charts": [],
+    "content": "[{\"id\":\"heading-nasiya365\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Nasiya365</b></span>\",\"col\":12}},{\"id\":\"shortcut-customer-profile\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Профиль клиента\",\"col\":4}},{\"id\":\"shortcut-product\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Товар\",\"col\":4}},{\"id\":\"shortcut-sales-order\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Заказ на продажу\",\"col\":4}},{\"id\":\"shortcut-stock-entry\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Складская запись\",\"col\":4}},{\"id\":\"shortcut-contract\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Договор\",\"col\":4}},{\"id\":\"shortcut-installment-plan\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"План рассрочки\",\"col\":4}},{\"id\":\"shortcut-payment-transaction\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Платежная транзакция\",\"col\":4}}]",
+    "creation": "2026-01-07 02:02:00.000000",
+    "custom_blocks": [],
+    "docstatus": 0,
+    "doctype": "Workspace",
+    "for_user": "",
+    "hide_custom": 0,
+    "icon": "money",
+    "idx": 0,
+    "is_hidden": 0,
+    "label": "Nasiya365",
+    "links": [
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Клиенты",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Customer Profile",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Товары",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Product",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Категории товаров",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Product Category",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Заказы на продажу",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Sales Order",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Договоры",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Contract",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Планы рассрочки",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Installment Plan",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Платежные транзакции",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Payment Transaction",
+            "onboard": 1,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Филиалы",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Branch",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Склады",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Warehouse",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Складской учет",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Stock Ledger",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Складские записи",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Stock Entry",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Настройки продавца",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Merchant Settings",
+            "onboard": 0,
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Шаблоны печати",
+            "link_count": 0,
+            "link_type": "DocType",
+            "link_to": "Print Template",
+            "onboard": 0,
+            "type": "Link"
+        }
+    ],
+    "modified": "2026-01-18 13:58:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Nasiya365",
+    "number_cards": [],
+    "owner": "Administrator",
+    "parent_page": "",
+    "public": 1,
+    "quick_lists": [],
+    "restrict_to_domain": "",
+    "roles": [],
+    "sequence_id": 10,
+    "shortcuts": [
+        {
+            "color": "Blue",
+            "doc_view": "List",
+            "label": "Профиль клиента",
+            "link_to": "Customer Profile",
+            "type": "DocType"
+        },
+        {
+            "color": "Green",
+            "doc_view": "List",
+            "label": "Товар",
+            "link_to": "Product",
+            "type": "DocType"
+        },
+        {
+            "color": "Orange",
+            "doc_view": "List",
+            "label": "Заказ на продажу",
+            "link_to": "Sales Order",
+            "type": "DocType"
+        },
+        {
+            "color": "Purple",
+            "doc_view": "List",
+            "label": "Договор",
+            "link_to": "Contract",
+            "type": "DocType"
+        },
+        {
+            "color": "Yellow",
+            "doc_view": "List",
+            "label": "План рассрочки",
+            "link_to": "Installment Plan",
+            "type": "DocType"
+        },
+        {
+            "color": "Cyan",
+            "doc_view": "List",
+            "label": "Платежная транзакция",
+            "link_to": "Payment Transaction",
+            "type": "DocType"
+        },
+        {
+            "color": "Red",
+            "doc_view": "List",
+            "label": "Складская запись",
+            "link_to": "Stock Entry",
+            "type": "DocType"
+        },
+        {
+            "color": "Gray",
+            "doc_view": "Form",
+            "label": "Инструмент импорта",
+            "link_to": "Data Import Tool",
+            "type": "DocType"
+        }
+    ],
+    "title": "Nasiya365"
+}

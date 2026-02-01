@@ -1,0 +1,89 @@
+{
+    "actions": [],
+    "creation": "2024-01-31 10:00:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "import_section",
+        "import_type",
+        "csv_file",
+        "default_branch",
+        "run_import",
+        "logs_section",
+        "import_log"
+    ],
+    "fields": [
+        {
+            "fieldname": "import_section",
+            "fieldtype": "Section Break",
+            "label": "Настройки импорта"
+        },
+        {
+            "default": "BNPL Sales",
+            "fieldname": "import_type",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Тип импорта",
+            "options": "Импорт складских записей\nИмпорт клиентов\nИмпорт поставщиков\nИмпорт закупок\nИмпорт договоров\nИмпорт платежей",
+            "reqd": 1
+        },
+        {
+            "fieldname": "csv_file",
+            "fieldtype": "Attach",
+            "label": "CSV Файл",
+            "reqd": 1
+        },
+        {
+            "fieldname": "default_branch",
+            "fieldtype": "Link",
+            "label": "Филиал по умолчанию",
+            "options": "Branch",
+            "reqd": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "skip_validation",
+            "fieldtype": "Check",
+            "label": "Пропустить валидацию"
+        },
+        {
+            "fieldname": "run_import",
+            "fieldtype": "Button",
+            "label": "Запустить импорт"
+        },
+        {
+            "fieldname": "logs_section",
+            "fieldtype": "Section Break",
+            "label": "Логи импорта"
+        },
+        {
+            "fieldname": "import_log",
+            "fieldtype": "Long Text",
+            "label": "Вывод лога",
+            "read_only": 1
+        }
+    ],
+    "issingle": 1,
+    "links": [],
+    "modified": "2024-01-31 10:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Data Import Tool",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": []
+}

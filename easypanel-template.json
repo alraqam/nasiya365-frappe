@@ -1,53 +1,55 @@
 {
     "services": [
         {
-            "type": "app",
+            "type": "mariadb",
             "data": {
                 "serviceName": "mariadb",
-                "source": {
-                    "type": "image",
-                    "image": "mariadb:10.6"
-                },
-                "env": "MYSQL_ROOT_PASSWORD=NasiyaSecure2026\nMYSQL_CHARACTER_SET_SERVER=utf8mb4\nMYSQL_COLLATION_SERVER=utf8mb4_unicode_ci",
-                "mounts": [
-                    {
-                        "type": "volume",
-                        "name": "mariadb-data",
-                        "mountPath": "/var/lib/mysql"
-                    }
-                ]
+                "password": "NasiyaSecure2026"
+            }
+        },
+        {
+            "type": "redis",
+            "data": {
+                "serviceName": "redis-cache"
+            }
+        },
+        {
+            "type": "redis",
+            "data": {
+                "serviceName": "redis-queue"
             }
         },
         {
             "type": "app",
             "data": {
-                "serviceName": "redis-cache",
+                "serviceName": "init",
                 "source": {
-                    "type": "image",
-                    "image": "redis:alpine"
+                    "type": "github",
+                    "owner": "alraqam",
+                    "repo": "nasiya365-frappe",
+                    "ref": "main",
+                    "path": "/",
+                    "autoDeploy": false
                 },
+                "build": {
+                    "type": "dockerfile",
+                    "file": "Dockerfile"
+                },
+                "deploy": {
+                    "command": "/home/frappe/init-site.sh",
+                    "replicas": 1
+                },
+                "env": "FRAPPE_SITE_NAME=my.nasiya365.uz\nDB_HOST=mariadb\nDB_ROOT_PASSWORD=NasiyaSecure2026\nADMIN_PASSWORD=admin\nREDIS_CACHE=redis-cache:6379\nREDIS_QUEUE=redis-queue:6379",
                 "mounts": [
                     {
                         "type": "volume",
-                        "name": "redis-cache-data",
-                        "mountPath": "/data"
-                    }
-                ]
-            }
-        },
-        {
-            "type": "app",
-            "data": {
-                "serviceName": "redis-queue",
-                "source": {
-                    "type": "image",
-                    "image": "redis:alpine"
-                },
-                "mounts": [
+                        "name": "sites",
+                        "mountPath": "/home/frappe/frappe-bench/sites"
+                    },
                     {
                         "type": "volume",
-                        "name": "redis-queue-data",
-                        "mountPath": "/data"
+                        "name": "logs",
+                        "mountPath": "/home/frappe/frappe-bench/logs"
                     }
                 ]
             }
@@ -61,7 +63,8 @@
                     "owner": "alraqam",
                     "repo": "nasiya365-frappe",
                     "ref": "main",
-                    "path": "/"
+                    "path": "/",
+                    "autoDeploy": true
                 },
                 "build": {
                     "type": "dockerfile",
@@ -70,7 +73,7 @@
                 "deploy": {
                     "command": "sh -c 'cd sites && ../env/bin/gunicorn -b 0.0.0.0:8000 -w 4 -t 120 frappe.app:application --preload'"
                 },
-                "env": "FRAPPE_SITE_NAME_HEADER=my.nasiya365.uz\nDB_HOST=$(PROJECT_NAME)_mariadb\nREDIS_CACHE=$(PROJECT_NAME)_redis-cache:6379\nREDIS_QUEUE=$(PROJECT_NAME)_redis-queue:6379",
+                "env": "FRAPPE_SITE_NAME_HEADER=my.nasiya365.uz\nDB_HOST=mariadb\nREDIS_CACHE=redis-cache:6379\nREDIS_QUEUE=redis-queue:6379",
                 "mounts": [
                     {
                         "type": "volume",
@@ -102,7 +105,7 @@
                         "port": 8080
                     }
                 ],
-                "env": "BACKEND=$(PROJECT_NAME)_backend:8000\nFRAPPE_SITE_NAME_HEADER=my.nasiya365.uz\nSOCKETIO=$(PROJECT_NAME)_websocket:9000\nUPSTREAM_REAL_IP_ADDRESS=127.0.0.1\nUPSTREAM_REAL_IP_HEADER=X-Forwarded-For\nCLIENT_MAX_BODY_SIZE=50m",
+                "env": "BACKEND=backend:8000\nFRAPPE_SITE_NAME_HEADER=my.nasiya365.uz\nSOCKETIO=websocket:9000\nUPSTREAM_REAL_IP_ADDRESS=127.0.0.1\nUPSTREAM_REAL_IP_HEADER=X-Forwarded-For\nCLIENT_MAX_BODY_SIZE=50m",
                 "mounts": [
                     {
                         "type": "volume",
@@ -147,7 +150,8 @@
                     "owner": "alraqam",
                     "repo": "nasiya365-frappe",
                     "ref": "main",
-                    "path": "/"
+                    "path": "/",
+                    "autoDeploy": true
                 },
                 "build": {
                     "type": "dockerfile",
@@ -179,7 +183,8 @@
                     "owner": "alraqam",
                     "repo": "nasiya365-frappe",
                     "ref": "main",
-                    "path": "/"
+                    "path": "/",
+                    "autoDeploy": true
                 },
                 "build": {
                     "type": "dockerfile",

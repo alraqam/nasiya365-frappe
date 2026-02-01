@@ -21,7 +21,7 @@ def generate_contract_pdf(contract_name):
     contract = frappe.get_doc("Contract", contract_name)
     
     if not contract.template:
-        frappe.throw(_("No print template selected for this contract"))
+        frappe.throw(_("Шаблон печати не выбран для этого договора"))
     
     template_doc = frappe.get_doc("Print Template", contract.template)
     
@@ -50,10 +50,10 @@ def generate_contract_pdf(contract_name):
         
     except ImportError:
         frappe.log_error("WeasyPrint not installed", "PDF Generation Error")
-        frappe.throw(_("PDF generation library not available"))
+        frappe.throw(_("Библиотека генерации PDF недоступна"))
     except Exception as e:
         frappe.log_error(str(e), "PDF Generation Error")
-        frappe.throw(_("Error generating PDF: {0}").format(str(e)))
+        frappe.throw(_("Ошибка при генерации PDF: {0}").format(str(e)))
 
 
 def get_template_context(contract):

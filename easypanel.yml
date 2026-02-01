@@ -45,7 +45,7 @@ services:
         name: logs
         mountPath: /home/frappe/frappe-bench/logs
 
-  # Nginx Frontend
+  # Nginx Frontend (uses frappe/erpnext for stable deployment)
   frontend:
     type: app
     image: frappe/erpnext:v16

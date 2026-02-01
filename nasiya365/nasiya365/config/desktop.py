@@ -13,7 +13,7 @@ def get_data():
             "color": "#2E7D32",
             "icon": "octicon octicon-credit-card",
             "type": "module",
-            "label": _("Nasiya365 BNPL"),
-            "description": _("Buy Now Pay Later Platform"),
+            "label": _("Nasiya365"),
+            "description": _("Платформа рассрочки (BNPL)"),
         }
     ]

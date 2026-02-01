@@ -1,0 +1,154 @@
+{
+    "actions": [],
+    "allow_rename": 1,
+    "autoname": "format:TPL-{####}",
+    "creation": "2026-01-03 00:55:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "template_section",
+        "template_name",
+        "template_type",
+        "column_break_1",
+        "is_default",
+        "language",
+        "page_section",
+        "page_size",
+        "orientation",
+        "content_section",
+        "header_html",
+        "body_html",
+        "footer_html",
+        "styles_section",
+        "css_styles"
+    ],
+    "fields": [
+        {
+            "fieldname": "template_section",
+            "fieldtype": "Section Break",
+            "label": "Информация о шаблоне"
+        },
+        {
+            "fieldname": "template_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Название шаблона",
+            "reqd": 1
+        },
+        {
+            "fieldname": "template_type",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Тип шаблона",
+            "options": "Договор\nЧек\nГрафик\nСчет",
+            "reqd": 1
+        },
+        {
+            "fieldname": "column_break_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "0",
+            "fieldname": "is_default",
+            "fieldtype": "Check",
+            "in_list_view": 1,
+            "label": "По умолчанию"
+        },
+        {
+            "default": "uz",
+            "fieldname": "language",
+            "fieldtype": "Select",
+            "label": "Язык",
+            "options": "uz\nru\nen"
+        },
+        {
+            "fieldname": "page_section",
+            "fieldtype": "Section Break",
+            "label": "Настройки страницы"
+        },
+        {
+            "default": "A4",
+            "fieldname": "page_size",
+            "fieldtype": "Select",
+            "label": "Размер страницы",
+            "options": "A4\nLetter\nLegal"
+        },
+        {
+            "default": "Portrait",
+            "fieldname": "orientation",
+            "fieldtype": "Select",
+            "label": "Ориентация",
+            "options": "Книжная\nАльбомная"
+        },
+        {
+            "fieldname": "content_section",
+            "fieldtype": "Section Break",
+            "label": "Содержимое"
+        },
+        {
+            "fieldname": "header_html",
+            "fieldtype": "Code",
+            "label": "HTML Заголовок",
+            "options": "HTML"
+        },
+        {
+            "fieldname": "body_html",
+            "fieldtype": "Code",
+            "label": "HTML Тело",
+            "options": "HTML",
+            "reqd": 1
+        },
+        {
+            "fieldname": "footer_html",
+            "fieldtype": "Code",
+            "label": "HTML Подвал",
+            "options": "HTML"
+        },
+        {
+            "fieldname": "styles_section",
+            "fieldtype": "Section Break",
+            "label": "Стили"
+        },
+        {
+            "fieldname": "css_styles",
+            "fieldtype": "Code",
+            "label": "CSS Стили",
+            "options": "CSS"
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2026-01-03 00:55:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Print Template",
+    "naming_rule": "Expression",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "delete": 1,
+            "read": 1,
+            "role": "Nasiya365 Admin",
+            "write": 1
+        }
+    ],
+    "search_fields": "template_name,template_type",
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "title_field": "template_name",
+    "track_changes": 1
+}

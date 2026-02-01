@@ -1,0 +1,47 @@
+{
+    "actions": [],
+    "creation": "2026-01-03 00:55:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "user",
+        "role",
+        "is_active"
+    ],
+    "fields": [
+        {
+            "fieldname": "user",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Пользователь",
+            "options": "User",
+            "reqd": 1
+        },
+        {
+            "fieldname": "role",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Роль",
+            "options": "Менеджер\nПродавец\nКассир\nКоллектор",
+            "reqd": 1
+        },
+        {
+            "default": "1",
+            "fieldname": "is_active",
+            "fieldtype": "Check",
+            "in_list_view": 1,
+            "label": "Активен"
+        }
+    ],
+    "istable": 1,
+    "links": [],
+    "modified": "2026-01-03 00:55:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Branch User",
+    "owner": "Administrator",
+    "permissions": [],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "track_changes": 1
+}

@@ -1,0 +1,68 @@
+{
+    "actions": [],
+    "creation": "2026-01-03 00:55:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "installment_number",
+        "due_date",
+        "amount",
+        "status",
+        "paid_amount",
+        "paid_date"
+    ],
+    "fields": [
+        {
+            "fieldname": "installment_number",
+            "fieldtype": "Int",
+            "in_list_view": 1,
+            "label": "#",
+            "read_only": 1
+        },
+        {
+            "fieldname": "due_date",
+            "fieldtype": "Date",
+            "in_list_view": 1,
+            "label": "Срок оплаты",
+            "reqd": 1
+        },
+        {
+            "fieldname": "amount",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Сумма",
+            "reqd": 1
+        },
+        {
+            "default": "Pending",
+            "fieldname": "status",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Статус",
+            "options": "Ожидает\nОплачен\nЧастично\nПросрочен"
+        },
+        {
+            "default": "0",
+            "fieldname": "paid_amount",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Оплачено"
+        },
+        {
+            "fieldname": "paid_date",
+            "fieldtype": "Date",
+            "label": "Дата оплаты"
+        }
+    ],
+    "istable": 1,
+    "links": [],
+    "modified": "2026-01-03 00:55:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Installment Schedule",
+    "owner": "Administrator",
+    "permissions": [],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "track_changes": 1
+}

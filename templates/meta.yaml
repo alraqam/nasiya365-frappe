@@ -1,8 +1,9 @@
 name: Nasiya365
 description: |
   Nasiya365 is a comprehensive BNPL (Buy Now Pay Later) and installment management 
-  system built on Frappe Framework v16. It provides a complete solution for managing 
-  customers, products, sales orders, installment plans, and payment transactions.
+  system built on Frappe Framework v16 (without ERPNext). It provides a complete 
+  standalone solution for managing customers, products, sales orders, installment 
+  plans, and payment transactions.
   
   Key features include:
   - Customer Profile Management with phone number tracking

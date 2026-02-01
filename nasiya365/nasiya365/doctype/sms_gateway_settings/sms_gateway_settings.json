@@ -1,0 +1,91 @@
+{
+    "actions": [],
+    "creation": "2024-01-18 12:00:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "sms_provider",
+        "sender_id",
+        "eskiz_section",
+        "eskiz_email",
+        "eskiz_api_key",
+        "playmobile_section",
+        "playmobile_username",
+        "playmobile_password"
+    ],
+    "fields": [
+        {
+            "fieldname": "sms_provider",
+            "fieldtype": "Select",
+            "label": "SMS Провайдер",
+            "options": "\nEskiz\nPlaymobile",
+            "reqd": 1
+        },
+        {
+            "default": "4546",
+            "description": "The sender name/ID that will appear on the user's phone",
+            "fieldname": "sender_id",
+            "fieldtype": "Data",
+            "label": "Sender ID",
+            "reqd": 1
+        },
+        {
+            "depends_on": "eval:doc.sms_provider=='Eskiz'",
+            "fieldname": "eskiz_section",
+            "fieldtype": "Section Break",
+            "label": "Настройки Eskiz"
+        },
+        {
+            "fieldname": "eskiz_email",
+            "fieldtype": "Data",
+            "label": "Eskiz Email",
+            "mandatory_depends_on": "eval:doc.sms_provider=='Eskiz'"
+        },
+        {
+            "fieldname": "eskiz_api_key",
+            "fieldtype": "Password",
+            "label": "Eskiz API Key/Пароль",
+            "mandatory_depends_on": "eval:doc.sms_provider=='Eskiz'"
+        },
+        {
+            "depends_on": "eval:doc.sms_provider=='Playmobile'",
+            "fieldname": "playmobile_section",
+            "fieldtype": "Section Break",
+            "label": "Настройки Playmobile"
+        },
+        {
+            "fieldname": "playmobile_username",
+            "fieldtype": "Data",
+            "label": "Playmobile Логин",
+            "mandatory_depends_on": "eval:doc.sms_provider=='Playmobile'"
+        },
+        {
+            "fieldname": "playmobile_password",
+            "fieldtype": "Password",
+            "label": "Playmobile Пароль",
+            "mandatory_depends_on": "eval:doc.sms_provider=='Playmobile'"
+        }
+    ],
+    "issingle": 1,
+    "links": [],
+    "modified": "2024-01-18 12:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "SMS Gateway Settings",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "print": 1,
+            "read": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "track_changes": 1
+}

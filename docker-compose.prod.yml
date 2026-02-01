@@ -46,27 +46,33 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: >
+    command: |
       sh -c "
-      echo 'Waiting for MariaDB to be ready...' &&
-      sleep 10 &&
-      cd /home/frappe/frappe-bench &&
+      echo 'Waiting for MariaDB to be ready...'
+      sleep 10
+      cd /home/frappe/frappe-bench
+      
+      # Restore assets from cache to the volume
+      echo 'Restoring assets from cache...'
+      cp -r /home/frappe/assets_cache/* sites/assets/ 2>/dev/null || true
+      echo 'Assets restored!'
+
+      # Clean apps.txt at runtime (since volume might override image content)
+      sed -i '/erpnext/d' sites/apps.txt
+      echo 'Current apps.txt (cleaned):'
+      cat sites/apps.txt
+
       if [ ! -f sites/my.nasiya365.uz/site_config.json ]; then
-        echo 'Creating new site...' &&
-        bench new-site my.nasiya365.uz \
-          --mariadb-root-password NasiyaSecure2026 \
-          --admin-password Admin@2026 \
-          --db-host mariadb \
-          --db-port 3306 \
-          --no-mariadb-socket &&
-        echo 'Installing ERPNext...' &&
-        bench --site my.nasiya365.uz install-app erpnext &&
+        echo 'Creating new site...'
+        bench new-site my.nasiya365.uz --mariadb-root-password NasiyaSecure2026 --admin-password Admin@2026 --db-host mariadb --db-port 3306 --no-mariadb-socket
+        echo 'Installing custom app...'
+        bench --site my.nasiya365.uz install-app nasiya365
         echo 'Site setup complete!'
       else
-        echo 'Site already exists, updating configuration...' &&
-        bench --site my.nasiya365.uz set-config db_host mariadb &&
-        bench --site my.nasiya365.uz set-config redis_cache redis://redis-cache:6379 &&
-        bench --site my.nasiya365.uz set-config redis_queue redis://redis-queue:6379 &&
+        echo 'Site already exists, updating configuration...'
+        bench --site my.nasiya365.uz set-config db_host mariadb
+        bench --site my.nasiya365.uz set-config redis_cache redis://redis-cache:6379
+        bench --site my.nasiya365.uz set-config redis_queue redis://redis-queue:6379
         echo 'Configuration updated!'
       fi
       "
@@ -79,6 +85,7 @@ services:
         condition: service_started
     volumes:
       - sites:/home/frappe/frappe-bench/sites
+      - assets:/home/frappe/frappe-bench/sites/assets
       - logs:/home/frappe/frappe-bench/logs
     networks:
       - nasiya365-network
@@ -103,23 +110,27 @@ services:
         condition: service_completed_successfully
     volumes:
       - sites:/home/frappe/frappe-bench/sites
+      - assets:/home/frappe/frappe-bench/sites/assets
       - logs:/home/frappe/frappe-bench/logs
     environment:
       - FRAPPE_SITE_NAME_HEADER=my.nasiya365.uz
     networks:
       - nasiya365-network
 
-  # Nginx frontend
+  # Nginx frontend (uses custom build with nasiya365 assets)
   frontend:
-    image: frappe/erpnext:v16
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: always
     command:
       - nginx-entrypoint.sh
     volumes:
       - sites:/home/frappe/frappe-bench/sites
+      - assets:/home/frappe/frappe-bench/sites/assets
       - logs:/home/frappe/frappe-bench/logs
     ports:
-      - "8080:8080"
+      - "8089:8080"
     environment:
       BACKEND: backend:8000
       FRAPPE_SITE_NAME_HEADER: my.nasiya365.uz
@@ -135,9 +146,11 @@ services:
     networks:
       - nasiya365-network
 
-  # WebSocket server
+  # WebSocket server (uses custom build)
   websocket:
-    image: frappe/erpnext:v16
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: always
     command:
       - node
@@ -202,6 +215,7 @@ networks:
 
 volumes:
   sites:
+  assets:
   logs:
   mariadb-data:
   redis-cache-data:

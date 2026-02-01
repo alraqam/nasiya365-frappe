@@ -23,6 +23,37 @@ services:
     networks:
       - nasiya365-network
 
+  # Site setup and asset restoration (runs once)
+  setup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: |
+      sh -c "
+      echo 'Restoring assets from cache...'
+      cp -r /home/frappe/assets_cache/* sites/assets/ 2>/dev/null || true
+      echo 'Assets restored!'
+      
+      # Clean apps.txt at runtime (since volume might override image content)
+      sed -i '/erpnext/d' sites/apps.txt
+      echo 'Current apps.txt:'
+      cat sites/apps.txt
+      "
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - assets:/home/frappe/frappe-bench/sites/assets
+      - logs:/home/frappe/frappe-bench/logs
+    networks:
+      - nasiya365-network
+    restart: "no"
+
   # Main Frappe/ERPNext backend
   backend:
     build:
@@ -38,22 +69,29 @@ services:
         condition: service_started
       redis-queue:
         condition: service_started
+      setup:
+        condition: service_completed_successfully
     volumes:
       - sites:/home/frappe/frappe-bench/sites
+      - assets:/home/frappe/frappe-bench/sites/assets
       - logs:/home/frappe/frappe-bench/logs
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365
     environment:
       - FRAPPE_SITE_NAME_HEADER=my.nasiya365.uz
     networks:
       - nasiya365-network
 
-  # Nginx frontend
+  # Nginx frontend (uses custom build with nasiya365 assets)
   frontend:
-    image: frappe/erpnext:v16
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: always
     command:
       - nginx-entrypoint.sh
     volumes:
       - sites:/home/frappe/frappe-bench/sites
+      - assets:/home/frappe/frappe-bench/sites/assets
       - logs:/home/frappe/frappe-bench/logs
     ports:
       - "8080:8080"
@@ -72,9 +110,11 @@ services:
     networks:
       - nasiya365-network
 
-  # WebSocket server
+  # WebSocket server (uses custom build)
   websocket:
-    image: frappe/erpnext:v16
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: always
     command:
       - node
@@ -101,6 +141,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365
     networks:
       - nasiya365-network
 
@@ -115,6 +156,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365
     networks:
       - nasiya365-network
 
@@ -157,6 +199,7 @@ networks:
 
 volumes:
   sites:
+  assets:
   logs:
   mariadb-data:
   redis-cache-data:

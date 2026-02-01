@@ -1,0 +1,227 @@
+{
+    "actions": [],
+    "autoname": "format:CNT-{YYYY}-{#####}",
+    "creation": "2026-01-03 00:55:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "contract_section",
+        "contract_number",
+        "contract_type",
+        "column_break_1",
+        "contract_date",
+        "valid_until",
+        "status",
+        "parties_section",
+        "customer",
+        "column_break_2",
+        "installment_plan",
+        "sales_order",
+        "amounts_section",
+        "total_amount",
+        "template",
+        "signatures_section",
+        "signed_by_customer",
+        "customer_signature",
+        "column_break_3",
+        "signed_by_merchant",
+        "merchant_signatory",
+        "document_section",
+        "pdf_file",
+        "notes"
+    ],
+    "fields": [
+        {
+            "fieldname": "contract_section",
+            "fieldtype": "Section Break",
+            "label": "Детали договора"
+        },
+        {
+            "fieldname": "contract_number",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Номер договора",
+            "read_only": 1,
+            "unique": 1
+        },
+        {
+            "default": "BNPL Agreement",
+            "fieldname": "contract_type",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Тип договора",
+            "options": "Рассрочка (BNPL)\nДоговор продажи\nГарантия",
+            "reqd": 1
+        },
+        {
+            "fieldname": "column_break_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "Today",
+            "fieldname": "contract_date",
+            "fieldtype": "Date",
+            "in_list_view": 1,
+            "label": "Дата договора",
+            "reqd": 1
+        },
+        {
+            "fieldname": "valid_until",
+            "fieldtype": "Date",
+            "label": "Действует до"
+        },
+        {
+            "default": "Draft",
+            "fieldname": "status",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Статус",
+            "options": "Черновик\nПодписан\nАктивный\nЗавершен\nОтменен"
+        },
+        {
+            "fieldname": "parties_section",
+            "fieldtype": "Section Break",
+            "label": "Стороны"
+        },
+        {
+            "fieldname": "customer",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Клиент",
+            "options": "Customer Profile",
+            "reqd": 1
+        },
+        {
+            "fieldname": "column_break_2",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "installment_plan",
+            "fieldtype": "Link",
+            "label": "План рассрочки",
+            "options": "Installment Plan"
+        },
+        {
+            "fieldname": "sales_order",
+            "fieldtype": "Link",
+            "label": "Заказ на продажу",
+            "options": "Sales Order"
+        },
+        {
+            "fieldname": "amounts_section",
+            "fieldtype": "Section Break",
+            "label": "Суммы и Шаблон"
+        },
+        {
+            "fieldname": "total_amount",
+            "fieldtype": "Currency",
+            "label": "Общая сумма"
+        },
+        {
+            "fieldname": "template",
+            "fieldtype": "Link",
+            "label": "Шаблон печати",
+            "options": "Print Template"
+        },
+        {
+            "fieldname": "signatures_section",
+            "fieldtype": "Section Break",
+            "label": "Подписи"
+        },
+        {
+            "default": "0",
+            "fieldname": "signed_by_customer",
+            "fieldtype": "Check",
+            "label": "Подписано клиентом"
+        },
+        {
+            "fieldname": "customer_signature",
+            "fieldtype": "Attach Image",
+            "label": "Подпись клиента"
+        },
+        {
+            "fieldname": "column_break_3",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "0",
+            "fieldname": "signed_by_merchant",
+            "fieldtype": "Check",
+            "label": "Подписано продавцом"
+        },
+        {
+            "fieldname": "merchant_signatory",
+            "fieldtype": "Link",
+            "label": "Подписант продавца",
+            "options": "User"
+        },
+        {
+            "fieldname": "document_section",
+            "fieldtype": "Section Break",
+            "label": "Документ"
+        },
+        {
+            "fieldname": "pdf_file",
+            "fieldtype": "Attach",
+            "label": "PDF Файл"
+        },
+        {
+            "fieldname": "notes",
+            "fieldtype": "Small Text",
+            "label": "Примечания"
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2026-01-03 00:55:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Contract",
+    "naming_rule": "Expression",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Nasiya365 Admin",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Salesperson",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "search_fields": "customer,contract_type",
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "title_field": "customer",
+    "track_changes": 1
+}
