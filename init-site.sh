@@ -107,6 +107,11 @@ bench --site ${SITE_NAME} migrate
 bench use ${SITE_NAME}
 bench set-config -g default_site ${SITE_NAME}
 
+# Final permission fix to ensure all created config files are accessible by frappe user
+# (Crucial if this script ran as root)
+echo "Applying final permission fix..."
+chown -R frappe:frappe sites || echo "WARNING: Failed to chown sites. If running as non-root, this is expected."
+
 echo "=== Setup Complete ==="
 echo "You can now access the site at https://${SITE_NAME}"
 echo "Login with:"
