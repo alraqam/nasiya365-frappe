@@ -30,49 +30,57 @@ fi
 
 # Check if site already exists
 if [ -f "sites/${SITE_NAME}/site_config.json" ]; then
-    echo "Site ${SITE_NAME} already exists. Running migrations..."
-    bench --site ${SITE_NAME} migrate
-    echo "Migrations complete."
-else
-    echo "Site ${SITE_NAME} does not exist. Creating..."
-    
-    # Wait for MariaDB to be ready
-    echo "Waiting for database to be ready..."
-    for i in {1..30}; do
-        if mysqladmin ping -h ${DB_HOST} -u root -p${DB_ROOT_PASSWORD} --silent 2>/dev/null; then
-            echo "Database is ready!"
-            break
-        fi
-        echo "Waiting for database... (${i}/30)"
-        sleep 2
-    done
-    
-    # Create the site
-    echo "Creating new site..."
-    bench new-site ${SITE_NAME} \
-        --db-host ${DB_HOST} \
-        --db-root-password ${DB_ROOT_PASSWORD} \
-        --admin-password ${ADMIN_PASSWORD} \
-        --no-mariadb-socket
-    
-    echo "Site created successfully!"
-    
-    # Install nasiya365 app
-    echo "Installing nasiya365 app..."
-    bench --site ${SITE_NAME} install-app nasiya365
-    
-    # Run migrations
-    echo "Running migrations..."
-    bench --site ${SITE_NAME} migrate
-    
-    # Set as default site
-    bench use ${SITE_NAME}
-    
-    echo "=== Setup Complete ==="
-    echo "You can now access the site at https://${SITE_NAME}"
-    echo "Login with:"
-    echo "  Username: Administrator"
-    echo "  Password: ${ADMIN_PASSWORD}"
+    echo "Site ${SITE_NAME} already exists."
+    # Try to migrate. If it fails (e.g. DB user missing), we should probably recreate the site.
+    if bench --site ${SITE_NAME} migrate; then
+        echo "Migrations complete. Site is healthy."
+        exit 0
+    else
+        echo "WARNING: Migration failed! This usually means the 'sites' volume has a config that doesn't match the database (e.g. DB was reset)."
+        echo "Backing up broken site to sites/${SITE_NAME}_bak_$(date +%s) and forcing re-creation..."
+        mv "sites/${SITE_NAME}" "sites/${SITE_NAME}_bak_$(date +%s)"
+    fi
 fi
+
+# Determine if we should create the site (it might have been moved above, or didn't exist)
+echo "Site ${SITE_NAME} does not exist (or was broken). Creating..."
+
+# Wait for MariaDB to be ready
+echo "Waiting for database to be ready..."
+for i in {1..30}; do
+    if mysqladmin ping -h ${DB_HOST} -u root -p${DB_ROOT_PASSWORD} --silent 2>/dev/null; then
+        echo "Database is ready!"
+        break
+    fi
+    echo "Waiting for database... (${i}/30)"
+    sleep 2
+done
+
+# Create the site
+echo "Creating new site..."
+bench new-site ${SITE_NAME} \
+    --db-host ${DB_HOST} \
+    --db-root-password ${DB_ROOT_PASSWORD} \
+    --admin-password ${ADMIN_PASSWORD} \
+    --no-mariadb-socket
+
+echo "Site created successfully!"
+
+# Install nasiya365 app
+echo "Installing nasiya365 app..."
+bench --site ${SITE_NAME} install-app nasiya365
+
+# Run migrations
+echo "Running migrations..."
+bench --site ${SITE_NAME} migrate
+
+# Set as default site
+bench use ${SITE_NAME}
+
+echo "=== Setup Complete ==="
+echo "You can now access the site at https://${SITE_NAME}"
+echo "Login with:"
+echo "  Username: Administrator"
+echo "  Password: ${ADMIN_PASSWORD}"
 
 echo "Init complete. Exiting."
