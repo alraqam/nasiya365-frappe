@@ -134,7 +134,7 @@
             "label": "Макс. срок рассрочки (мес.)"
         },
         {
-            "default": "Monthly",
+            "default": "Ежемесячно",
             "fieldname": "allowed_frequencies",
             "fieldtype": "Select",
             "label": "Разрешенные частоты",
