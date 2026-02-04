@@ -16,6 +16,12 @@ echo "DB Host: ${DB_HOST}"
 
 cd /home/frappe/frappe-bench
 
+# Config Redis
+echo "Configuring Redis..."
+bench set-config -g redis_cache "redis://${REDIS_CACHE:-redis-cache:6379}"
+bench set-config -g redis_queue "redis://${REDIS_QUEUE:-redis-queue:6379}"
+bench set-config -g redis_socketio "redis://${REDIS_QUEUE:-redis-queue:6379}"
+
 # Copy cached assets to sites directory (from Dockerfile build)
 if [ -d "/home/frappe/assets_cache" ] && [ ! -d "sites/assets/nasiya365" ]; then
     echo "Copying cached assets..."
