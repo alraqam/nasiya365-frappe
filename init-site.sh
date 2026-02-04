@@ -52,6 +52,13 @@ for i in {1..30}; do
         echo "Database is ready!"
         break
     fi
+    # Check if the failure is due to auth error
+    if mysqladmin ping -h ${DB_HOST} -u root -p${DB_ROOT_PASSWORD} 2>&1 | grep -q "Access denied"; then
+        echo "CRITICAL ERROR: Access denied for MariaDB root user!"
+        echo "The password configured in 'easypanel-template.json' (DB_ROOT_PASSWORD) does not match the actual database password."
+        echo "ACTION REQUIRED: You must DELETE the 'mariadb' service volume in EasyPanel to reset the password."
+        exit 1
+    fi
     echo "Waiting for database... (${i}/30)"
     sleep 2
 done
