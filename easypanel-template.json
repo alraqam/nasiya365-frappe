@@ -10,13 +10,15 @@
         {
             "type": "redis",
             "data": {
-                "serviceName": "redis-cache"
+                "serviceName": "redis-cache",
+                "password": "NasiyaRedis2026"
             }
         },
         {
             "type": "redis",
             "data": {
-                "serviceName": "redis-queue"
+                "serviceName": "redis-queue",
+                "password": "NasiyaRedis2026"
             }
         },
         {
@@ -39,7 +41,7 @@
                     "command": "/home/frappe/init-site.sh",
                     "replicas": 1
                 },
-                "env": "FRAPPE_SITE_NAME=my.nasiya365.uz\nDB_HOST=mariadb\nDB_ROOT_PASSWORD=NasiyaSecure2026\nADMIN_PASSWORD=admin\nREDIS_CACHE=redis-cache:6379\nREDIS_QUEUE=redis-queue:6379",
+                "env": "FRAPPE_SITE_NAME=my.nasiya365.uz\nDB_HOST=mariadb\nDB_ROOT_PASSWORD=NasiyaSecure2026\nADMIN_PASSWORD=admin\nREDIS_CACHE=:NasiyaRedis2026@redis-cache:6379\nREDIS_QUEUE=:NasiyaRedis2026@redis-queue:6379",
                 "mounts": [
                     {
                         "type": "volume",
@@ -73,7 +75,7 @@
                 "deploy": {
                     "command": "sh -c 'bench set-config -g redis_cache redis://$REDIS_CACHE; bench set-config -g redis_queue redis://$REDIS_QUEUE; bench set-config -g redis_socketio redis://$REDIS_QUEUE; cd sites && ../env/bin/gunicorn -b 0.0.0.0:8000 -w 4 -t 120 frappe.app:application --preload'"
                 },
-                "env": "FRAPPE_SITE_NAME_HEADER=my.nasiya365.uz\nDB_HOST=mariadb\nREDIS_CACHE=redis-cache:6379\nREDIS_QUEUE=redis-queue:6379",
+                "env": "FRAPPE_SITE_NAME_HEADER=my.nasiya365.uz\nDB_HOST=mariadb\nREDIS_CACHE=:NasiyaRedis2026@redis-cache:6379\nREDIS_QUEUE=:NasiyaRedis2026@redis-queue:6379",
                 "mounts": [
                     {
                         "type": "volume",
@@ -131,7 +133,7 @@
                 "deploy": {
                     "command": "sh -c 'bench set-config -g redis_cache redis://$REDIS_CACHE; bench set-config -g redis_queue redis://$REDIS_QUEUE; bench set-config -g redis_socketio redis://$REDIS_QUEUE; node /home/frappe/frappe-bench/apps/frappe/socketio.js'"
                 },
-                "env": "FRAPPE_SITE_NAME_HEADER=my.nasiya365.uz\nDB_HOST=mariadb\nREDIS_CACHE=redis-cache:6379\nREDIS_QUEUE=redis-queue:6379",
+                "env": "FRAPPE_SITE_NAME_HEADER=my.nasiya365.uz\nDB_HOST=mariadb\nREDIS_CACHE=:NasiyaRedis2026@redis-cache:6379\nREDIS_QUEUE=:NasiyaRedis2026@redis-queue:6379",
                 "mounts": [
                     {
                         "type": "volume",
@@ -160,7 +162,7 @@
                 "deploy": {
                     "command": "sh -c 'bench set-config -g redis_cache redis://$REDIS_CACHE; bench set-config -g redis_queue redis://$REDIS_QUEUE; bench set-config -g redis_socketio redis://$REDIS_QUEUE; bench worker --queue default'"
                 },
-                "env": "DB_HOST=mariadb\nREDIS_CACHE=redis-cache:6379\nREDIS_QUEUE=redis-queue:6379",
+                "env": "DB_HOST=mariadb\nREDIS_CACHE=:NasiyaRedis2026@redis-cache:6379\nREDIS_QUEUE=:NasiyaRedis2026@redis-queue:6379",
                 "mounts": [
                     {
                         "type": "volume",
@@ -194,7 +196,7 @@
                 "deploy": {
                     "command": "sh -c 'bench set-config -g redis_cache redis://$REDIS_CACHE; bench set-config -g redis_queue redis://$REDIS_QUEUE; bench set-config -g redis_socketio redis://$REDIS_QUEUE; bench schedule'"
                 },
-                "env": "DB_HOST=mariadb\nREDIS_CACHE=redis-cache:6379\nREDIS_QUEUE=redis-queue:6379",
+                "env": "DB_HOST=mariadb\nREDIS_CACHE=:NasiyaRedis2026@redis-cache:6379\nREDIS_QUEUE=:NasiyaRedis2026@redis-queue:6379",
                 "mounts": [
                     {
                         "type": "volume",
