@@ -49,6 +49,11 @@ if [ -f "sites/${SITE_NAME}/site_config.json" ]; then
 fi
 
 # Determine if we should create the site (it might have been moved above, or didn't exist)
+if [ -d "sites/${SITE_NAME}" ] && [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then
+    echo "WARNING: Site folder sites/${SITE_NAME} exists but is missing site_config.json (partial install?). Removing it..."
+    rm -rf "sites/${SITE_NAME}"
+fi
+
 echo "Site ${SITE_NAME} does not exist (or was broken). Creating..."
 
 # Wait for MariaDB to be ready
