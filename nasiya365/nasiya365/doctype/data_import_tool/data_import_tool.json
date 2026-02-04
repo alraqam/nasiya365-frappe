@@ -19,7 +19,7 @@
             "label": "Настройки импорта"
         },
         {
-            "default": "BNPL Sales",
+            "default": "Импорт складских записей",
             "fieldname": "import_type",
             "fieldtype": "Select",
             "in_list_view": 1,
