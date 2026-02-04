@@ -23,10 +23,16 @@ bench set-config -g redis_queue "redis://${REDIS_QUEUE:-redis-queue:6379}"
 bench set-config -g redis_socketio "redis://${REDIS_QUEUE:-redis-queue:6379}"
 
 # Copy cached assets to sites directory (from Dockerfile build)
-if [ -d "/home/frappe/assets_cache" ] && [ ! -d "sites/assets/nasiya365" ]; then
-    echo "Copying cached assets..."
-    cp -r /home/frappe/assets_cache/* sites/assets/ 2>/dev/null || true
+# We FORCE copy to ensure assets are fresh and present even if volume persisted partially.
+if [ -d "/home/frappe/assets_cache" ]; then
+    echo "Copying cached assets (forcing overwrite)..."
+    cp -r /home/frappe/assets_cache/* sites/assets/
 fi
+
+# Ensure sites directory permissions are correct (shared volume issue fix)
+echo "Fixing permissions on sites volume..."
+chown -R frappe:frappe sites
+chmod -R 755 sites
 
 # Check if site already exists
 if [ -f "sites/${SITE_NAME}/site_config.json" ]; then
