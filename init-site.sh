@@ -105,6 +105,7 @@ bench --site ${SITE_NAME} migrate
 
 # Set as default site
 bench use ${SITE_NAME}
+bench set-config -g default_site ${SITE_NAME}
 
 echo "=== Setup Complete ==="
 echo "You can now access the site at https://${SITE_NAME}"
