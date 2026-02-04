@@ -89,6 +89,12 @@ bench new-site ${SITE_NAME} \
 
 echo "Site created successfully!"
 
+# Add domain alias if provided (EasyPanel support)
+if [ -n "${SITE_DOMAIN_ALIAS}" ]; then
+    echo "Adding domain alias: ${SITE_DOMAIN_ALIAS}"
+    bench setup add-domain --site ${SITE_NAME} ${SITE_DOMAIN_ALIAS} || echo "WARNING: Failed to add domain alias. Continuing..."
+fi
+
 # Install nasiya365 app
 echo "Installing nasiya365 app..."
 bench --site ${SITE_NAME} install-app nasiya365

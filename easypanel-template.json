@@ -41,7 +41,7 @@
                     "command": "/home/frappe/init-site.sh",
                     "replicas": 1
                 },
-                "env": "FRAPPE_SITE_NAME=my.nasiya365.uz\nDB_HOST=mariadb\nDB_ROOT_PASSWORD=NasiyaSecure2026\nADMIN_PASSWORD=admin\nREDIS_CACHE=:NasiyaRedis2026@redis-cache:6379\nREDIS_QUEUE=:NasiyaRedis2026@redis-queue:6379",
+                "env": "FRAPPE_SITE_NAME=my.nasiya365.uz\nSITE_DOMAIN_ALIAS=$(EASYPANEL_DOMAIN)\nDB_HOST=mariadb\nDB_ROOT_PASSWORD=NasiyaSecure2026\nADMIN_PASSWORD=admin\nREDIS_CACHE=:NasiyaRedis2026@redis-cache:6379\nREDIS_QUEUE=:NasiyaRedis2026@redis-queue:6379",
                 "mounts": [
                     {
                         "type": "volume",
@@ -107,7 +107,7 @@
                         "port": 8080
                     }
                 ],
-                "env": "FRAPPE_PY=backend\nFRAPPE_PY_PORT=8000\nFRAPPE_SOCKETIO=websocket\nFRAPPE_SOCKETIO_PORT=9000\nUPSTREAM_REAL_IP_ADDRESS=127.0.0.1\nUPSTREAM_REAL_IP_HEADER=X-Forwarded-For\nCLIENT_MAX_BODY_SIZE=50m",
+                "env": "BACKEND=backend:8000\nSOCKETIO=websocket:9000\nUPSTREAM_REAL_IP_ADDRESS=127.0.0.1\nUPSTREAM_REAL_IP_HEADER=X-Forwarded-For\nCLIENT_MAX_BODY_SIZE=50m",
                 "mounts": [
                     {
                         "type": "volume",
