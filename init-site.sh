@@ -47,16 +47,21 @@ echo "Site ${SITE_NAME} does not exist (or was broken). Creating..."
 
 # Wait for MariaDB to be ready
 echo "Waiting for database to be ready..."
+# Wait for MariaDB to be ready
+echo "Waiting for database to be ready..."
 for i in {1..30}; do
-    if mysqladmin ping -h ${DB_HOST} -u root -p${DB_ROOT_PASSWORD} --silent 2>/dev/null; then
-        echo "Database is ready!"
+    # Try a real query to verify credentials strictly
+    if mysql -h ${DB_HOST} -u root -p"${DB_ROOT_PASSWORD}" -e "SELECT 1" >/dev/null 2>&1; then
+        echo "Database is ready and credentials are accepted!"
         break
     fi
+    
     # Check if the failure is due to auth error
-    if mysqladmin ping -h ${DB_HOST} -u root -p${DB_ROOT_PASSWORD} 2>&1 | grep -q "Access denied"; then
+    if mysql -h ${DB_HOST} -u root -p"${DB_ROOT_PASSWORD}" -e "SELECT 1" 2>&1 | grep -q "Access denied"; then
         echo "CRITICAL ERROR: Access denied for MariaDB root user!"
         echo "The password configured in 'easypanel-template.json' (DB_ROOT_PASSWORD) does not match the actual database password."
         echo "ACTION REQUIRED: You must DELETE the 'mariadb' service volume in EasyPanel to reset the password."
+        echo "Debug Info: DB_HOST=${DB_HOST}"
         exit 1
     fi
     echo "Waiting for database... (${i}/30)"
