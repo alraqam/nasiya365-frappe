@@ -73,7 +73,7 @@
                     "file": "Dockerfile"
                 },
                 "deploy": {
-                    "command": "sh -c 'bench set-config -g redis_cache redis://$REDIS_CACHE; bench set-config -g redis_queue redis://$REDIS_QUEUE; bench set-config -g redis_socketio redis://$REDIS_QUEUE; cd sites && ../env/bin/gunicorn -b 0.0.0.0:8000 -w 4 -t 120 frappe.app:application --preload'"
+                    "command": "sh -c 'bench set-config -g redis_cache redis://$REDIS_CACHE; bench set-config -g redis_queue redis://$REDIS_QUEUE; bench set-config -g redis_socketio redis://$REDIS_QUEUE; bench set-config -g default_site my.nasiya365.uz; cd sites && ../env/bin/gunicorn -b 0.0.0.0:8000 -w 4 -t 120 frappe.app:application --preload'"
                 },
                 "env": "DB_HOST=mariadb\nREDIS_CACHE=:NasiyaRedis2026@redis-cache:6379\nREDIS_QUEUE=:NasiyaRedis2026@redis-queue:6379",
                 "mounts": [
