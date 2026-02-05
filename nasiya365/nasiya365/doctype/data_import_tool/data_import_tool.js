@@ -10,7 +10,7 @@ frappe.ui.form.on('Data Import Tool', {
 
         let start_import = function () {
             frappe.call({
-                method: "nasiya365.doctype.data_import_tool.data_import_tool.run_bnpl_import",
+                method: "nasiya365.nasiya365.doctype.data_import_tool.data_import_tool.run_bnpl_import",
                 args: {
                     doc_name: frm.doc.name
                 },
