@@ -6,7 +6,7 @@ Defines shortcuts and icons for the Frappe Desk
 from frappe import _
 
 
-def get_data():
+def get_data(user=None):
     return [
         {
             "module_name": "Nasiya365",
