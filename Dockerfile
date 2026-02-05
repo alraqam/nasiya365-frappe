@@ -21,8 +21,9 @@ RUN rm -rf apps/erpnext && \
     sed -i '/erpnext/d' sites/apps.txt && \
     echo "Apps after ERPNext removal:" && cat sites/apps.txt
 
-# Copy custom nasiya365 app and fix ownership
-COPY ./nasiya365 apps/nasiya365
+# Copy custom nasiya365 app (package + setup files) and fix ownership
+COPY ./nasiya365 apps/nasiya365/nasiya365
+COPY ./setup.py ./pyproject.toml ./requirements.txt ./MANIFEST.in apps/nasiya365/
 RUN chown -R frappe:frappe apps/nasiya365
 
 # Switch to frappe user for bench operations
