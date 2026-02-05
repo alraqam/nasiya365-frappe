@@ -1,0 +1,19 @@
+[project]
+name = "nasiya365"
+authors = [
+    { name = "Nasiya365 Team", email = "info@nasiya365.uz"}
+]
+description = "BNPL SaaS Platform - Buy Now Pay Later with Inventory & Sales Management"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = [
+    "frappe",
+]
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.bench]
+is-frappe-app = true
