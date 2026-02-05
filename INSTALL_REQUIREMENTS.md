@@ -9,7 +9,7 @@ This document describes all requirements for installing and running the Nasiya36
 | Source | Requirement | Notes |
 |--------|-------------|--------|
 | **requirements.txt** | `frappe` | Single direct dependency; Frappe brings its own transitive deps. |
-| **pyproject.toml** | `frappe` | Same. `[tool.bench]` declares `frappe-dependencies = [">=15.0.0"]`. |
+| **pyproject.toml** | `frappe>=15.0.0` | `[tool.bench.frappe-dependencies]` declares `frappe = ">=15.0.0"` (Frappe Cloud–compatible format). |
 | **setup.py** | Reads `requirements.txt` | `install_requires` come from `requirements.txt`. |
 | **hooks.py** | `required_apps = ["frappe"]` | Correct; no other Frappe apps required. |
 

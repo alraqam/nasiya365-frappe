@@ -33,6 +33,14 @@ bench --site your-site.local install-app nasiya365
 
 For Docker and production, see [DEPLOYMENT.md](DEPLOYMENT.md) and [.env.prod.example](.env.prod.example).
 
+### Frappe Cloud
+
+Add this app from GitHub: **alraqam/nasiya365-frappe**, branch **main**. The repo uses the standard `pyproject.toml` format Frappe Cloud expects (`[tool.bench.frappe-dependencies]`). If you see "Internal Server Error" when adding the app:
+
+1. Ensure the [Frappe Cloud GitHub App](https://github.com/settings/installations) has access to this repository (or your fork).
+2. If the repo path or visibility changed, remove the app in Frappe Cloud and add it again from GitHub.
+3. If it still fails, [contact Frappe Cloud support](https://frappecloud.com/support) with your Bench Group name and repo URL.
+
 ## License
 
 MIT
