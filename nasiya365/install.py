@@ -9,9 +9,22 @@ from frappe import _
 def after_install():
     """Run after app installation"""
     create_default_roles()
+    sync_workspace()
     create_default_print_templates()
     frappe.db.commit()
     print("Nasiya365 installed successfully!")
+
+
+def sync_workspace():
+    """Ensure Nasiya365 workspace is synced from app JSON so it shows on the desk."""
+    for name in ("Nasiya365", "nasiya365"):
+        try:
+            frappe.reload_doc("nasiya365", "workspace", name, force=True)
+            print("Nasiya365 workspace synced.")
+            return
+        except Exception as e:
+            continue
+    frappe.log_error("Workspace sync failed: nasiya365 workspace not found", "Nasiya365 Install")
 
 
 def create_default_roles():
