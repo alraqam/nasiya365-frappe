@@ -1,2 +1,3 @@
-# Frappe framework is required
+# Frappe framework is required (brings its own dependencies).
+# Optional: for contract PDF generation, see requirements-optional.txt (WeasyPrint).
 frappe

@@ -1,0 +1,8 @@
+# Optional dependencies for Nasiya365
+# Install with: pip install -r requirements-optional.txt
+#
+# WeasyPrint - Required only for PDF generation (Print Template → contract PDFs).
+#             Without it, PDF generation will show an error; rest of the app works.
+#             On Linux you may need system packages, e.g.:
+#             Ubuntu/Debian: libpango-1.0-0 libffi-dev libgdk-pixbuf2.0-0
+weasyprint

@@ -1,9 +1,14 @@
 FROM frappe/erpnext:v16
 
 USER root
-# Install cron as it is often needed for Frappe
+# Install cron and WeasyPrint system deps (for contract PDF generation)
 RUN apt-get update && apt-get install -y \
     cron \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf2.0-0 \
+    libffi-dev \
+    shared-mime-info \
     && rm -rf /var/lib/apt/lists/*
 
 # Setup bench home
@@ -23,8 +28,9 @@ RUN chown -R frappe:frappe apps/nasiya365
 # Switch to frappe user for bench operations
 USER frappe
 
-# Install nasiya365 app and register it
+# Install nasiya365 app and optional WeasyPrint (for contract PDFs)
 RUN ./env/bin/pip install -e apps/nasiya365 --no-deps && \
+    ./env/bin/pip install weasyprint && \
     if ! grep -q "nasiya365" sites/apps.txt; then echo "nasiya365" >> sites/apps.txt; fi && \
     echo "Final apps.txt:" && cat sites/apps.txt
 

@@ -1,5 +1,5 @@
 import frappe
-from nasiya365.nasiya365.data_import import import_bnpl_data
+from nasiya365.data_import import import_bnpl_data
 
 def execute():
     # Path to the file inside the container
