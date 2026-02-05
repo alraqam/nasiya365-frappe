@@ -1,0 +1,18 @@
+include MANIFEST.in
+include requirements.txt
+include *.json
+include *.md
+include *.py
+include *.txt
+recursive-include nasiya365 *.css
+recursive-include nasiya365 *.csv
+recursive-include nasiya365 *.html
+recursive-include nasiya365 *.ico
+recursive-include nasiya365 *.js
+recursive-include nasiya365 *.json
+recursive-include nasiya365 *.md
+recursive-include nasiya365 *.png
+recursive-include nasiya365 *.py
+recursive-include nasiya365 *.svg
+recursive-include nasiya365 *.txt
+recursive-exclude nasiya365 *.pyc
