@@ -17,3 +17,5 @@ build-backend = "flit_core.buildapi"
 
 [tool.bench]
 is-frappe-app = true
+apps = ["nasiya365"]
+frappe-dependencies = [">=15.0.0"]
