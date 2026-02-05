@@ -12,11 +12,8 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools]
-package-dir = {"" = "nasiya365"}
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
 
 [tool.bench]
 is-frappe-app = true

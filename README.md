@@ -1,31 +1,25 @@
-# Nasiya365 Frappe
+# Nasiya365 BNPL Platform
 
-## Описание
-Система управления рассрочкой (BNPL) на базе Frappe Framework v16.
+A comprehensive Buy Now, Pay Later (BNPL) multi-tenant SaaS platform built on Frappe Framework.
 
-## Функционал
-- Управление клиентами
-- Каталог товаров с категориями
-- Заказы и договоры
-- Планы рассрочки
-- Платежи и транзакции
-- Складской учёт
-- Касса
-- Коллекторы
+## Features
 
-## Установка
+- **BNPL Core**: Credit scoring, installment plans, payment tracking
+- **Branch Management**: Multi-location support with staff roles
+- **Warehouse & Inventory**: Stock management across locations
+- **Sales**: Cash, BNPL, and mixed payment sales
+- **Contract Management**: PDF generation with custom templates
 
-### Docker (рекомендуется)
+## Installation
+
 ```bash
-docker-compose -f docker-compose.prod.yml up -d
+# Get the app
+bench get-app https://github.com/your-org/nasiya365
+
+# Install on site
+bench --site your-site.local install-app nasiya365
 ```
 
-### Создание сайта
-```bash
-docker compose exec backend bench new-site your-domain.com
-docker compose exec backend bench --site your-domain.com install-app nasiya365
-docker compose exec backend bench --site your-domain.com migrate
-```
+## License
 
-## Лицензия
 MIT
