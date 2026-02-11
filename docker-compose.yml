@@ -23,19 +23,23 @@ services:
     networks:
       - nasiya365-network
 
-  # Site setup and asset restoration (runs once)
+  # Site setup and asset restoration (runs once; creates site if missing)
   setup:
     build:
       context: .
       dockerfile: Dockerfile
     command: |
       sh -c "
-      echo 'Restoring assets from cache...'
-      cp -r /home/frappe/assets_cache/* sites/assets/ 2>/dev/null || true
+      # Create site if it does not exist (creates DB, installs nasiya365, sets default_site)
+      /home/frappe/init-site.sh || true
+      echo 'Restoring assets from cache (single source of truth)...'
+      rm -rf sites/assets/* 2>/dev/null || true
+      cp -r /home/frappe/assets_cache/* sites/assets/
       echo 'Assets restored!'
-      
-      # Clean apps.txt at runtime (since volume might override image content)
+      echo 'Clearing Redis cache so backend uses fresh asset hashes...'
+      redis-cli -h redis-cache FLUSHALL 2>/dev/null || true
       sed -i '/erpnext/d' sites/apps.txt
+      sed -i '/tozachoy_customizations/d' sites/apps.txt
       echo 'Current apps.txt:'
       cat sites/apps.txt
       "
@@ -46,6 +50,12 @@ services:
         condition: service_started
       redis-queue:
         condition: service_started
+    environment:
+      - FRAPPE_SITE_NAME=my.nasiya365.uz
+      - SITE_DOMAIN_ALIAS=localhost
+      - DB_HOST=mariadb
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - assets:/home/frappe/frappe-bench/sites/assets
@@ -75,7 +85,7 @@ services:
       - sites:/home/frappe/frappe-bench/sites
       - assets:/home/frappe/frappe-bench/sites/assets
       - logs:/home/frappe/frappe-bench/logs
-      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365/nasiya365
     environment:
       - FRAPPE_SITE_NAME_HEADER=my.nasiya365.uz
     networks:
@@ -94,7 +104,7 @@ services:
       - assets:/home/frappe/frappe-bench/sites/assets
       - logs:/home/frappe/frappe-bench/logs
     ports:
-      - "8080:8080"
+      - "8081:8080"
     environment:
       BACKEND: backend:8000
       FRAPPE_SITE_NAME_HEADER: my.nasiya365.uz
@@ -116,16 +126,25 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: always
-    command:
-      - node
-      - /home/frappe/frappe-bench/apps/frappe/socketio.js
+    command: >
+      sh -c "bench set-config -g redis_cache redis://$${REDIS_CACHE:-redis-cache:6379}
+      && bench set-config -g redis_queue redis://$${REDIS_QUEUE:-redis-queue:6379}
+      && bench set-config -g redis_socketio redis://$${REDIS_QUEUE:-redis-queue:6379}
+      && node /home/frappe/frappe-bench/apps/frappe/socketio.js"
     depends_on:
-      - backend
+      backend:
+        condition: service_started
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
     environment:
       - FRAPPE_SITE_NAME_HEADER=my.nasiya365.uz
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
     networks:
       - nasiya365-network
 
@@ -141,7 +160,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365/nasiya365
     networks:
       - nasiya365-network
 
@@ -156,7 +175,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365/nasiya365
     networks:
       - nasiya365-network
 

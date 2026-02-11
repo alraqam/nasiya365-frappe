@@ -41,8 +41,8 @@ class CustomerProfile(Document):
                 frappe.throw(_("Passport series must be 2 letters"))
         
         if self.passport_number:
-            if not self.passport_number.isdigit() or len(self.passport_number) != 7:
-                frappe.throw(_("Passport number must be 7 digits"))
+            if not self.passport_number.isdigit() or len(self.passport_number) > 14:
+                frappe.throw(_("Passport number must be digits only, max 14 characters"))
     
     def validate_pinfl(self):
         """Validate PINFL (14 digits)"""

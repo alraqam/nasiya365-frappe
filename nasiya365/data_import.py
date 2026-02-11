@@ -83,12 +83,12 @@ def process_customer_row(row, summary, skip_validation=False):
     middle_name = parts[2] if len(parts) > 2 else ""
     
     # 2. Duplicate Check (Phone or Name)
-    # Collect all phones
+    # Collect all phones (split comma/semicolon-separated into separate numbers)
     phones = []
-    for col in ["Телефон 1", "Телефон 2", "Телефон"]: # Check all possible phone columns
-        p = row.get(col, "").strip()
-        if p and p not in phones:
-            phones.append(p)
+    for col in ["Телефон 1", "Телефон 2", "Телефон"]:
+        for p in parse_phone_list(row.get(col, "")):
+            if p not in phones:
+                phones.append(p)
     
     # Check if customer exists by phone
     existing_customer = None
@@ -143,13 +143,12 @@ def process_customer_row(row, summary, skip_validation=False):
     # User source has "Мужской" ? No sample has empty gender. 
     # Let's assume default mapping or skip if empty.
 
-    # Phone Numbers
-    # Clear existing and re-add or just add new? Using re-add strategy for clean state or append
+    # Phone Numbers (each entry in phones is already cleaned; add separately)
     if not existing_customer:
-        for p in phones:
-             customer.append("phone_numbers", {
-                "phone_number": clean_phone(p),
-                "is_primary": 1 if p == phones[0] else 0
+        for i, p in enumerate(phones):
+            customer.append("phone_numbers", {
+                "phone_number": p,
+                "is_primary": 1 if i == 0 else 0
             })
             
     customer.flags.ignore_permissions = True
@@ -172,10 +171,10 @@ def process_row(row, default_branch, summary, skip_validation=False):
         summary["duplicates"] += 1
         raise Exception(f"Duplicate Document Number: {doc_number}")
 
-    # 1. Create/Get Customer
+    # 1. Create/Get Customer (phone may be comma-separated)
     client_name = row.get("Клиент", "").strip()
-    phone = row.get("Телефон", "").strip()
-    customer = get_or_create_customer(client_name, phone, skip_validation)
+    phone_raw = row.get("Телефон", "").strip()
+    customer = get_or_create_customer(client_name, phone_raw, skip_validation)
 
     # 2. Create/Get Product
     product_name = row.get("Наименование товара", "").strip()
@@ -223,18 +222,12 @@ def process_row(row, default_branch, summary, skip_validation=False):
 
 
 def get_or_create_customer(name, phone, skip_validation=False):
-    # BNPL Logic helper
-    if phone:
-        # Try finding by exact phone
-        existing = frappe.db.get_value("Customer Phone Number", {"phone_number": phone}, "parent")
-        if existing:
-            return frappe.get_doc("Customer Profile", existing)
-        
-        # Try finding by clean phone (fuzzy)
-        clean = clean_phone(phone)
-        if clean:
-             existing = frappe.db.get_value("Customer Phone Number", {"phone_number": clean}, "parent")
-             if existing:
+    # BNPL Logic helper; phone may be comma/semicolon-separated
+    phones = parse_phone_list(phone) if phone else []
+    if phones:
+        for p in phones:
+            existing = frappe.db.get_value("Customer Phone Number", {"phone_number": p}, "parent")
+            if existing:
                 return frappe.get_doc("Customer Profile", existing)
     
     parts = name.split(" ", 1)
@@ -246,17 +239,12 @@ def get_or_create_customer(name, phone, skip_validation=False):
     customer.last_name = last_name
     customer.status = "Active"
     
-    if phone:
+    for i, p in enumerate(phones):
         customer.append("phone_numbers", {
-            "phone_number": clean_phone(phone),
-            "is_primary": 1
+            "phone_number": p,
+            "is_primary": 1 if i == 0 else 0
         })
-    elif skip_validation:
-        # Add dummy phone if skipping validation to satisfy structure if needed, 
-        # OR just rely on ignore_validate. 
-        # Validation checks self.phone_numbers count. 
-        pass 
-    
+
     customer.flags.ignore_permissions = True
     if skip_validation:
         customer.flags.ignore_validate = True
@@ -345,6 +333,23 @@ def parse_date(val):
 def clean_phone(val):
     if not val: return ""
     return re.sub(r"[^0-9+]", "", val)
+
+
+def parse_phone_list(raw):
+    """Split comma/semicolon-separated phone string into list of non-empty cleaned numbers (unique)."""
+    if not raw or not str(raw).strip():
+        return []
+    seen = set()
+    result = []
+    for part in re.split(r"[,;]", str(raw)):
+        p = part.strip()
+        if not p:
+            continue
+        cleaned = clean_phone(p)
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            result.append(cleaned)
+    return result
 
 
 def process_supplier_row(row, summary, skip_validation=False):

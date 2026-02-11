@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     libgdk-pixbuf2.0-0 \
     libffi-dev \
     shared-mime-info \
+    redis-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Setup bench home

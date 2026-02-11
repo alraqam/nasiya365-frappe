@@ -134,7 +134,7 @@
             "fieldname": "passport_number",
             "fieldtype": "Data",
             "label": "Номер паспорта",
-            "length": 7
+            "length": 14
         },
         {
             "fieldname": "passport_issue_date",
