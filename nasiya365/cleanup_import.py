@@ -38,6 +38,14 @@ def cleanup_legacy_imports():
             SELECT name FROM `tabSales Order` WHERE po_no IS NOT NULL
         )
     """)
+
+    frappe.db.sql("""
+        DELETE FROM `tabPayment Transaction` 
+        WHERE reference_doctype = 'Sales Order' 
+        AND reference_name IN (
+            SELECT name FROM `tabSales Order` WHERE po_no IS NOT NULL
+        )
+    """)
     
     frappe.db.sql("""
         DELETE FROM `tabStock Ledger`
