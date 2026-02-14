@@ -11,6 +11,7 @@
         "column_break_1",
         "warehouse",
         "to_warehouse",
+        "supplier",
         "items_section",
         "items",
         "totals_section",
@@ -18,6 +19,7 @@
         "column_break_2",
         "total_value",
         "additional_info",
+        "items_summary",
         "remarks"
     ],
     "fields": [
@@ -64,6 +66,14 @@
             "options": "Warehouse"
         },
         {
+            "depends_on": "eval:doc.entry_type=='Поступление'",
+            "fieldname": "supplier",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Поставщик",
+            "options": "Supplier"
+        },
+        {
             "fieldname": "items_section",
             "fieldtype": "Section Break",
             "label": "Товары"
@@ -105,6 +115,14 @@
             "label": "Дополнительно"
         },
         {
+            "fieldname": "items_summary",
+            "fieldtype": "Small Text",
+            "hidden": 1,
+            "in_list_view": 1,
+            "label": "Сводка по товарам",
+            "read_only": 1
+        },
+        {
             "fieldname": "remarks",
             "fieldtype": "Small Text",
             "label": "Примечания"
@@ -113,7 +131,7 @@
     "index_web_pages_for_search": 1,
     "is_submittable": 1,
     "links": [],
-    "modified": "2026-01-18 12:55:00.000000",
+    "modified": "2026-02-14 15:11:00.000000",
     "modified_by": "Administrator",
     "module": "nasiya365",
     "name": "Stock Entry",
@@ -121,6 +139,7 @@
     "owner": "Administrator",
     "permissions": [
         {
+            "cancel": 1,
             "create": 1,
             "delete": 1,
             "email": 1,
@@ -134,6 +153,7 @@
             "write": 1
         },
         {
+            "cancel": 1,
             "create": 1,
             "email": 1,
             "export": 1,

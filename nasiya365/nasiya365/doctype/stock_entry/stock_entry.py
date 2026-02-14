@@ -5,6 +5,38 @@ from frappe.utils import flt, now_datetime
 class StockEntry(Document):
 	def validate(self):
 		self.calculate_totals()
+		self.set_items_summary()
+
+	def set_items_summary(self):
+		"""Set items summary for list view"""
+		summary_items = []
+		for item in self.items[:3]:  # Take first 3 items
+			if not item.product:
+				continue
+				
+			product_name = frappe.get_cached_value("Product", item.product, "product_name")
+			brand = frappe.get_cached_value("Product", item.product, "brand")
+			
+			item_desc = product_name or item.product
+			
+			# Add IMEI/Serial (last 6 digits)
+			if item.serial_no:
+				serial = item.serial_no
+				if len(serial) > 6:
+					serial = "..." + serial[-6:]
+				item_desc += f" ({serial})"
+			
+			# Add Brand
+			if brand:
+				item_desc += f" - {brand}"
+				
+			summary_items.append(item_desc)
+		
+		if len(self.items) > 3:
+			summary_items.append(f"... (+{len(self.items) - 3})")
+			
+		self.items_summary = ", ".join(summary_items)
+
 	
 	def calculate_totals(self):
 		"""Calculate total quantity and value"""

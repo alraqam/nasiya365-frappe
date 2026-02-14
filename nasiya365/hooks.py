@@ -91,18 +91,11 @@ after_install = "nasiya365.install.after_install"
 # Document Events
 # ---------------
 
+# Document Events
+# ---------------
+
 # Hook on document methods and events
 doc_events = {
-    "Sales Order": {
-        "on_submit": "nasiya365.nasiya365.doctype.sales_order.sales_order.on_submit",
-        "on_cancel": "nasiya365.nasiya365.doctype.sales_order.sales_order.on_cancel",
-    },
-    "Installment Plan": {
-        "on_submit": "nasiya365.nasiya365.doctype.installment_plan.installment_plan.on_submit",
-    },
-    "Payment Transaction": {
-        "after_insert": "nasiya365.nasiya365.doctype.payment_transaction.payment_transaction.after_insert",
-    },
 }
 
 # Scheduled Tasks

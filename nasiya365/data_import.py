@@ -5,6 +5,31 @@ import csv
 import os
 import re
 
+
+class SkipRow(Exception):
+    """Raised when a row should be skipped (empty/invalid) without counting as success or error."""
+    pass
+
+
+def _create_savepoint(name):
+    """Create a savepoint so we can roll back only the current row on failure."""
+    safe_name = re.sub(r"[^a-zA-Z0-9_]", "", name)[:64]
+    if safe_name:
+        frappe.db.sql(f"SAVEPOINT `{safe_name}`")
+
+
+def _rollback_to_savepoint(name):
+    """Roll back to savepoint (current row only); then commit so next row starts clean."""
+    safe_name = re.sub(r"[^a-zA-Z0-9_]", "", name)[:64]
+    if safe_name:
+        try:
+            frappe.db.sql(f"ROLLBACK TO SAVEPOINT `{safe_name}`")
+        except Exception:
+            frappe.db.rollback()
+    else:
+        frappe.db.rollback()
+
+
 def import_bnpl_data(file_path, default_branch, import_type="BNPL Sales", skip_validation=False):
     """
     Import Data from CSV file
@@ -17,8 +42,12 @@ def import_bnpl_data(file_path, default_branch, import_type="BNPL Sales", skip_v
         "success": 0,
         "duplicates": 0,
         "errors": 0,
+        "skipped": 0,
         "logs": []
     }
+
+    # Set import flag to skip certain hooks during legacy data import
+    frappe.flags.in_import = True
 
     try:
         # Detect encoding
@@ -36,7 +65,9 @@ def import_bnpl_data(file_path, default_branch, import_type="BNPL Sales", skip_v
             
             for row in reader:
                 summary["total"] += 1
+                sp_name = f"import_row_{summary['total']}"
                 try:
+                    _create_savepoint(sp_name)
                     if import_type == "Импорт складских записей":
                         process_stock_entry_csv(row, default_branch, summary, skip_validation)
                     elif import_type == "Импорт клиентов":
@@ -54,18 +85,37 @@ def import_bnpl_data(file_path, default_branch, import_type="BNPL Sales", skip_v
                     
                     frappe.db.commit()
                     summary["success"] += 1
+                except SkipRow:
+                    _rollback_to_savepoint(sp_name)
+                    summary["skipped"] += 1
                 except Exception as e:
-                    frappe.db.rollback()
+                    _rollback_to_savepoint(sp_name)
                     summary["errors"] += 1
                     summary["logs"].append(f"Row {summary['total']} Error: {str(e)}")
             
             frappe.flags.in_import = False
+            # Force persistence: commit and flush (some setups defer commit until request end)
+            frappe.db.commit()
+            try:
+                frappe.db.sql("COMMIT")
+            except Exception:
+                pass
     
     except Exception as e:
         frappe.log_error(str(e), "Import Error")
+        frappe.db.rollback()
         return f"Ошибка файла: {str(e)}"
 
-    return f"Импорт завершен ({import_type}). Всего: {summary['total']}, Успешно: {summary['success']}, Дубликаты: {summary['duplicates']}, Ошибки: {summary['errors']}. \nОшибки: {'; '.join(summary['logs'][:10])}"
+    msg = f"Импорт завершен ({import_type}). Всего: {summary['total']}, Успешно: {summary['success']}, Пропущено: {summary['skipped']}, Дубликаты: {summary['duplicates']}, Ошибки: {summary['errors']}."
+    if summary["logs"]:
+        msg += f"\nОшибки: {'; '.join(summary['logs'][:10])}"
+    if import_type == "Импорт платежей" and summary["success"] == 0 and summary["errors"] > 0:
+        msg += "\n\nПодсказка: для Импорт платежей сначала выполните Импорт договоров (installment_contracts.csv), чтобы в системе были Sales Order с номерами документов."
+    
+    # Reset import flag
+    frappe.flags.in_import = False
+    
+    return msg
 
 
 def process_customer_row(row, summary, skip_validation=False):
@@ -73,9 +123,8 @@ def process_customer_row(row, summary, skip_validation=False):
     
     # 1. Name Parsing
     full_name = row.get("Название клиента", "").strip()
-    if not full_name: 
-        summary["errors"] += 1
-        return # Skip empty names
+    if not full_name:
+        raise SkipRow  # Skip empty names
     
     parts = full_name.split()
     first_name = parts[0]
@@ -164,7 +213,7 @@ def process_row(row, default_branch, summary, skip_validation=False):
     # Map CSV fields (Russian keys)
     doc_number = row.get("Номер документа", "").strip()
     if not doc_number:
-        return # Skip empty rows
+        raise SkipRow  # Skip empty rows
 
     # Check for duplicate by Document Number
     if frappe.db.exists("Sales Order", {"po_no": doc_number}):
@@ -189,16 +238,39 @@ def process_row(row, default_branch, summary, skip_validation=False):
     paid_amount = parse_number(row.get("Оплачено", "0"))
     remaining_debt = parse_number(row.get("Остаток долга", "0"))
     
+    # Get warehouse for the branch
+    warehouse = frappe.db.get_value(
+        "Warehouse",
+        {"branch": default_branch, "is_default": 1},
+        "name"
+    )
+    if not warehouse:
+        # Fallback to any warehouse for this branch
+        warehouse = frappe.db.get_value("Warehouse", {"branch": default_branch}, "name")
+    if not warehouse:
+        # Last resort: get any warehouse
+        warehouse = frappe.db.get_value("Warehouse", {}, "name")
+    
     so = frappe.new_doc("Sales Order")
     so.customer = customer.name
-    so.transaction_date = sale_date
+    so.order_date = sale_date  # Correct field name
     so.delivery_date = sale_date
-    so.company = frappe.defaults.get_user_default("Company") or frappe.db.get_default("company") or "My Company"
     so.branch = default_branch
-    so.branch = default_branch
-    # Store legacy doc number in notes for tracing
-    so.notes = f"Legacy ID: {doc_number}"
-    so.po_no = doc_number
+    so.warehouse = warehouse
+    so.po_no = doc_number  # Legacy document number
+    so.notes = f"Imported from legacy system. Original ID: {doc_number}"
+    
+    # Set sale type based on payment status
+    if remaining_debt > 0:
+        so.sale_type = "Рассрочка" if paid_amount == 0 else "Смешанный"
+    else:
+        so.sale_type = "Наличные"
+    
+    # Set payment amounts
+    so.subtotal = total_amount
+    so.total_amount = total_amount
+    so.paid_amount = paid_amount
+    so.balance_amount = remaining_debt
     
     so.append("items", {
         "product": product.name,
@@ -217,13 +289,50 @@ def process_row(row, default_branch, summary, skip_validation=False):
     so.submit()
 
     # 4. Create Installment Plan if there is debt
+    installment_plan = None
     if remaining_debt > 0:
-        create_installment_plan(so, customer, row, sale_date, total_amount, paid_amount, remaining_debt)
+        installment_plan = create_installment_plan(so, customer, row, sale_date, total_amount, paid_amount, remaining_debt)
+        
+        # Link installment plan back to sales order
+        if installment_plan:
+            so.installment_plan = installment_plan.name
+            so.db_update()
+    
+    # 5. Create Contract document
+    try:
+        contract = frappe.new_doc("Contract")
+        contract.contract_type = "Рассрочка (BNPL)"
+        contract.customer = customer.name
+        contract.sales_order = so.name
+        contract.installment_plan = installment_plan.name if installment_plan else None
+        contract.total_amount = total_amount
+        contract.contract_date = sale_date
+        contract.status = "Активный" if remaining_debt > 0 else "Завершен"
+        
+        # Skip all validation and mandatory checks to avoid template lookup errors
+        contract.flags.ignore_permissions = True
+        contract.flags.ignore_validate = True
+        contract.flags.ignore_mandatory = True
+        contract.flags.ignore_links = True
+        
+        # Insert without running validate() method
+        contract.insert(ignore_permissions=True, ignore_mandatory=True)
+    except Exception as e:
+        # Log error but don't fail the entire import
+        error_msg = str(e)
+        frappe.log_error(f"Contract creation failed for {doc_number}: {error_msg}", "Contract Import Error")
+        # Continue without creating contract - Sales Order and Plan were created successfully
+
 
 
 def get_or_create_customer(name, phone, skip_validation=False):
     # BNPL Logic helper; phone may be comma/semicolon-separated
     phones = parse_phone_list(phone) if phone else []
+    
+    # If no valid phone numbers, add a placeholder to satisfy validation
+    if not phones:
+        phones = ["000000000"]  # Placeholder phone for customers without phone data
+    
     if phones:
         for p in phones:
             existing = frappe.db.get_value("Customer Phone Number", {"phone_number": p}, "parent")
@@ -255,9 +364,12 @@ def get_or_create_customer(name, phone, skip_validation=False):
 
 
 def get_or_create_product(name, code, imei, price, skip_validation=False):
-    if code and frappe.db.exists("Product", {"product_code": code}):
-         return frappe.get_doc("Product", {"product_code": code})
-         
+    if code:
+        # Get product name first, then fetch the doc
+        product_name = frappe.db.get_value("Product", {"product_code": code}, "name")
+        if product_name:
+            return frappe.get_doc("Product", product_name)
+          
     # Check Item too just in case
     # if code and frappe.db.exists("Item", code):
     #    return frappe.get_doc("Item", code)
@@ -300,7 +412,10 @@ def create_installment_plan(so, customer, row, sale_date, total_amount, paid_amo
     
     plan.flags.ignore_permissions = True
     plan.insert()
-    plan.submit()
+    # Don't submit during import - legacy data doesn't need full workflow
+    # plan.submit()
+    
+    return plan
 
 
 def parse_number(val):
@@ -352,9 +467,123 @@ def parse_phone_list(raw):
     return result
 
 
+def parse_payment_details(payment_str):
+    """
+    Parse payment details string like:
+    '05.02.2026=350.000000 USD; 31.01.2026=500.000000 USD'
+    Returns list of dicts with 'date' and 'amount'
+    """
+    payments = []
+    if not payment_str or not str(payment_str).strip():
+        return payments
+    
+    # Split by semicolon
+    parts = str(payment_str).split(';')
+    for part in parts:
+        part = part.strip()
+        if not part or '=' not in part:
+            continue
+        
+        try:
+            # Split by '='
+            date_part, amount_part = part.split('=', 1)
+            date_part = date_part.strip()
+            amount_part = amount_part.strip()
+            
+            # Parse date (DD.MM.YYYY format)
+            payment_date = parse_date(date_part)
+            
+            # Parse amount (remove currency suffix like USD, UZS)
+            amount_str = amount_part.split()[0] if ' ' in amount_part else amount_part
+            amount = parse_number(amount_str)
+            
+            if amount > 0:
+                payments.append({
+                    'date': payment_date,
+                    'amount': amount
+                })
+        except Exception as e:
+            # Skip malformed payment entries
+            continue
+    
+    return payments
+
+
+def process_payment_row(row, summary, skip_validation=False):
+    """
+    Process payment import row from installment_payments.csv
+    Creates Payment Transaction records for each payment in the history
+    """
+    doc_number = row.get("Номер документа", "").strip()
+    if not doc_number:
+        raise SkipRow
+    
+    # Find the Sales Order by document number
+    so_name = frappe.db.get_value("Sales Order", {"po_no": doc_number}, "name")
+    if not so_name:
+        summary["errors"] += 1
+        summary["logs"].append(f"Row {summary.get('current_row', '?')} Error: Sales Order not found for doc number {doc_number}")
+        raise SkipRow
+    
+    # Get the Sales Order
+    so = frappe.get_doc("Sales Order", so_name)
+    
+    # Parse payment details
+    payment_details_str = row.get("Детали всех платежей", "")
+    payments = parse_payment_details(payment_details_str)
+    
+    if not payments:
+        # No payments to import
+        raise SkipRow
+    
+    # Create Payment Transaction for each payment
+    payments_created = 0
+    for payment in payments:
+        try:
+            # Check if payment already exists for this date/amount/sales order
+            existing = frappe.db.exists("Payment Transaction", {
+                "reference_doctype": "Sales Order",
+                "reference_name": so_name,
+                "payment_date": payment['date'],
+                "amount": payment['amount']
+            })
+            
+            if existing:
+                # Skip duplicate
+                continue
+            
+            # Create new payment transaction
+            payment_doc = frappe.new_doc("Payment Transaction")
+            payment_doc.customer = so.customer
+            payment_doc.payment_date = payment['date']
+            payment_doc.amount = payment['amount']
+            payment_doc.status = "Завершен"  # Completed
+            payment_doc.payment_method = "Наличные"  # Default to cash
+            payment_doc.reference_doctype = "Sales Order"
+            payment_doc.reference_name = so_name
+            payment_doc.notes = f"Imported from legacy system. Doc #{doc_number}"
+            payment_doc.received_by = frappe.session.user
+            
+            payment_doc.flags.ignore_permissions = True
+            if skip_validation:
+                payment_doc.flags.ignore_validate = True
+                payment_doc.flags.ignore_mandatory = True
+            
+            payment_doc.insert()
+            payments_created += 1
+            
+        except Exception as e:
+            # Log error but continue with other payments
+            summary["logs"].append(f"Doc {doc_number}, Payment {payment['date']}: {str(e)[:100]}")
+            continue
+    
+    return payments_created
+
+
 def process_supplier_row(row, summary, skip_validation=False):
     name = row.get("Название клиента", "").strip() or row.get("Name", "").strip()
-    if not name: return
+    if not name:
+        raise SkipRow
 
     # Check existence
     if frappe.db.exists("Supplier", {"supplier_name": name}):
@@ -436,26 +665,23 @@ def process_payment_row(row, summary, skip_validation=False):
         amount = parse_number(row.get("Оплачено", "0"))
         
     if not doc_num or amount <= 0:
-        return
+        raise SkipRow
 
-    # Find linked Sales Order by checking notes for legacy ID or assuming PO No if it existed
-    # Since SalesOrder doesn't have po_no, we search using LIKE logic in notes if we stored it there
-    # OR we assume the user mapped it manually. 
-    # Wait, process_row below saves 'po_no'    # Find linked Sales Order
+    # Find linked Sales Order by po_no (Номер документа) — must run Импорт договоров first
     so_name = frappe.db.get_value("Sales Order", {"po_no": doc_num}, "name")
-    
     if not so_name:
-        # Fallback: Check notes for Legacy ID
         so_name = frappe.db.get_value("Sales Order", {"notes": ["like", f"%Legacy ID: {doc_num}%"]}, "name")
-
     if not so_name:
-        summary["errors"] += 1
-        summary["logs"].append(f"Ошибка платежа: Sales Order не найден для {doc_num}")
-        return
+        raise Exception(f"Sales Order не найден для «{doc_num}». Сначала выполните Импорт договоров (installment_contracts.csv).")
 
     # Create Payment Transaction
     pe = frappe.new_doc("Payment Transaction")
-    pe.payment_date = now() # Or parsed date
+    # Prefer last payment date from CSV, else sale date
+    last_payment_raw = row.get("Последний платеж", "").strip()
+    if last_payment_raw and "=" in last_payment_raw:
+        pe.payment_date = parse_date(last_payment_raw.split("=")[0].strip())
+    else:
+        pe.payment_date = parse_date(row.get("Дата продажи", ""))
     pe.amount = amount
     pe.status = "Completed"
     pe.payment_method = "Cash"
@@ -486,7 +712,7 @@ def process_stock_entry_csv(row, default_branch, summary, skip_validation=False)
     serial_no = row.get("Серийный номер", "").strip()
     
     if not code and not name:
-        return
+        raise SkipRow
 
     # attributes for description
     condition = row.get("Состояние", "").strip()

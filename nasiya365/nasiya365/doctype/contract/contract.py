@@ -24,7 +24,9 @@ class Contract(Document):
         """Set default template if not specified"""
         if not self.template:
             from nasiya365.nasiya365.doctype.print_template.print_template import get_default_template
-            template = get_default_template(self.contract_type)
+            # Map contract_type to template_type
+            template_type = "Договор"  # All contracts use the "Договор" template type
+            template = get_default_template(template_type)
             if template:
                 self.template = template.name
     

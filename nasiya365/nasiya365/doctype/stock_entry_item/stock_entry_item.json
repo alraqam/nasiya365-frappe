@@ -19,11 +19,29 @@
             "reqd": 1
         },
         {
+            "default": "1",
             "fieldname": "quantity",
             "fieldtype": "Float",
             "in_list_view": 1,
             "label": "Количество",
             "reqd": 1
+        },
+        {
+            "fieldname": "condition",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Состояние",
+            "options": "Новый\nБ/У"
+        },
+        {
+            "fieldname": "battery_cycles",
+            "fieldtype": "Int",
+            "label": "Циклы заряда"
+        },
+        {
+            "fieldname": "cost_price",
+            "fieldtype": "Currency",
+            "label": "Себестоимость"
         },
         {
             "fieldname": "rate",

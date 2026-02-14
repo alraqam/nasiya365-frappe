@@ -23,7 +23,8 @@ class SalesOrder(Document):
         self.update_stock()
         if self.sale_type in ["Рассрочка (BNPL)", "Смешанная"]:
             self.create_installment_plan()
-        if self.sale_type == "Наличные":
+        # Skip creating payment transaction during import (legacy data)
+        if self.sale_type == "Наличные" and not frappe.flags.in_import:
             self.create_cash_receipt()
     
     def on_cancel(self):
@@ -118,8 +119,8 @@ class SalesOrder(Document):
         valuation_rate = current[0][1] if current else 0
         
         if not valuation_rate:
-            # Get from product purchase price
-            valuation_rate = frappe.db.get_value("Product", product, "purchase_price") or 0
+            # Get from product cost
+            valuation_rate = frappe.db.get_value("Product", product, "product_cost") or 0
         
         new_balance = current_qty + quantity
         

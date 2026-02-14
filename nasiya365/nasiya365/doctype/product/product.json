@@ -21,6 +21,7 @@
         "image",
         "pricing_section",
         "product_cost",
+        "selling_price",
         "bnpl_section",
         "allow_installment",
         "min_down_payment_percent",
@@ -121,6 +122,12 @@
             "reqd": 1
         },
         {
+            "fieldname": "selling_price",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Цена продажи"
+        },
+        {
             "fieldname": "bnpl_section",
             "fieldtype": "Section Break",
             "label": "Настройки рассрочки"
@@ -206,6 +213,7 @@
         }
     ],
     "search_fields": "product_name,product_code,brand",
+    "show_title_field_in_link": 1,
     "sort_field": "modified",
     "sort_order": "DESC",
     "title_field": "product_name",
