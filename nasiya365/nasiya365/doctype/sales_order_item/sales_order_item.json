@@ -9,7 +9,8 @@
         "quantity",
         "unit_price",
         "discount_percent",
-        "amount"
+        "amount",
+        "imei"
     ],
     "fields": [
         {
@@ -56,6 +57,12 @@
             "in_list_view": 1,
             "label": "Сумма",
             "read_only": 1
+        },
+        {
+            "fieldname": "imei",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "IMEI"
         }
     ],
     "istable": 1,

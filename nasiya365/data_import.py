@@ -215,10 +215,21 @@ def process_row(row, default_branch, summary, skip_validation=False):
     if not doc_number:
         raise SkipRow  # Skip empty rows
 
-    # Check for duplicate by Document Number
-    if frappe.db.exists("Sales Order", {"po_no": doc_number}):
-        summary["duplicates"] += 1
-        raise Exception(f"Duplicate Document Number: {doc_number}")
+    imei = row.get("IMEI", "").strip()
+    sale_date = parse_date(row.get("Дата продажи", ""))
+
+    # Composite uniqueness check: IMEI + sale date
+    # Same IMEI can be resold at a different date (trade-in scenario)
+    if imei and sale_date:
+        existing_so = frappe.db.sql("""
+            SELECT so.name FROM `tabSales Order` so
+            INNER JOIN `tabSales Order Item` soi ON soi.parent = so.name
+            WHERE soi.imei = %s AND so.order_date = %s AND so.docstatus = 1
+            LIMIT 1
+        """, (imei, sale_date), as_dict=True)
+        if existing_so:
+            summary["duplicates"] += 1
+            raise Exception(f"Дубликат: IMEI {imei} уже существует за дату {sale_date}")
 
     # 1. Create/Get Customer (phone may be comma-separated)
     client_name = row.get("Клиент", "").strip()
@@ -228,12 +239,10 @@ def process_row(row, default_branch, summary, skip_validation=False):
     # 2. Create/Get Product
     product_name = row.get("Наименование товара", "").strip()
     product_code = row.get("Код товара", "").strip()
-    imei = row.get("IMEI", "").strip()
     price = parse_number(row.get("Цена продажи", "0"))
     product = get_or_create_product(product_name, product_code, imei, price, skip_validation)
 
     # 3. Create Sales Order
-    sale_date = parse_date(row.get("Дата продажи", ""))
     total_amount = parse_number(row.get("Общая сумма", "0"))
     paid_amount = parse_number(row.get("Оплачено", "0"))
     remaining_debt = parse_number(row.get("Остаток долга", "0"))
@@ -277,7 +286,8 @@ def process_row(row, default_branch, summary, skip_validation=False):
         "product_name": product.product_name,
         "quantity": 1,
         "unit_price": price, 
-        "amount": price
+        "amount": price,
+        "imei": imei
     })
     
     so.flags.ignore_permissions = True
@@ -287,6 +297,22 @@ def process_row(row, default_branch, summary, skip_validation=False):
         
     so.insert()
     so.submit()
+
+    # Link contract with purchase import via IMEI
+    if imei:
+        purchase_entry = frappe.db.sql("""
+            SELECT se.name, sei.rate as cost_price
+            FROM `tabStock Entry` se
+            INNER JOIN `tabStock Entry Item` sei ON sei.parent = se.name
+            WHERE sei.serial_no = %s
+            AND se.entry_type = 'Поступление'
+            AND se.docstatus = 1
+            ORDER BY se.posting_date DESC
+            LIMIT 1
+        """, (imei,), as_dict=True)
+        if purchase_entry:
+            so.notes = (so.notes or "") + f"\nLinked Purchase: {purchase_entry[0].name}"
+            so.db_update()
 
     # 4. Create Installment Plan if there is debt
     installment_plan = None
