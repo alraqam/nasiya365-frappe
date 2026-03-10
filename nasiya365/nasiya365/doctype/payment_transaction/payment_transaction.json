@@ -51,7 +51,7 @@
             "reqd": 1
         },
         {
-            "default": "Completed",
+            "default": "Завершен",
             "fieldname": "status",
             "fieldtype": "Select",
             "in_list_view": 1,

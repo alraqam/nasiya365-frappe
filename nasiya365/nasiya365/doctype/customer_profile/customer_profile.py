@@ -12,12 +12,19 @@ import re
 
 class CustomerProfile(Document):
     def validate(self):
+        self.set_full_name()
         self.validate_phone_numbers()
         self.validate_passport()
         self.validate_pinfl()
         self.validate_age()
         self.validate_passport_dates()
         self.sync_addresses()
+        self.update_available_limit()
+    
+    def set_full_name(self):
+        """Set full_name from first_name and last_name"""
+        parts = [self.first_name or "", self.last_name or ""]
+        self.full_name = " ".join(p for p in parts if p).strip()
         
     def validate_phone_numbers(self):
         """Validate phone numbers table - ensure at least one exists and only one is primary"""
@@ -81,6 +88,32 @@ class CustomerProfile(Document):
             if phone.is_primary:
                 return phone.phone_number
         return None
+
+    def update_available_limit(self):
+        """Calculate available limit = credit_limit - total_active_debt"""
+        from frappe.utils import flt
+        
+        limit = flt(self.credit_limit)
+        debt = flt(self.total_debt)
+        self.available_limit = limit - debt
+        
+    def update_statistics(self):
+        """Update active contracts count and total debt from Installment Plans"""
+        from frappe.utils import flt
+        
+        plans = frappe.get_all(
+            "Installment Plan",
+            filters={
+                "customer": self.name,
+                "docstatus": 1,
+                "status": ["!=", "Завершен"]
+            },
+            fields=["remaining_balance"]
+        )
+        
+        self.active_contracts_count = len(plans)
+        self.total_debt = sum(flt(p.remaining_balance) for p in plans)
+        self.update_available_limit()
 
 
 @frappe.whitelist()

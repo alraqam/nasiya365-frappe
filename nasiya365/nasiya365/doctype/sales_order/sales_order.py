@@ -21,7 +21,7 @@ class SalesOrder(Document):
     
     def on_submit(self):
         self.update_stock()
-        if self.sale_type in ["Рассрочка (BNPL)", "Смешанная"]:
+        if self.sale_type in ["Рассрочка", "Смешанный"]:
             self.create_installment_plan()
         # Skip creating payment transaction during import (legacy data)
         if self.sale_type == "Наличные" and not frappe.flags.in_import:
@@ -44,6 +44,9 @@ class SalesOrder(Document):
     
     def calculate_totals(self):
         """Calculate subtotal, discount, and total amounts"""
+        for item in self.items:
+            item.amount = flt(item.quantity) * flt(item.unit_price) * (1 - flt(item.discount_percent) / 100.0)
+            
         self.subtotal = sum(flt(item.amount) for item in self.items)
         
         # Calculate discount
@@ -59,7 +62,7 @@ class SalesOrder(Document):
             if flt(self.paid_amount) < flt(self.total_amount):
                 frappe.throw(_("Для продажи за наличные сумма оплаты должна быть равна общей сумме"))
         
-        elif self.sale_type == "Рассрочка (BNPL)":
+        elif self.sale_type == "Рассрочка":
             # Check customer eligibility
             customer = frappe.get_doc("Customer Profile", self.customer)
             if customer.status != "Активный":
@@ -78,7 +81,7 @@ class SalesOrder(Document):
                         )
                     )
         
-        elif self.sale_type == "Смешанная":
+        elif self.sale_type == "Смешанный":
             if flt(self.paid_amount) <= 0:
                 frappe.throw(_("Смешанная продажа требует частичной оплаты наличными"))
             if flt(self.paid_amount) >= flt(self.total_amount):
@@ -149,11 +152,12 @@ class SalesOrder(Document):
         plan = frappe.new_doc("Installment Plan")
         plan.customer = self.customer
         plan.sales_order = self.name
-        plan.principal_amount = financed_amount
+        plan.principal_amount = self.total_amount
         plan.down_payment = self.paid_amount
         plan.interest_rate = settings.default_interest_rate or 0
         plan.number_of_installments = 6  # Default
         plan.frequency = "Ежемесячно"
+        plan.status = "Активный"
         plan.start_date = today()
         plan.insert()
         plan.submit()

@@ -16,5 +16,6 @@ class PaymentTransaction(Document):
         Logic to run after a payment is inserted.
         This is referenced in hooks.py.
         """
-        # Add payment processing logic here if needed
-        pass
+        if self.reference_doctype == "Installment Plan" and self.reference_name:
+            plan = frappe.get_doc("Installment Plan", self.reference_name)
+            plan.apply_payment(self.amount, payment_transaction=self.name)

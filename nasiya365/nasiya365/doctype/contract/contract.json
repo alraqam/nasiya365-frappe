@@ -8,6 +8,8 @@
         "contract_section",
         "contract_number",
         "contract_type",
+        "product_name",
+        "imei",
         "column_break_1",
         "contract_date",
         "valid_until",
@@ -17,6 +19,17 @@
         "column_break_2",
         "installment_plan",
         "sales_order",
+        "protection_section",
+        "protection_type",
+        "protection_login",
+        "column_break_protection",
+        "protection_password",
+        "protection_notes",
+        "financial_section",
+        "debt_today",
+        "column_break_financial",
+        "total_debt",
+        "monthly_payment",
         "amounts_section",
         "total_amount",
         "template",
@@ -45,14 +58,27 @@
             "unique": 1
         },
         {
-            "default": "BNPL Agreement",
+            "default": "Рассрочка (BNPL)",
             "fieldname": "contract_type",
             "fieldtype": "Select",
-            "in_list_view": 1,
-            "in_standard_filter": 1,
+            "hidden": 1,
             "label": "Тип договора",
             "options": "Рассрочка (BNPL)\nДоговор продажи\nГарантия",
             "reqd": 1
+        },
+        {
+            "fieldname": "product_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Модель",
+            "read_only": 1
+        },
+        {
+            "fieldname": "imei",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "IMEI",
+            "read_only": 1
         },
         {
             "fieldname": "column_break_1",
@@ -109,6 +135,71 @@
             "fieldtype": "Link",
             "label": "Заказ на продажу",
             "options": "Sales Order"
+        },
+        {
+            "fieldname": "protection_section",
+            "fieldtype": "Section Break",
+            "label": "Защита устройства"
+        },
+        {
+            "default": "Нет",
+            "fieldname": "protection_type",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Тип защиты",
+            "options": "Нет\niCloud\nSamsung Block\nGoogle FRP\nДругое"
+        },
+        {
+            "depends_on": "eval:doc.protection_type && doc.protection_type !== 'Нет'",
+            "fieldname": "protection_login",
+            "fieldtype": "Data",
+            "label": "Логин"
+        },
+        {
+            "fieldname": "column_break_protection",
+            "fieldtype": "Column Break"
+        },
+        {
+            "depends_on": "eval:doc.protection_type && doc.protection_type !== 'Нет'",
+            "fieldname": "protection_password",
+            "fieldtype": "Password",
+            "label": "Пароль"
+        },
+        {
+            "depends_on": "eval:doc.protection_type && doc.protection_type !== 'Нет'",
+            "fieldname": "protection_notes",
+            "fieldtype": "Small Text",
+            "label": "Примечания по защите"
+        },
+        {
+            "fieldname": "financial_section",
+            "fieldtype": "Section Break",
+            "label": "Финансовая информация"
+        },
+        {
+            "fieldname": "debt_today",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Долг за сегодня",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_financial",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "total_debt",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Общий долг",
+            "read_only": 1
+        },
+        {
+            "fieldname": "monthly_payment",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Ежемесячная оплата",
+            "read_only": 1
         },
         {
             "fieldname": "amounts_section",

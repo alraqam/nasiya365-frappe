@@ -62,7 +62,7 @@
             "fieldtype": "Column Break"
         },
         {
-            "default": "Active",
+            "default": "Активный",
             "fieldname": "status",
             "fieldtype": "Select",
             "in_list_view": 1,

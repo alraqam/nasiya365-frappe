@@ -109,13 +109,13 @@ class InstallmentPlan(Document):
     def update_customer_limit(self):
         """Reduce customer's available limit when plan is submitted"""
         customer = frappe.get_doc("Customer Profile", self.customer)
-        customer.update_available_limit()
+        customer.update_statistics()
         customer.db_update()
     
     def release_customer_limit(self):
         """Restore customer's available limit when plan is cancelled"""
         customer = frappe.get_doc("Customer Profile", self.customer)
-        customer.update_available_limit()
+        customer.update_statistics()
         customer.db_update()
     
     def create_contract(self):
@@ -161,6 +161,7 @@ class InstallmentPlan(Document):
         if all(s.status == "Оплачен" for s in self.schedule):
             self.status = "Завершен"
         
+        self.flags.ignore_validate_update_after_submit = True
         self.save()
         
         # Update customer statistics

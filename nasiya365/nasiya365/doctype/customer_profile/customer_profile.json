@@ -7,6 +7,7 @@
     "engine": "InnoDB",
     "field_order": [
         "personal_section",
+        "full_name",
         "first_name",
         "last_name",
         "middle_name",
@@ -37,13 +38,26 @@
         "workplace",
         "position",
         "column_break_employment",
-        "monthly_income"
+        "monthly_income",
+        "financial_section",
+        "credit_limit",
+        "available_limit",
+        "column_break_financial",
+        "total_debt",
+        "active_contracts_count"
     ],
     "fields": [
         {
             "fieldname": "personal_section",
             "fieldtype": "Section Break",
             "label": "Личная информация"
+        },
+        {
+            "fieldname": "full_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "ФИО",
+            "read_only": 1
         },
         {
             "fieldname": "first_name",
@@ -93,7 +107,7 @@
             "fieldtype": "Column Break"
         },
         {
-            "default": "Active",
+            "default": "Активный",
             "fieldname": "status",
             "fieldtype": "Select",
             "in_list_view": 1,
@@ -216,6 +230,38 @@
             "fieldname": "monthly_income",
             "fieldtype": "Currency",
             "label": "Ежемесячный доход"
+        },
+        {
+            "fieldname": "financial_section",
+            "fieldtype": "Section Break",
+            "label": "Лимиты и статистика"
+        },
+        {
+            "fieldname": "credit_limit",
+            "fieldtype": "Currency",
+            "label": "Лимит рассрочки"
+        },
+        {
+            "fieldname": "available_limit",
+            "fieldtype": "Currency",
+            "label": "Доступный лимит",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_financial",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "total_debt",
+            "fieldtype": "Currency",
+            "label": "Сумма долга",
+            "read_only": 1
+        },
+        {
+            "fieldname": "active_contracts_count",
+            "fieldtype": "Int",
+            "label": "Активные контракты",
+            "read_only": 1
         }
     ],
     "index_web_pages_for_search": 1,
@@ -264,9 +310,10 @@
         }
     ],
     "quick_entry": 0,
-    "search_fields": "first_name,last_name,phone",
+    "search_fields": "full_name,first_name,last_name",
     "sort_field": "modified",
     "sort_order": "DESC",
-    "title_field": "first_name",
+    "show_title_field_in_link": 1,
+    "title_field": "full_name",
     "track_changes": 1
 }
