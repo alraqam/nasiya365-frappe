@@ -313,6 +313,7 @@
     "search_fields": "customer,contract_type",
     "sort_field": "modified",
     "sort_order": "DESC",
-    "title_field": "customer",
+    "title_field": "contract_number",
+    "show_title_field_in_link": 1,
     "track_changes": 1
 }

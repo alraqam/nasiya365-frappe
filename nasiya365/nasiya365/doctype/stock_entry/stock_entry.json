@@ -169,5 +169,7 @@
     "sort_field": "modified",
     "sort_order": "DESC",
     "states": [],
+    "show_title_field_in_link": 1,
+    "title_field": "entry_type",
     "track_changes": 1
 }

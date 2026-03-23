@@ -134,5 +134,6 @@
     "sort_field": "modified",
     "sort_order": "DESC",
     "title_field": "warehouse_name",
+    "show_title_field_in_link": 1,
     "track_changes": 1
 }

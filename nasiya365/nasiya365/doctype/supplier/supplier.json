@@ -79,5 +79,7 @@
     ],
     "sort_field": "modified",
     "sort_order": "DESC",
+    "show_title_field_in_link": 1,
+    "title_field": "supplier_name",
     "track_changes": 1
 }
