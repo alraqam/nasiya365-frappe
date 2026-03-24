@@ -12,6 +12,7 @@
         "expense_date",
         "branch",
         "details_section",
+        "currency",
         "amount",
         "cashbox",
         "column_break_2",
@@ -71,10 +72,19 @@
             "label": "Финансы"
         },
         {
+            "default": "UZS",
+            "fieldname": "currency",
+            "fieldtype": "Link",
+            "label": "Валюта",
+            "options": "Currency",
+            "reqd": 1
+        },
+        {
             "fieldname": "amount",
             "fieldtype": "Currency",
             "in_list_view": 1,
             "label": "Сумма",
+            "options": "currency",
             "reqd": 1
         },
         {
