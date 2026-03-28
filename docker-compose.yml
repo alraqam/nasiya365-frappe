@@ -103,6 +103,8 @@ services:
       - sites:/home/frappe/frappe-bench/sites
       - assets:/home/frappe/frappe-bench/sites/assets
       - logs:/home/frappe/frappe-bench/logs
+      # Same bind as backend so /assets/nasiya365 symlink resolves to live public/ (manifest, PWA)
+      - ./nasiya365:/home/frappe/frappe-bench/apps/nasiya365/nasiya365
     ports:
       - "8081:8080"
     environment:

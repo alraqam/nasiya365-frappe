@@ -44,7 +44,11 @@
         "available_limit",
         "column_break_financial",
         "total_debt",
-        "active_contracts_count"
+        "active_contracts_count",
+        "risk_section",
+        "risk_score",
+        "risk_level",
+        "last_payment_delay_days"
     ],
     "fields": [
         {
@@ -261,6 +265,35 @@
             "fieldname": "active_contracts_count",
             "fieldtype": "Int",
             "label": "Активные контракты",
+            "read_only": 1
+        },
+        {
+            "fieldname": "risk_section",
+            "fieldtype": "Section Break",
+            "label": "Риск-профиль"
+        },
+        {
+            "default": "0",
+            "fieldname": "risk_score",
+            "fieldtype": "Int",
+            "in_list_view": 1,
+            "label": "Risk Score",
+            "read_only": 1
+        },
+        {
+            "default": "Средний",
+            "fieldname": "risk_level",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Уровень риска",
+            "options": "Низкий\nСредний\nВысокий",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "last_payment_delay_days",
+            "fieldtype": "Int",
+            "label": "Макс. просрочка (дней)",
             "read_only": 1
         }
     ],

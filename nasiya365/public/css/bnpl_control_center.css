@@ -1,0 +1,185 @@
+.bnpl-dashboard,
+.bnpl-overdue-screen {
+	padding: 12px;
+}
+
+.bnpl-top-actions {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+	margin-bottom: 12px;
+	background: var(--bg-color);
+	padding: 8px 0;
+}
+
+.bnpl-top-actions .btn {
+	min-height: 44px;
+	font-weight: 600;
+}
+
+.bnpl-top-actions .btn.primary {
+	background: var(--primary);
+	color: #fff;
+}
+
+.bnpl-top-actions .btn.warning {
+	background: #f59e0b;
+	color: #111827;
+}
+
+.bnpl-kpi-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
+	margin-bottom: 14px;
+}
+
+.bnpl-kpi-card {
+	padding: 14px;
+	border-radius: 12px;
+	cursor: pointer;
+	border: 1px solid var(--border-color);
+}
+
+.bnpl-kpi-card.good {
+	background: rgba(16, 185, 129, 0.12);
+}
+
+.bnpl-kpi-card.warn {
+	background: rgba(245, 158, 11, 0.12);
+}
+
+.bnpl-kpi-card.risk {
+	background: rgba(239, 68, 68, 0.12);
+}
+
+.bnpl-kpi-label {
+	font-size: 12px;
+	opacity: 0.75;
+	margin-bottom: 6px;
+}
+
+.bnpl-kpi-value {
+	font-size: 26px;
+	font-weight: 700;
+}
+
+.bnpl-priority-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.bnpl-panel {
+	border: 1px solid var(--border-color);
+	border-radius: 12px;
+	padding: 12px;
+	background: var(--card-bg);
+}
+
+.bnpl-panel-title {
+	font-size: 16px;
+	font-weight: 700;
+	margin-bottom: 8px;
+}
+
+.bnpl-list-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 10px 0;
+	border-top: 1px solid var(--border-color);
+}
+
+.bnpl-list-row:first-of-type {
+	border-top: 0;
+}
+
+.bnpl-row-title {
+	font-weight: 600;
+}
+
+.bnpl-row-sub {
+	font-size: 12px;
+	opacity: 0.8;
+}
+
+.bnpl-row-actions {
+	display: flex;
+	gap: 6px;
+}
+
+.bnpl-status-badge {
+	font-size: 11px;
+	padding: 3px 8px;
+	border-radius: 999px;
+	background: var(--gray-200);
+}
+
+.bnpl-status-badge.warn {
+	background: rgba(245, 158, 11, 0.2);
+}
+
+.bnpl-activity-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.bnpl-activity-card {
+	border: 1px solid var(--border-color);
+	border-radius: 10px;
+	padding: 8px;
+}
+
+.bnpl-activity-title {
+	font-weight: 700;
+	margin-bottom: 6px;
+}
+
+.bnpl-activity-row {
+	padding: 6px 0;
+	border-top: 1px dashed var(--border-color);
+	font-size: 13px;
+}
+
+.bnpl-empty {
+	padding: 12px;
+	border: 1px dashed var(--border-color);
+	border-radius: 8px;
+	font-size: 13px;
+	opacity: 0.8;
+}
+
+.bnpl-overdue-toolbar {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 10px;
+}
+
+@media (max-width: 992px) {
+	.bnpl-kpi-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.bnpl-priority-grid,
+	.bnpl-activity-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+@media (max-width: 640px) {
+	.bnpl-top-actions {
+		grid-template-columns: 1fr;
+	}
+	.bnpl-row-actions {
+		flex-direction: column;
+	}
+	.bnpl-row-actions .btn {
+		min-height: 40px;
+	}
+}

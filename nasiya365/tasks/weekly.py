@@ -21,7 +21,7 @@ def generate_collection_report():
     collected = frappe.db.sql("""
         SELECT COALESCE(SUM(amount), 0) as total
         FROM `tabPayment Transaction`
-        WHERE status = 'Completed'
+        WHERE status = 'Завершен'
         AND payment_date BETWEEN %s AND %s
     """, (start_date, end_date))[0][0]
     
@@ -29,7 +29,7 @@ def generate_collection_report():
     overdue = frappe.db.sql("""
         SELECT COALESCE(SUM(amount), 0) as total
         FROM `tabInstallment Schedule`
-        WHERE status = 'Overdue'
+        WHERE status = 'Просрочен'
     """)[0][0]
     
     # Get total expected this week

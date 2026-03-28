@@ -11,6 +11,9 @@ app_email = "info@nasiya365.uz"
 app_license = "MIT"
 app_version = "0.0.1"
 
+# Desk default route when opening this app from the app switcher
+app_home = "/app/bnpl-control-center"
+
 # Required apps for this app
 required_apps = ["frappe"]
 
@@ -19,22 +22,23 @@ required_apps = ["frappe"]
 
 # Include JS in all pages
 app_include_js = [
-    "/assets/nasiya365/js/installment_calculator.js"
+    "/assets/nasiya365/js/installment_calculator.js",
+    "/assets/nasiya365/js/pwa_register.js",
 ]
 
 # Include CSS in all pages
-# app_include_css = "/assets/nasiya365/css/nasiya365.css"
+app_include_css = "/assets/nasiya365/css/bnpl_control_center.css"
 
-# Include JS in web pages
-# web_include_js = "/assets/nasiya365/js/nasiya365-web.js"
+# Include JS in web pages (login, portal) so PWA manifest/SW are available before desk
+web_include_js = ["/assets/nasiya365/js/pwa_register.js"]
 
 # Include CSS in web pages
 # web_include_css = "/assets/nasiya365/css/nasiya365-web.css"
 
 # Include JS in desk pages
-# doctype_js = {
-#     "Sales Order": "public/js/sales_order.js"
-# }
+doctype_js = {
+    "Sales Order": "public/js/sales_order.js",
+}
 
 # Include list JS for DocTypes
 # doctype_list_js = {}
@@ -73,6 +77,7 @@ jinja = {
 
 # before_install = "nasiya365.install.before_install"
 after_install = "nasiya365.install.after_install"
+after_migrate = "nasiya365.install.after_migrate"
 
 # Uninstallation
 # --------------

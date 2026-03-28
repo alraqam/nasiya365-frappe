@@ -5,6 +5,7 @@ Daily Scheduled Tasks for Nasiya365
 import frappe
 from frappe import _
 from frappe.utils import today, add_days, getdate
+from nasiya365.utils.sms_manager import SMSManager
 
 
 def check_overdue_installments():
@@ -24,7 +25,7 @@ def check_overdue_installments():
             due_date,
             amount
         FROM `tabInstallment Schedule`
-        WHERE status = 'Pending'
+        WHERE status IN ('Ожидает', 'Частично')
         AND due_date < %s
     """, (today(),), as_dict=True)
     
@@ -34,7 +35,7 @@ def check_overdue_installments():
             "Installment Schedule",
             installment.schedule_name,
             "status",
-            "Overdue"
+            "Просрочен"
         )
         overdue_count += 1
         
@@ -77,19 +78,25 @@ def send_payment_reminders():
             ip.name as installment_plan,
             isc.due_date,
             isc.amount,
-            cp.phone,
-            cp.customer_name
+            cp.full_name as customer_name
         FROM `tabInstallment Plan` ip
         INNER JOIN `tabInstallment Schedule` isc ON isc.parent = ip.name
         INNER JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
-        WHERE isc.status = 'Pending'
+        WHERE isc.status IN ('Ожидает', 'Частично')
         AND isc.due_date = %s
     """, (tomorrow,), as_dict=True)
-    
+
+    sms = SMSManager()
     for payment in due_tomorrow:
-        # Send SMS reminder (implement based on your SMS provider)
-        message = f"Hurmatli {payment.customer_name}, ertaga {payment.amount:,.0f} so'm to'lov muddati. Nasiya365"
-        # send_sms(payment.phone, message)
+        phone = frappe.db.get_value(
+            "Customer Phone Number",
+            {"parent": payment.customer, "is_primary": 1},
+            "phone_number",
+        )
+        if not phone:
+            continue
+        message = f"Напоминание: завтра платеж {payment.amount:,.0f} сум. Nasiya365"
+        sms.send_sms(phone, message)
         frappe.logger().info(f"Reminder sent to {payment.customer_name} for {payment.amount}")
     
     frappe.logger().info(f"Sent {len(due_tomorrow)} payment reminders")

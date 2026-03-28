@@ -10,9 +10,22 @@ def after_install():
     """Run after app installation"""
     create_default_roles()
     sync_workspace()
+    set_default_desk_home()
     create_default_print_templates()
     frappe.db.commit()
     print("Nasiya365 installed successfully!")
+
+
+def after_migrate():
+    """Ensure desk home page default after upgrades."""
+    set_default_desk_home()
+    frappe.db.commit()
+
+
+def set_default_desk_home():
+    """Use BNPL Control Center as the desk landing page when the URL has no sub-path (/app)."""
+    if frappe.db.exists("Page", "bnpl-control-center"):
+        frappe.db.set_default("desktop:home_page", "bnpl-control-center")
 
 
 def sync_workspace():

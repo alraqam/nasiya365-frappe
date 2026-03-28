@@ -20,6 +20,7 @@ class CustomerProfile(Document):
         self.validate_passport_dates()
         self.sync_addresses()
         self.update_available_limit()
+        self.calculate_risk_profile()
     
     def set_full_name(self):
         """Set full_name from first_name and last_name"""
@@ -114,6 +115,50 @@ class CustomerProfile(Document):
         self.active_contracts_count = len(plans)
         self.total_debt = sum(flt(p.remaining_balance) for p in plans)
         self.update_available_limit()
+        self.calculate_risk_profile()
+        self.db_update()
+
+    def calculate_risk_profile(self):
+        """Simple score based on overdue behavior and debt load."""
+        from frappe.utils import flt
+
+        overdue_rows = frappe.db.sql(
+            """
+            SELECT IFNULL(MAX(DATEDIFF(CURDATE(), due_date)), 0) AS max_delay,
+                   COUNT(*) AS overdue_count
+            FROM `tabInstallment Schedule`
+            WHERE parent IN (
+                SELECT name FROM `tabInstallment Plan`
+                WHERE customer = %s AND docstatus = 1
+            )
+            AND status = 'Просрочен'
+        """,
+            (self.name,),
+            as_dict=True,
+        )
+        max_delay = int((overdue_rows[0].max_delay if overdue_rows else 0) or 0)
+        overdue_count = int((overdue_rows[0].overdue_count if overdue_rows else 0) or 0)
+
+        utilization = 0
+        if flt(self.credit_limit) > 0:
+            utilization = (flt(self.total_debt) / flt(self.credit_limit)) * 100
+
+        score = 100
+        score -= min(max_delay, 45)
+        score -= min(overdue_count * 8, 30)
+        score -= min(int(utilization // 10) * 2, 20)
+        score = max(0, min(100, score))
+
+        if score >= 70:
+            level = "Низкий"
+        elif score >= 40:
+            level = "Средний"
+        else:
+            level = "Высокий"
+
+        self.last_payment_delay_days = max_delay
+        self.risk_score = score
+        self.risk_level = level
 
 
 @frappe.whitelist()

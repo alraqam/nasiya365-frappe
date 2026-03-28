@@ -13,7 +13,7 @@ def get_data(user=None):
             "color": "#2E7D32",
             "icon": "octicon octicon-credit-card",
             "type": "module",
-            "label": _("Nasiya365"),
-            "description": _("Платформа рассрочки (BNPL)"),
+            "label": _("Nasiya365 BNPL OS"),
+            "description": _("Финтех контрольный центр рассрочки"),
         }
     ]
