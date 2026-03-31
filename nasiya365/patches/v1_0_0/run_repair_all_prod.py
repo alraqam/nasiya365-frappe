@@ -13,4 +13,5 @@ def execute():
         frappe.db.commit()
     except Exception:
         frappe.log_error(frappe.get_traceback(), "run_repair_all_prod patch")
-        raise
+        # Do not block production migrate; data repair can be re-run manually.
+        frappe.db.rollback()
