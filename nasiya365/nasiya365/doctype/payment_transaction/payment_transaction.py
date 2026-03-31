@@ -19,3 +19,37 @@ class PaymentTransaction(Document):
         if self.reference_doctype == "Installment Plan" and self.reference_name:
             plan = frappe.get_doc("Installment Plan", self.reference_name)
             plan.apply_payment(self.amount, payment_transaction=self.name)
+
+
+@frappe.whitelist()
+def get_customer_installment_plans(customer):
+    """Return all installment plans for a customer with debt + device info."""
+    if not customer:
+        return []
+
+    rows = frappe.db.sql(
+        """
+        SELECT
+            ip.name,
+            ip.status,
+            ip.contract_status,
+            ip.remaining_balance,
+            ip.total_amount,
+            ip.installment_amount,
+            ip.sales_order,
+            ip.imei,
+            COALESCE(NULLIF(TRIM(CONCAT_WS(' · ',
+                NULLIF(TRIM(COALESCE(NULLIF(ip.product_name, ''), soi.product_name, '')), ''),
+                NULLIF(TRIM(soi.color), ''),
+                NULLIF(TRIM(soi.storage), '')
+            )), ''), '') AS device_name
+        FROM `tabInstallment Plan` ip
+        LEFT JOIN `tabSales Order Item` soi
+            ON soi.parent = ip.sales_order AND soi.idx = 1
+        WHERE ip.customer = %s
+        ORDER BY ip.modified DESC
+        """,
+        (customer,),
+        as_dict=True,
+    )
+    return rows or []

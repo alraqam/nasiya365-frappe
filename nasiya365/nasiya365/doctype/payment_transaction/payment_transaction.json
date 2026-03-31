@@ -6,6 +6,8 @@
     "engine": "InnoDB",
     "field_order": [
         "customer",
+        "customer_name",
+        "installment_plans_info",
         "payment_date",
         "column_break_1",
         "amount",
@@ -25,11 +27,24 @@
         {
             "fieldname": "customer",
             "fieldtype": "Link",
-            "in_list_view": 1,
             "in_standard_filter": 1,
             "label": "Клиент",
             "options": "Customer Profile",
             "reqd": 1
+        },
+        {
+            "fetch_from": "customer.full_name",
+            "fieldname": "customer_name",
+            "fieldtype": "Data",
+            "hidden": 1,
+            "in_list_view": 1,
+            "label": "Клиент",
+            "read_only": 1
+        },
+        {
+            "fieldname": "installment_plans_info",
+            "fieldtype": "HTML",
+            "label": "Планы рассрочки клиента"
         },
         {
             "default": "Today",
@@ -149,11 +164,11 @@
             "write": 1
         }
     ],
-    "quick_entry": 1,
-    "search_fields": "customer",
+    "quick_entry": 0,
+    "search_fields": "customer,customer_name",
     "sort_field": "payment_date",
     "sort_order": "DESC",
-    "title_field": "customer",
+    "title_field": "customer_name",
     "show_title_field_in_link": 1,
     "track_changes": 1
 }

@@ -10,15 +10,89 @@ from frappe.utils import add_days, add_months, add_to_date, getdate, today, flt
 from decimal import Decimal
 
 
+def _normalize_frequency(freq):
+    """Map EN / RU / bilingual Select values to the canonical bilingual options."""
+    if not freq:
+        return "Ежемесячно (Monthly)"
+    key = (freq or "").strip()
+
+    CANONICAL = {
+        "Ежемесячно": "Ежемесячно (Monthly)",
+        "Еженедельно": "Еженедельно (Weekly)",
+        "Раз в две недели": "Раз в две недели (Biweekly)",
+        "Ежемесячно (Monthly)": "Ежемесячно (Monthly)",
+        "Еженедельно (Weekly)": "Еженедельно (Weekly)",
+        "Раз в две недели (Biweekly)": "Раз в две недели (Biweekly)",
+        "Monthly": "Ежемесячно (Monthly)",
+        "Weekly": "Еженедельно (Weekly)",
+        "Biweekly": "Раз в две недели (Biweekly)",
+    }
+    if key in CANONICAL:
+        return CANONICAL[key]
+    base = key.split("(")[0].strip()
+    return CANONICAL.get(base, "Ежемесячно (Monthly)")
+
+
 class InstallmentPlan(Document):
     def validate(self):
         if frappe.flags.in_import:
             return
-            
+
+        self.frequency = _normalize_frequency(self.frequency)
+
         self.validate_customer_limit()
         self.calculate_amounts()
         self.generate_schedule()
         self.update_progress()
+        self.set_contract_fields_from_plan()
+
+    def set_contract_fields_from_plan(self):
+        """
+        b3-merge compatibility: Contract data now lives on Installment Plan.
+        We compute the contract-related financial fields from the schedule.
+        """
+        # Set/refresh contract number
+        if hasattr(self, "contract_number") and not self.contract_number:
+            self.contract_number = self.name
+
+        # Populate product model + IMEI from Sales Order
+        if hasattr(self, "product_name") and hasattr(self, "imei") and self.sales_order:
+            if not self.product_name or not self.imei:
+                items = frappe.get_all(
+                    "Sales Order Item",
+                    filters={"parent": self.sales_order},
+                    fields=["product_name", "imei"],
+                    order_by="idx asc",
+                    limit=1,
+                )
+                if items:
+                    if not self.product_name and items[0].get("product_name"):
+                        self.product_name = items[0]["product_name"]
+                    if not self.imei and items[0].get("imei"):
+                        full_imei = (items[0]["imei"] or "").strip()
+                        self.imei = full_imei[-6:] if len(full_imei) >= 6 else full_imei
+
+        # Update contract status based on signatures (same rule as Contract DocType)
+        if hasattr(self, "contract_status"):
+            if self.signed_by_customer and self.signed_by_merchant:
+                if self.contract_status == "Черновик":
+                    self.contract_status = "Подписан"
+
+        # Financial summary (same rule as Contract.set_financial_summary)
+        if hasattr(self, "total_debt"):
+            self.total_debt = flt(getattr(self, "remaining_balance", 0))
+        if hasattr(self, "monthly_payment"):
+            self.monthly_payment = flt(getattr(self, "installment_amount", 0))
+
+        if hasattr(self, "debt_today"):
+            debt_today = 0
+            if getattr(self, "schedule", None):
+                for s in self.schedule:
+                    if not s.due_date or s.due_date > today():
+                        continue
+                    if s.status in ["Ожидает", "Просрочен", "Частично"]:
+                        debt_today += flt(s.amount) - flt(s.paid_amount)
+            self.debt_today = debt_today
     
     def before_insert(self):
         self.created_by = frappe.session.user
@@ -79,13 +153,13 @@ class InstallmentPlan(Document):
             current_date = getdate(self.start_date)
             
             for i in range(self.number_of_installments):
-                # Calculate due date based on frequency
                 if i > 0:
-                    if self.frequency == "Еженедельно":
+                    freq = (self.frequency or "")
+                    if "Еженедельно" in freq:
                         current_date = add_to_date(current_date, weeks=1)
-                    elif self.frequency == "Раз в две недели":
+                    elif "две недели" in freq:
                         current_date = add_to_date(current_date, weeks=2)
-                    else:  # Monthly
+                    else:
                         current_date = add_months(current_date, 1)
                 
                 self.append("schedule", {
@@ -171,29 +245,54 @@ class InstallmentPlan(Document):
 
 
 @frappe.whitelist()
+def get_sales_order_details(sales_order):
+    """Return SO total and first item's product_name + imei for auto-fill."""
+    so = frappe.get_doc("Sales Order", sales_order)
+    result = {
+        "total_amount": flt(so.total_amount),
+        "customer": so.customer,
+        "product_name": None,
+        "imei": None,
+    }
+    if so.items:
+        first = so.items[0]
+        result["product_name"] = first.product_name or (
+            frappe.db.get_value("Product", first.product, "product_name") if first.product else None
+        )
+        result["imei"] = first.imei
+    return result
+
+
+@frappe.whitelist()
 def calculate_installment_preview(principal, down_payment, interest_rate, num_installments, frequency, start_date):
     """
     API endpoint to preview installment calculation before creating plan
     """
+    return _build_installment_preview(
+        principal, down_payment, interest_rate, num_installments, frequency, start_date
+    )
+
+
+def _build_installment_preview(principal, down_payment, interest_rate, num_installments, frequency, start_date):
     principal = flt(principal)
     down_payment = flt(down_payment)
     interest_rate = flt(interest_rate) / 100
     num_installments = int(num_installments)
-    
+    frequency = _normalize_frequency(frequency)
+
     financed = principal - down_payment
     total_interest = financed * interest_rate * num_installments
     total_amount = financed + total_interest
     installment_amount = total_amount / num_installments if num_installments > 0 else total_amount
-    
-    # Generate schedule preview
+
     schedule = []
     current_date = getdate(start_date)
-    
+
     for i in range(num_installments):
         if i > 0:
-            if frequency == "Еженедельно":
+            if "Еженедельно" in frequency:
                 current_date = add_to_date(current_date, weeks=1)
-            elif frequency == "Раз в две недели":
+            elif "две недели" in frequency:
                 current_date = add_to_date(current_date, weeks=2)
             else:
                 current_date = add_months(current_date, 1)
@@ -210,5 +309,36 @@ def calculate_installment_preview(principal, down_payment, interest_rate, num_in
         "total_amount": total_amount,
         "installment_amount": installment_amount,
         "end_date": str(current_date) if schedule else None,
-        "schedule": schedule
+        "schedule": schedule,
+        "frequency": frequency,
+    }
+
+
+@frappe.whitelist()
+def generate_installment_schedule(
+    principal, down_payment, interest_rate, num_installments, frequency, start_date
+):
+    """Operator UI: same payload as preview; explicit name for client calls."""
+    return _build_installment_preview(
+        principal, down_payment, interest_rate, num_installments, frequency, start_date
+    )
+
+
+@frappe.whitelist()
+def compare_installment_terms(principal, down_payment, interest_rate, frequency, start_date):
+    """Single round-trip: 6 / 9 / 12 month previews for operator simulator."""
+    return [
+        _build_installment_preview(principal, down_payment, interest_rate, n, frequency, start_date)
+        for n in (6, 9, 12)
+    ]
+
+
+@frappe.whitelist()
+def send_installment_plan_otp(customer):
+    """Stub: wire SMS/gateway later."""
+    if not customer:
+        frappe.throw(_("Клиент обязателен"))
+    return {
+        "ok": True,
+        "message": _("OTP: интеграция в разработке (клиент {0})").format(customer),
     }

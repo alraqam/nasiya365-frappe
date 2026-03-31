@@ -1,0 +1,119 @@
+{
+  "as_of": "2026-03-29",
+  "kpi_cards": [
+    {
+      "id": "outstanding",
+      "label": "Всего к получению",
+      "value": 125400000,
+      "subtext": "Активные рассрочки",
+      "tone": "neutral",
+      "trend": null,
+      "route": ["List", "Installment Plan"]
+    },
+    {
+      "id": "overdue",
+      "label": "Просрочено",
+      "value": 8420000,
+      "subtext": "6.7% от портфеля",
+      "tone": "risk",
+      "trend": null,
+      "route": ["app", "overdue-collector"]
+    },
+    {
+      "id": "due_today",
+      "label": "Ожидается сегодня",
+      "value": 3100000,
+      "subtext": "Плановые платежи",
+      "tone": "pending",
+      "trend": null,
+      "route": ["List", "Installment Plan"]
+    },
+    {
+      "id": "collected_today",
+      "label": "Собрано сегодня",
+      "value": 1850000,
+      "subtext": "Фактически получено",
+      "tone": "success",
+      "trend": { "pct": 12.4, "direction": "up" },
+      "route": ["List", "Payment Transaction"]
+    },
+    {
+      "id": "active_contracts",
+      "label": "Активные договоры",
+      "value": 214,
+      "subtext": "Количество планов",
+      "tone": "neutral",
+      "trend": null,
+      "route": ["List", "Installment Plan"]
+    },
+    {
+      "id": "revenue_mtd",
+      "label": "Выручка (МТД)",
+      "value": 45200000,
+      "subtext": "Завершенные платежи",
+      "tone": "success",
+      "trend": { "pct": 5.2, "direction": "up" },
+      "route": ["List", "Payment Transaction"]
+    }
+  ],
+  "needs_attention": {
+    "overdue_payments_count": 37,
+    "high_risk_clients": 12,
+    "amount_at_risk": 8420000,
+    "top_overdue": [
+      {
+        "installment_plan": "IP-2026-00041",
+        "customer": "CP-00102",
+        "customer_name": "Karimova Dilnoza",
+        "schedule_name": "ISC-000981",
+        "due_date": "2026-03-10",
+        "amount_due": 890000,
+        "days_overdue": 19,
+        "phone": "+998901112233"
+      }
+    ]
+  },
+  "cashflow": {
+    "expected_today": 3100000,
+    "collected_today": 1850000,
+    "progress_pct": 59.7
+  },
+  "due_today_actions": [
+    {
+      "installment_plan": "IP-2026-00012",
+      "customer": "CP-00088",
+      "customer_name": "Toshmatov Bobur",
+      "schedule_name": "ISC-000801",
+      "due_date": "2026-03-29",
+      "schedule_status": "Частично",
+      "amount_due": 120000,
+      "urgency": "high"
+    }
+  ],
+  "activity": {
+    "events": [
+      {
+        "kind": "payment_received",
+        "tone": "success",
+        "timestamp": "2026-03-29 09:12:00",
+        "title": "Платеж получен",
+        "detail": "PT-2026-00412 · 450,000",
+        "reference": "PT-2026-00412"
+      },
+      {
+        "kind": "missed_payment",
+        "tone": "risk",
+        "timestamp": "2026-03-29 08:40:00",
+        "title": "Просроченный платеж",
+        "detail": "Karimova Dilnoza · 890,000 · 19 дн.",
+        "reference": "IP-2026-00041"
+      }
+    ]
+  },
+  "future_modules": {
+    "risk_scoring": { "status": "planned", "hint": "Расширение профиля риска клиента" },
+    "fraud_signals": { "status": "planned", "hint": "Сигналы мошенничества и аномалий" },
+    "forecasting": { "status": "planned", "hint": "Прогноз поступлений и дефолта" },
+    "collection_kpis": { "status": "planned", "hint": "Эффективность коллекшн-команды" }
+  }
+}

@@ -11,7 +11,6 @@ main_doctypes = [
     {"label": "Клиенты", "link_to": "Customer Profile"},
     {"label": "Товары", "link_to": "Product"},
     {"label": "Заказы на продажу", "link_to": "Sales Order"},
-    {"label": "Договоры", "link_to": "Contract"},
     {"label": "Планы рассрочки", "link_to": "Installment Plan"},
     {"label": "Платежные транзакции", "link_to": "Payment Transaction"},
     {"label": "Расходы", "link_to": "Expense"}

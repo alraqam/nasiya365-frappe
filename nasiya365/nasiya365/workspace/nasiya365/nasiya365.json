@@ -1,6 +1,6 @@
 {
     "charts": [],
-    "content": "[{\"id\": \"heading-main\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>BNPL Control Center</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-bnpl-center\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"BNPL Control Center\", \"col\": 6}}, {\"id\": \"shortcut-overdue-collector\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Просрочка (Коллектор)\", \"col\": 6}}, {\"id\": \"heading-actions\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Быстрые действия</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-sales-order\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Продажи\", \"col\": 4}}, {\"id\": \"shortcut-customer-profile\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Клиенты\", \"col\": 4}}, {\"id\": \"shortcut-payment-transaction\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Платежи\", \"col\": 4}}, {\"id\": \"shortcut-installment-plan\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Отчеты\", \"col\": 4}}, {\"id\": \"shortcut-merchant-settings\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Настройки\", \"col\": 4}}]",
+    "content": "[{\"id\": \"heading-main\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Nasiya365</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-dashboard\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Дашборд\", \"col\": 6}}, {\"id\": \"shortcut-collections\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Коллекции\", \"col\": 6}}, {\"id\": \"heading-actions\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Быстрые действия</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-sell-bnpl\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Продать в рассрочку\", \"col\": 4}}, {\"id\": \"shortcut-accept-pay\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Принять платеж\", \"col\": 4}}, {\"id\": \"shortcut-new-client\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Новый клиент\", \"col\": 4}}, {\"id\": \"shortcut-sales-order\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Продажи\", \"col\": 4}}, {\"id\": \"shortcut-payment-transaction\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Платежи\", \"col\": 4}}, {\"id\": \"shortcut-product\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Товары\", \"col\": 4}}, {\"id\": \"shortcut-installment-plan\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Рассрочка\", \"col\": 4}}, {\"id\": \"shortcut-merchant-settings\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Настройки\", \"col\": 4}}]",
     "creation": "2026-01-07 02:02:00.000000",
     "custom_blocks": [],
     "docstatus": 0,
@@ -15,17 +15,25 @@
         {
             "hidden": 0,
             "is_query_report": 0,
-            "label": "Продажи",
-            "link_type": "DocType",
-            "link_to": "Sales Order",
+            "label": "Дашборд",
+            "link_type": "Page",
+            "link_to": "bnpl-control-center",
             "type": "Link"
         },
         {
             "hidden": 0,
             "is_query_report": 0,
-            "label": "Клиенты",
+            "label": "💰 Основное",
+            "link_to": null,
+            "link_type": null,
+            "type": "Card Break"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Продажи",
             "link_type": "DocType",
-            "link_to": "Customer Profile",
+            "link_to": "Sales Order",
             "type": "Link"
         },
         {
@@ -39,7 +47,7 @@
         {
             "hidden": 0,
             "is_query_report": 0,
-            "label": "Просрочка",
+            "label": "Коллекции",
             "link_type": "Page",
             "link_to": "overdue-collector",
             "type": "Link"
@@ -47,9 +55,73 @@
         {
             "hidden": 0,
             "is_query_report": 0,
-            "label": "Отчеты",
+            "label": "👥 Клиенты",
+            "link_to": null,
+            "link_type": null,
+            "type": "Card Break"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Клиенты",
+            "link_type": "DocType",
+            "link_to": "Customer Profile",
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "📦 Операции",
+            "link_to": null,
+            "link_type": null,
+            "type": "Card Break"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Товары",
+            "link_type": "DocType",
+            "link_to": "Product",
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Склад",
+            "link_type": "DocType",
+            "link_to": "Stock Entry",
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "⚙️ Финансы",
+            "link_to": null,
+            "link_type": null,
+            "type": "Card Break"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Рассрочка",
             "link_type": "DocType",
             "link_to": "Installment Plan",
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Расходы",
+            "link_type": "DocType",
+            "link_to": "Expense",
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Касса",
+            "link_type": "DocType",
+            "link_to": "Cashbox",
             "type": "Link"
         },
         {
@@ -61,9 +133,10 @@
             "type": "Link"
         }
     ],
-    "modified": "2026-01-18 13:58:00.000000",
+    "modified": "2026-03-29 15:00:00.000000",
     "modified_by": "Administrator",
     "module": "nasiya365",
+    "app": "nasiya365",
     "name": "Nasiya365",
     "number_cards": [],
     "owner": "Administrator",
@@ -77,29 +150,43 @@
         {
             "color": "Blue",
             "doc_view": "List",
-            "label": "BNPL Control Center",
+            "label": "Дашборд",
             "link_to": "bnpl-control-center",
             "type": "Page"
         },
         {
             "color": "Red",
             "doc_view": "List",
-            "label": "Просрочка (Коллектор)",
+            "label": "Коллекции",
             "link_to": "overdue-collector",
             "type": "Page"
+        },
+        {
+            "color": "Green",
+            "doc_view": "New",
+            "label": "Продать в рассрочку",
+            "link_to": "Sales Order",
+            "type": "DocType"
+        },
+        {
+            "color": "Orange",
+            "doc_view": "New",
+            "label": "Принять платеж",
+            "link_to": "Payment Transaction",
+            "type": "DocType"
+        },
+        {
+            "color": "Cyan",
+            "doc_view": "New",
+            "label": "Новый клиент",
+            "link_to": "Customer Profile",
+            "type": "DocType"
         },
         {
             "color": "Orange",
             "doc_view": "List",
             "label": "Продажи",
             "link_to": "Sales Order",
-            "type": "DocType"
-        },
-        {
-            "color": "Green",
-            "doc_view": "List",
-            "label": "Клиенты",
-            "link_to": "Customer Profile",
             "type": "DocType"
         },
         {
@@ -112,7 +199,14 @@
         {
             "color": "Yellow",
             "doc_view": "List",
-            "label": "Отчеты",
+            "label": "Товары",
+            "link_to": "Product",
+            "type": "DocType"
+        },
+        {
+            "color": "Yellow",
+            "doc_view": "List",
+            "label": "Рассрочка",
             "link_to": "Installment Plan",
             "type": "DocType"
         },

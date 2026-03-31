@@ -5,6 +5,8 @@
     "engine": "InnoDB",
     "field_order": [
         "product",
+        "color",
+        "storage",
         "quantity",
         "rate",
         "amount"
@@ -17,6 +19,20 @@
             "label": "Товар",
             "options": "Product",
             "reqd": 1
+        },
+        {
+            "fetch_from": "product.color",
+            "fieldname": "color",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Цвет"
+        },
+        {
+            "fetch_from": "product.storage",
+            "fieldname": "storage",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Память"
         },
         {
             "default": "1",
@@ -37,11 +53,6 @@
             "fieldname": "battery_cycles",
             "fieldtype": "Int",
             "label": "Циклы заряда"
-        },
-        {
-            "fieldname": "cost_price",
-            "fieldtype": "Currency",
-            "label": "Себестоимость"
         },
         {
             "fieldname": "rate",

@@ -7,49 +7,131 @@
     "engine": "InnoDB",
     "field_order": [
         "plan_section",
+        "op_payment_preview",
+        "column_break_op_preview",
+        "op_risk_panel",
+        "customer_order_section",
         "customer",
+        "customer_name",
+        "status",
+        "customer_phone",
         "sales_order",
         "column_break_1",
-        "status",
-        "created_by",
         "amounts_section",
         "principal_amount",
-        "interest_rate",
-        "total_interest",
-        "column_break_2",
-        "total_amount",
         "down_payment",
         "financed_amount",
-        "schedule_section",
+        "column_break_2",
         "number_of_installments",
         "frequency",
-        "column_break_3",
+        "interest_rate",
         "start_date",
-        "end_date",
+        "calc_details_section",
         "installment_amount",
+        "end_date",
+        "column_break_3",
+        "total_interest",
+        "total_amount",
+        "schedule_section",
+        "schedule",
         "progress_section",
         "paid_amount",
         "remaining_balance",
         "column_break_4",
         "paid_installments",
         "overdue_installments",
-        "schedule_table_section",
-        "schedule"
+        "contract_section",
+        "contract_number",
+        "contract_type",
+        "product_name",
+        "imei",
+        "column_break_contract_1",
+        "contract_date",
+        "valid_until",
+        "contract_status",
+        "protection_section",
+        "protection_type",
+        "protection_login",
+        "column_break_contract_protection",
+        "protection_password",
+        "protection_notes",
+        "financial_section_contract",
+        "debt_today",
+        "column_break_contract_financial",
+        "total_debt",
+        "monthly_payment",
+        "template",
+        "signatures_section",
+        "signed_by_customer",
+        "customer_signature",
+        "column_break_contract_signatures",
+        "signed_by_merchant",
+        "merchant_signatory",
+        "document_section",
+        "pdf_file",
+        "notes",
+        "system_section",
+        "created_by"
     ],
+    "quick_entry": 0,
     "fields": [
         {
             "fieldname": "plan_section",
             "fieldtype": "Section Break",
-            "label": "Детали плана"
+            "label": "BNPL — быстрый поток"
+        },
+        {
+            "fieldname": "op_payment_preview",
+            "fieldtype": "HTML",
+            "label": "Предпросмотр платежа",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_op_preview",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "op_risk_panel",
+            "fieldtype": "HTML",
+            "label": "Риск клиента",
+            "read_only": 1
+        },
+        {
+            "fieldname": "customer_order_section",
+            "fieldtype": "Section Break",
+            "label": "Клиент и заказ"
         },
         {
             "fieldname": "customer",
             "fieldtype": "Link",
-            "in_list_view": 1,
             "in_standard_filter": 1,
             "label": "Клиент",
             "options": "Customer Profile",
             "reqd": 1
+        },
+        {
+            "fetch_from": "customer.full_name",
+            "fieldname": "customer_name",
+            "fieldtype": "Data",
+            "hidden": 1,
+            "in_list_view": 1,
+            "label": "Клиент",
+            "read_only": 1
+        },
+        {
+            "default": "Черновик",
+            "fieldname": "status",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Статус плана",
+            "options": "Черновик\nАктивный\nЗавершен\nПросрочен\nСписан"
+        },
+        {
+            "fieldname": "customer_phone",
+            "fieldtype": "Data",
+            "label": "Телефон",
+            "read_only": 1
         },
         {
             "fieldname": "sales_order",
@@ -62,54 +144,16 @@
             "fieldtype": "Column Break"
         },
         {
-            "default": "Активный",
-            "fieldname": "status",
-            "fieldtype": "Select",
-            "in_list_view": 1,
-            "in_standard_filter": 1,
-            "label": "Статус",
-            "options": "Черновик\nАктивный\nЗавершен\nПросрочен\nСписан"
-        },
-        {
-            "fieldname": "created_by",
-            "fieldtype": "Link",
-            "label": "Создан пользователем",
-            "options": "User",
-            "read_only": 1
-        },
-        {
             "fieldname": "amounts_section",
             "fieldtype": "Section Break",
-            "label": "Суммы"
+            "label": "Условия займа"
         },
         {
             "fieldname": "principal_amount",
             "fieldtype": "Currency",
             "in_list_view": 1,
-            "label": "Основная сумма",
+            "label": "Сумма покупки",
             "reqd": 1
-        },
-        {
-            "default": "0",
-            "fieldname": "interest_rate",
-            "fieldtype": "Percent",
-            "label": "Процентная ставка (мес. %)"
-        },
-        {
-            "fieldname": "total_interest",
-            "fieldtype": "Currency",
-            "label": "Итого проценты",
-            "read_only": 1
-        },
-        {
-            "fieldname": "column_break_2",
-            "fieldtype": "Column Break"
-        },
-        {
-            "fieldname": "total_amount",
-            "fieldtype": "Currency",
-            "label": "Общая сумма",
-            "read_only": 1
         },
         {
             "default": "0",
@@ -120,55 +164,91 @@
         {
             "fieldname": "financed_amount",
             "fieldtype": "Currency",
-            "label": "Сумма финансирования",
+            "label": "Сумма кредита",
             "read_only": 1
         },
         {
-            "fieldname": "schedule_section",
-            "fieldtype": "Section Break",
-            "label": "График"
+            "fieldname": "column_break_2",
+            "fieldtype": "Column Break"
         },
         {
             "default": "6",
             "fieldname": "number_of_installments",
             "fieldtype": "Int",
             "in_list_view": 1,
-            "label": "Количеcтво платежей",
+            "label": "Количество платежей",
             "reqd": 1
         },
         {
-            "default": "Monthly",
+            "default": "Ежемесячно (Monthly)",
             "fieldname": "frequency",
             "fieldtype": "Select",
-            "label": "Частота",
-            "options": "Еженедельно\nРаз в две недели\nЕжемесячно"
+            "label": "Периодичность",
+            "options": "Ежемесячно (Monthly)\nЕженедельно (Weekly)\nРаз в две недели (Biweekly)"
+        },
+        {
+            "default": "0",
+            "fieldname": "interest_rate",
+            "fieldtype": "Percent",
+            "label": "Ставка % (мес.)"
+        },
+        {
+            "default": "Today",
+            "fieldname": "start_date",
+            "fieldtype": "Date",
+            "label": "Дата первого платежа",
+            "reqd": 1
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "calc_details_section",
+            "fieldtype": "Section Break",
+            "label": "Детали расчёта"
+        },
+        {
+            "fieldname": "installment_amount",
+            "fieldtype": "Currency",
+            "label": "Платёж в период",
+            "read_only": 1
+        },
+        {
+            "fieldname": "end_date",
+            "fieldtype": "Date",
+            "label": "Последний платёж",
+            "read_only": 1
         },
         {
             "fieldname": "column_break_3",
             "fieldtype": "Column Break"
         },
         {
-            "fieldname": "start_date",
-            "fieldtype": "Date",
-            "label": "Дата начала",
-            "reqd": 1
-        },
-        {
-            "fieldname": "end_date",
-            "fieldtype": "Date",
-            "label": "Дата окончания",
-            "read_only": 1
-        },
-        {
-            "fieldname": "installment_amount",
+            "fieldname": "total_interest",
             "fieldtype": "Currency",
-            "label": "Сумма платежа",
+            "label": "Итого проценты",
             "read_only": 1
+        },
+        {
+            "fieldname": "total_amount",
+            "fieldtype": "Currency",
+            "label": "Всего к оплате",
+            "read_only": 1
+        },
+        {
+            "fieldname": "schedule_section",
+            "fieldtype": "Section Break",
+            "label": "График платежей"
+        },
+        {
+            "fieldname": "schedule",
+            "fieldtype": "Table",
+            "label": "График",
+            "options": "Installment Schedule"
         },
         {
             "fieldname": "progress_section",
+            "collapsible": 1,
             "fieldtype": "Section Break",
-            "label": "Прогресс"
+            "label": "Прогресс оплаты"
         },
         {
             "default": "0",
@@ -180,6 +260,7 @@
         {
             "fieldname": "remaining_balance",
             "fieldtype": "Currency",
+            "in_list_view": 1,
             "label": "Остаток",
             "read_only": 1
         },
@@ -202,19 +283,198 @@
             "read_only": 1
         },
         {
-            "fieldname": "schedule_table_section",
+            "collapsible": 1,
+            "fieldname": "contract_section",
             "fieldtype": "Section Break",
-            "label": "График платежей"
+            "label": "Договор"
         },
         {
-            "fieldname": "schedule",
-            "fieldtype": "Table",
-            "label": "График",
-            "options": "Installment Schedule"
+            "fieldname": "contract_number",
+            "fieldtype": "Data",
+            "label": "Номер договора",
+            "read_only": 1,
+            "unique": 1
+        },
+        {
+            "default": "Рассрочка (BNPL)",
+            "fieldname": "contract_type",
+            "fieldtype": "Select",
+            "hidden": 1,
+            "label": "Тип договора",
+            "options": "Рассрочка (BNPL)\nДоговор продажи\nГарантия",
+            "reqd": 1
+        },
+        {
+            "fieldname": "product_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Модель",
+            "read_only": 1
+        },
+        {
+            "fieldname": "imei",
+            "fieldtype": "Data",
+            "label": "IMEI",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_contract_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "Today",
+            "fieldname": "contract_date",
+            "fieldtype": "Date",
+            "label": "Дата договора",
+            "reqd": 1
+        },
+        {
+            "fieldname": "valid_until",
+            "fieldtype": "Date",
+            "label": "Действует до"
+        },
+        {
+            "default": "Черновик",
+            "fieldname": "contract_status",
+            "fieldtype": "Select",
+            "in_standard_filter": 1,
+            "label": "Статус",
+            "options": "Черновик\nПодписан\nАктивный\nЗавершен\nОтменен"
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "protection_section",
+            "fieldtype": "Section Break",
+            "label": "Защита устройства"
+        },
+        {
+            "default": "Нет",
+            "fieldname": "protection_type",
+            "fieldtype": "Select",
+            "label": "Тип защиты",
+            "options": "Нет\niCloud\nSamsung Block\nGoogle FRP\nДругое"
+        },
+        {
+            "depends_on": "eval:doc.protection_type && doc.protection_type !== 'Нет'",
+            "fieldname": "protection_login",
+            "fieldtype": "Data",
+            "label": "Логин"
+        },
+        {
+            "fieldname": "column_break_contract_protection",
+            "fieldtype": "Column Break"
+        },
+        {
+            "depends_on": "eval:doc.protection_type && doc.protection_type !== 'Нет'",
+            "fieldname": "protection_password",
+            "fieldtype": "Password",
+            "label": "Пароль"
+        },
+        {
+            "depends_on": "eval:doc.protection_type && doc.protection_type !== 'Нет'",
+            "fieldname": "protection_notes",
+            "fieldtype": "Small Text",
+            "label": "Примечания по защите"
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "financial_section_contract",
+            "fieldtype": "Section Break",
+            "label": "Финансовая информация"
+        },
+        {
+            "fieldname": "debt_today",
+            "fieldtype": "Currency",
+            "label": "Долг за сегодня",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_contract_financial",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "total_debt",
+            "fieldtype": "Currency",
+            "label": "Общий долг",
+            "read_only": 1
+        },
+        {
+            "fieldname": "monthly_payment",
+            "fieldtype": "Currency",
+            "label": "Ежемесячная оплата",
+            "read_only": 1
+        },
+        {
+            "fieldname": "template",
+            "fieldtype": "Link",
+            "label": "Шаблон печати",
+            "options": "Print Template"
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "signatures_section",
+            "fieldtype": "Section Break",
+            "label": "Подписи и OTP"
+        },
+        {
+            "default": "0",
+            "fieldname": "signed_by_customer",
+            "fieldtype": "Check",
+            "label": "Подписано клиентом"
+        },
+        {
+            "fieldname": "customer_signature",
+            "fieldtype": "Attach Image",
+            "label": "Подпись клиента"
+        },
+        {
+            "fieldname": "column_break_contract_signatures",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "0",
+            "fieldname": "signed_by_merchant",
+            "fieldtype": "Check",
+            "label": "Подписано продавцом"
+        },
+        {
+            "fieldname": "merchant_signatory",
+            "fieldtype": "Link",
+            "label": "Подписант продавца",
+            "options": "User"
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "document_section",
+            "fieldtype": "Section Break",
+            "label": "Документ"
+        },
+        {
+            "fieldname": "pdf_file",
+            "fieldtype": "Attach",
+            "label": "PDF Файл"
+        },
+        {
+            "fieldname": "notes",
+            "fieldtype": "Small Text",
+            "label": "Примечания"
+        },
+        {
+            "collapsible": 1,
+            "fieldname": "system_section",
+            "fieldtype": "Section Break",
+            "label": "Системные поля"
+        },
+        {
+            "fieldname": "created_by",
+            "fieldtype": "Link",
+            "label": "Создан пользователем",
+            "options": "User",
+            "read_only": 1
         }
     ],
     "index_web_pages_for_search": 1,
-    "is_submittable": 1,
+    "is_submittable": 0,
     "links": [],
     "modified": "2026-01-03 00:55:00.000000",
     "modified_by": "Administrator",
@@ -270,11 +530,11 @@
             "share": 1
         }
     ],
-    "search_fields": "customer",
+    "search_fields": "customer,customer_name",
     "sort_field": "modified",
     "sort_order": "DESC",
     "states": [],
-    "title_field": "customer",
+    "title_field": "customer_name",
     "show_title_field_in_link": 1,
     "track_changes": 1
 }

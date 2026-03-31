@@ -6,6 +6,8 @@
     "field_order": [
         "product",
         "product_name",
+        "color",
+        "storage",
         "quantity",
         "unit_price",
         "discount_percent",
@@ -28,6 +30,20 @@
             "in_list_view": 1,
             "label": "Название товара",
             "read_only": 1
+        },
+        {
+            "fetch_from": "product.color",
+            "fieldname": "color",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Цвет"
+        },
+        {
+            "fetch_from": "product.storage",
+            "fieldname": "storage",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Память"
         },
         {
             "default": "1",

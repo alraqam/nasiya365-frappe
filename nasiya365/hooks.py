@@ -11,8 +11,9 @@ app_email = "info@nasiya365.uz"
 app_license = "MIT"
 app_version = "0.0.1"
 
-# Desk default route when opening this app from the app switcher
-app_home = "/app/bnpl-control-center"
+# Open the Nasiya365 *Workspace* (not a Page) so the left sidebar shows workspace links / Card Breaks.
+# Slug = frappe.router.slug("Nasiya365") -> "nasiya365". Dashboard page: first link inside workspace.
+app_home = "/app/nasiya365"
 
 # Required apps for this app
 required_apps = ["frappe"]
@@ -27,7 +28,10 @@ app_include_js = [
 ]
 
 # Include CSS in all pages
-app_include_css = "/assets/nasiya365/css/bnpl_control_center.css"
+app_include_css = [
+    "/assets/nasiya365/css/bnpl_control_center.css",
+    "/assets/nasiya365/css/installment_plan_wizard.css",
+]
 
 # Include JS in web pages (login, portal) so PWA manifest/SW are available before desk
 web_include_js = ["/assets/nasiya365/js/pwa_register.js"]
@@ -38,10 +42,13 @@ web_include_js = ["/assets/nasiya365/js/pwa_register.js"]
 # Include JS in desk pages
 doctype_js = {
     "Sales Order": "public/js/sales_order.js",
+    "Payment Transaction": "public/js/payment_transaction.js",
+    "Installment Plan": "public/js/installment_plan.js",
 }
 
-# Include list JS for DocTypes
-# doctype_list_js = {}
+doctype_list_js = {
+    "Installment Plan": "public/js/installment_plan_list.js",
+}
 
 # Include tree JS for DocTypes
 # doctype_tree_js = {}
