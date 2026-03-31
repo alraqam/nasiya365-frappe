@@ -4,7 +4,7 @@ import frappe
 def execute():
     """
     One-time production reconciliation patch.
-    Safe to rerun if Frappe retries patch execution.
+    Non-blocking: logs and rolls back on failure, but does not break migrate.
     """
     try:
         from nasiya365.install import repair_all_prod
@@ -13,5 +13,5 @@ def execute():
         frappe.db.commit()
     except Exception:
         frappe.log_error(frappe.get_traceback(), "run_repair_all_prod patch")
-        # Do not block production migrate; data repair can be re-run manually.
         frappe.db.rollback()
+
