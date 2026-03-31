@@ -734,3 +734,305 @@ def repair_all():
     print("\n" + "=" * 60)
     print("ALL REPAIRS COMPLETE")
     print("=" * 60)
+
+
+def _repair_money_scale_usd():
+    """
+    Fix legacy x1000 inflation from decimal-comma parsing.
+    Idempotent: only updates suspiciously inflated values (>= 5000 and divisible by 1000).
+    """
+    # Installment Plan core money fields
+    ip_fields = (
+        "principal_amount",
+        "down_payment",
+        "financed_amount",
+        "total_interest",
+        "total_amount",
+        "installment_amount",
+        "remaining_balance",
+        "paid_amount",
+    )
+    for f in ip_fields:
+        if frappe.db.has_column("Installment Plan", f):
+            frappe.db.sql(
+                f"""
+                UPDATE `tabInstallment Plan`
+                SET `{f}` = `{f}` / 1000
+                WHERE `{f}` >= 5000 AND MOD(CAST(`{f}` AS UNSIGNED), 1000) = 0
+                """
+            )
+
+    # Optional merge fields
+    for f in ("monthly_payment", "total_debt", "debt_today"):
+        if frappe.db.has_column("Installment Plan", f):
+            frappe.db.sql(
+                f"""
+                UPDATE `tabInstallment Plan`
+                SET `{f}` = `{f}` / 1000
+                WHERE `{f}` >= 5000 AND MOD(CAST(`{f}` AS UNSIGNED), 1000) = 0
+                """
+            )
+
+    # Schedule
+    frappe.db.sql(
+        """
+        UPDATE `tabInstallment Schedule`
+        SET amount = amount / 1000
+        WHERE amount >= 5000 AND MOD(CAST(amount AS UNSIGNED), 1000) = 0
+        """
+    )
+    frappe.db.sql(
+        """
+        UPDATE `tabInstallment Schedule`
+        SET paid_amount = paid_amount / 1000
+        WHERE paid_amount >= 5000 AND MOD(CAST(paid_amount AS UNSIGNED), 1000) = 0
+        """
+    )
+
+    # Sales Order
+    for f in ("total_amount", "paid_amount", "balance_amount"):
+        if frappe.db.has_column("Sales Order", f):
+            frappe.db.sql(
+                f"""
+                UPDATE `tabSales Order`
+                SET `{f}` = `{f}` / 1000
+                WHERE `{f}` >= 5000 AND MOD(CAST(`{f}` AS UNSIGNED), 1000) = 0
+                """
+            )
+
+    # Sales Order Item
+    if frappe.db.has_column("Sales Order Item", "unit_price"):
+        frappe.db.sql(
+            """
+            UPDATE `tabSales Order Item`
+            SET unit_price = unit_price / 1000
+            WHERE unit_price >= 5000 AND MOD(CAST(unit_price AS UNSIGNED), 1000) = 0
+            """
+        )
+    if frappe.db.has_column("Sales Order Item", "amount"):
+        frappe.db.sql(
+            """
+            UPDATE `tabSales Order Item`
+            SET amount = amount / 1000
+            WHERE amount >= 5000 AND MOD(CAST(amount AS UNSIGNED), 1000) = 0
+            """
+        )
+
+    # Stock Entry Item
+    if frappe.db.has_column("Stock Entry Item", "rate"):
+        frappe.db.sql(
+            """
+            UPDATE `tabStock Entry Item`
+            SET rate = rate / 1000
+            WHERE rate >= 5000 AND MOD(CAST(rate AS UNSIGNED), 1000) = 0
+            """
+        )
+    if frappe.db.has_column("Stock Entry Item", "amount"):
+        frappe.db.sql(
+            """
+            UPDATE `tabStock Entry Item`
+            SET amount = amount / 1000
+            WHERE amount >= 5000 AND MOD(CAST(amount AS UNSIGNED), 1000) = 0
+            """
+        )
+
+    # Product
+    for f in ("product_cost", "selling_price"):
+        if frappe.db.has_column("Product", f):
+            frappe.db.sql(
+                f"""
+                UPDATE `tabProduct`
+                SET `{f}` = `{f}` / 1000
+                WHERE `{f}` >= 5000 AND MOD(CAST(`{f}` AS UNSIGNED), 1000) = 0
+                """
+            )
+
+    # Recalculate stock totals
+    frappe.db.sql(
+        """
+        UPDATE `tabStock Entry` se
+        SET total_value = (
+            SELECT COALESCE(SUM(sei.amount), 0)
+            FROM `tabStock Entry Item` sei
+            WHERE sei.parent = se.name
+        )
+        """
+    )
+    print("Money scale repair complete.")
+
+
+def _repair_installment_statuses():
+    """
+    Recompute Installment Plan and Installment Schedule statuses from SO/PT data.
+    """
+    today_date = getdate(today())
+    plans = frappe.db.sql(
+        """
+        SELECT ip.name, ip.sales_order, ip.down_payment, ip.financed_amount, ip.number_of_installments,
+               COALESCE(so.total_amount, 0) AS so_total,
+               COALESCE(so.balance_amount, 0) AS so_balance,
+               COALESCE(pt.total_pt, 0) AS pt_total
+        FROM `tabInstallment Plan` ip
+        LEFT JOIN `tabSales Order` so ON so.name = ip.sales_order
+        LEFT JOIN (
+            SELECT reference_name, SUM(amount) AS total_pt
+            FROM `tabPayment Transaction`
+            WHERE reference_doctype = 'Sales Order'
+            GROUP BY reference_name
+        ) pt ON pt.reference_name = so.name
+        """,
+        as_dict=True,
+    )
+
+    counters = {"Завершен": 0, "Активный": 0, "Просрочен": 0}
+
+    for p in plans:
+        ip_name = p["name"]
+        so_name = p.get("sales_order")
+        down = flt(p.get("down_payment"))
+        financed = flt(p.get("financed_amount"))
+        so_total = flt(p.get("so_total"))
+        so_balance = flt(p.get("so_balance"))
+        pt_total = flt(p.get("pt_total"))
+
+        fully_paid = (so_balance <= 0.01) or (so_total > 0 and pt_total >= so_total - 0.01)
+        if fully_paid:
+            frappe.db.sql(
+                """
+                UPDATE `tabInstallment Schedule`
+                SET status = 'Оплачен', paid_amount = amount
+                WHERE parent = %s
+                """,
+                (ip_name,),
+            )
+            frappe.db.sql(
+                """
+                UPDATE `tabInstallment Plan`
+                SET status = 'Завершен',
+                    paid_amount = financed_amount,
+                    remaining_balance = 0,
+                    paid_installments = number_of_installments,
+                    overdue_installments = 0
+                WHERE name = %s
+                """,
+                (ip_name,),
+            )
+            if so_name:
+                frappe.db.sql(
+                    """
+                    UPDATE `tabSales Order`
+                    SET paid_amount = total_amount, balance_amount = 0
+                    WHERE name = %s
+                    """,
+                    (so_name,),
+                )
+            counters["Завершен"] += 1
+            continue
+
+        # Allocate PT payments beyond down payment to schedule
+        installment_paid = max(pt_total - down, 0)
+        rows = frappe.db.sql(
+            """
+            SELECT name, due_date, amount
+            FROM `tabInstallment Schedule`
+            WHERE parent = %s
+            ORDER BY due_date ASC
+            """,
+            (ip_name,),
+            as_dict=True,
+        )
+
+        rem = installment_paid
+        paid_installments = 0
+        overdue_installments = 0
+        for s in rows:
+            amt = flt(s.get("amount"))
+            due = getdate(s.get("due_date")) if s.get("due_date") else None
+            if rem >= amt - 0.01:
+                frappe.db.sql(
+                    """
+                    UPDATE `tabInstallment Schedule`
+                    SET paid_amount = %s, status = 'Оплачен'
+                    WHERE name = %s
+                    """,
+                    (amt, s["name"]),
+                )
+                rem -= amt
+                paid_installments += 1
+            elif rem > 0.01:
+                new_status = "Просрочен" if due and due < today_date else "Частично"
+                frappe.db.sql(
+                    """
+                    UPDATE `tabInstallment Schedule`
+                    SET paid_amount = %s, status = %s
+                    WHERE name = %s
+                    """,
+                    (rem, new_status, s["name"]),
+                )
+                if new_status == "Просрочен":
+                    overdue_installments += 1
+                rem = 0
+            else:
+                new_status = "Просрочен" if due and due < today_date else "Ожидает"
+                frappe.db.sql(
+                    """
+                    UPDATE `tabInstallment Schedule`
+                    SET paid_amount = 0, status = %s
+                    WHERE name = %s
+                    """,
+                    (new_status, s["name"]),
+                )
+                if new_status == "Просрочен":
+                    overdue_installments += 1
+
+        ip_status = "Просрочен" if overdue_installments > 0 else "Активный"
+        actual_paid = max(installment_paid, 0)
+        rem_bal = max(financed - actual_paid, 0)
+        frappe.db.sql(
+            """
+            UPDATE `tabInstallment Plan`
+            SET status = %s,
+                paid_amount = %s,
+                remaining_balance = %s,
+                paid_installments = %s,
+                overdue_installments = %s
+            WHERE name = %s
+            """,
+            (ip_status, actual_paid, rem_bal, paid_installments, overdue_installments, ip_name),
+        )
+        if so_name:
+            frappe.db.sql(
+                """
+                UPDATE `tabSales Order`
+                SET paid_amount = %s, balance_amount = GREATEST(total_amount - %s, 0)
+                WHERE name = %s
+                """,
+                (pt_total, pt_total, so_name),
+            )
+        counters[ip_status] += 1
+
+    print(f"Installment status repair complete: {counters}")
+
+
+@frappe.whitelist()
+def repair_all_prod():
+    """
+    Production-safe one-shot data reconciliation.
+    Idempotent and safe to re-run.
+    """
+    print("=" * 60)
+    print("Nasiya365 production repair started")
+    print("=" * 60)
+    repair_normalize_frequencies()
+    repair_delete_ghost_installment_plans()
+    repair_installment_plan_counts()
+    repair_product_color_storage()
+    repair_import_stock_inventory()
+    _repair_money_scale_usd()
+    _repair_installment_statuses()
+    # Installment Plan is intentionally non-submittable in this project.
+    frappe.db.sql("UPDATE `tabInstallment Plan` SET docstatus = 0 WHERE docstatus != 0")
+    # Keep production currency in USD for this dataset.
+    frappe.db.set_single_value("System Settings", "currency", "USD")
+    frappe.db.commit()
+    print("All production repairs applied successfully.")
