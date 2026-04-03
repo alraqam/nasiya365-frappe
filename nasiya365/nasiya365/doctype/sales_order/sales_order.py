@@ -13,7 +13,9 @@ class SalesOrder(Document):
     def validate(self):
         self.set_defaults()
         self.calculate_totals()
-        self.validate_sale_type()
+        self.validate_payment_rules()
+        self.validate_stock_available()
+        self.set_order_kind()
     
     def before_insert(self):
         if not self.salesperson:
@@ -21,10 +23,10 @@ class SalesOrder(Document):
     
     def on_submit(self):
         self.update_stock()
-        if self.sale_type in ["Рассрочка", "Смешанный"]:
+        if flt(self.balance_amount) > 0:
             self.create_installment_plan()
         # Skip creating payment transaction during import (legacy data)
-        if self.sale_type == "Наличные" and not frappe.flags.in_import:
+        if flt(self.balance_amount) <= 0 and not frappe.flags.in_import:
             self.create_cash_receipt()
     
     def on_cancel(self):
@@ -56,22 +58,20 @@ class SalesOrder(Document):
         self.total_amount = self.subtotal - flt(self.discount_amount)
         self.balance_amount = self.total_amount - flt(self.paid_amount)
     
-    def validate_sale_type(self):
-        """Validate sale type specific requirements"""
-        if self.sale_type == "Наличные":
-            if flt(self.paid_amount) < flt(self.total_amount):
-                frappe.throw(_("Для продажи за наличные сумма оплаты должна быть равна общей сумме"))
-        
-        elif self.sale_type == "Рассрочка":
-            # Check customer eligibility
+    def validate_payment_rules(self):
+        """No manual sale type: derive mode from paid/balance."""
+        if flt(self.paid_amount) < 0:
+            frappe.throw(_("Оплачено не может быть отрицательным"))
+        if flt(self.paid_amount) > flt(self.total_amount):
+            frappe.throw(_("Оплачено не может превышать общую сумму"))
+
+        # BNPL eligibility when there is outstanding balance.
+        if flt(self.balance_amount) > 0:
             customer = frappe.get_doc("Customer Profile", self.customer)
             if customer.status != "Активный":
                 frappe.throw(_("Клиент не имеет права на рассрочку (BNPL)"))
-            
             if self.total_amount > customer.available_limit:
                 frappe.throw(_("Сумма заказа превышает доступный кредитный лимит клиента"))
-            
-            # Validate all items allow installment
             for item in self.items:
                 product = frappe.get_doc("Product", item.product)
                 if not product.allow_installment:
@@ -80,12 +80,30 @@ class SalesOrder(Document):
                             product.product_name
                         )
                     )
-        
-        elif self.sale_type == "Смешанный":
-            if flt(self.paid_amount) <= 0:
-                frappe.throw(_("Смешанная продажа требует частичной оплаты наличными"))
-            if flt(self.paid_amount) >= flt(self.total_amount):
-                frappe.throw(_("Для полной оплаты используйте тип продажи Наличные"))
+
+    def set_order_kind(self):
+        self.order_kind = "Rassrochka" if flt(self.balance_amount) > 0 else "Naqd Savdo"
+
+    def validate_stock_available(self):
+        """Ensure requested qty does not exceed on-hand stock."""
+        for item in self.items:
+            if not item.product or not self.warehouse:
+                continue
+            balance = frappe.db.sql(
+                """
+                SELECT COALESCE(SUM(quantity_change), 0)
+                FROM `tabStock Ledger`
+                WHERE product = %s AND warehouse = %s
+                """,
+                (item.product, self.warehouse),
+            )[0][0]
+            if flt(item.quantity) > flt(balance):
+                pname = item.product_name or item.product
+                frappe.throw(
+                    _("Недостаточно остатка для {0}. Доступно: {1}, требуется: {2}").format(
+                        pname, flt(balance), flt(item.quantity)
+                    )
+                )
     
     def update_stock(self):
         """Reduce stock for sold items"""
@@ -156,11 +174,10 @@ class SalesOrder(Document):
         plan.down_payment = self.paid_amount
         plan.interest_rate = settings.default_interest_rate or 0
         plan.number_of_installments = 6  # Default
-        plan.frequency = "Ежемесячно"
+        plan.frequency = "Ежемесячно (Monthly)"
         plan.status = "Активный"
         plan.start_date = today()
         plan.insert()
-        plan.submit()
         
         self.installment_plan = plan.name
         self.db_update()
@@ -180,6 +197,7 @@ class SalesOrder(Document):
 def on_submit(doc, method):
     """Hook called when Sales Order is submitted"""
     doc.status = "Подтвержден"
+    doc.order_kind = "Rassrochka" if flt(doc.balance_amount) > 0 else "Naqd Savdo"
     doc.db_update()
 
 
@@ -187,3 +205,20 @@ def on_cancel(doc, method):
     """Hook called when Sales Order is cancelled"""
     doc.status = "Отменен"
     doc.db_update()
+
+
+@frappe.whitelist()
+def get_product_stock_available(product, warehouse=None):
+    if not product:
+        return {"available_qty": 0}
+    if not warehouse:
+        warehouse = frappe.db.get_value("Warehouse", {"is_group": 0}, "name")
+    qty = frappe.db.sql(
+        """
+        SELECT COALESCE(SUM(quantity_change), 0)
+        FROM `tabStock Ledger`
+        WHERE product = %s AND warehouse = %s
+        """,
+        (product, warehouse),
+    )[0][0]
+    return {"available_qty": flt(qty), "warehouse": warehouse}

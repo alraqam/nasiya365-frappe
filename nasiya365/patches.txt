@@ -1,1 +1,3 @@
 nasiya365.patches.v1_0_0.run_repair_all_prod
+nasiya365.patches.v1_0_0.rebuild_stock_entry_items_summary
+nasiya365.patches.v1_0_0.remove_payment_transaction_late_fee

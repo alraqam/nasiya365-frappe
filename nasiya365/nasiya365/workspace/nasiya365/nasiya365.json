@@ -1,6 +1,6 @@
 {
     "charts": [],
-    "content": "[{\"id\": \"heading-main\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Nasiya365</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-dashboard\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Дашборд\", \"col\": 6}}, {\"id\": \"shortcut-collections\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Коллекции\", \"col\": 6}}, {\"id\": \"heading-actions\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Быстрые действия</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-sell-bnpl\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Продать в рассрочку\", \"col\": 4}}, {\"id\": \"shortcut-accept-pay\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Принять платеж\", \"col\": 4}}, {\"id\": \"shortcut-new-client\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Новый клиент\", \"col\": 4}}, {\"id\": \"shortcut-sales-order\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Продажи\", \"col\": 4}}, {\"id\": \"shortcut-payment-transaction\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Платежи\", \"col\": 4}}, {\"id\": \"shortcut-product\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Товары\", \"col\": 4}}, {\"id\": \"shortcut-installment-plan\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Рассрочка\", \"col\": 4}}, {\"id\": \"shortcut-merchant-settings\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Настройки\", \"col\": 4}}]",
+    "content": "[{\"id\": \"heading-main\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Nasiya365</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-dashboard\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Дашборд\", \"col\": 6}}, {\"id\": \"shortcut-collections\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Коллекции\", \"col\": 6}}, {\"id\": \"heading-actions\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Быстрые действия</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-data-import\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Импорт данных\", \"col\": 4}}, {\"id\": \"shortcut-accept-pay\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Принять платеж\", \"col\": 4}}, {\"id\": \"shortcut-new-client\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Новый клиент\", \"col\": 4}}, {\"id\": \"shortcut-payment-transaction\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Платежи\", \"col\": 4}}, {\"id\": \"shortcut-product\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Товары\", \"col\": 4}}, {\"id\": \"shortcut-installment-plan\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Рассрочка\", \"col\": 4}}, {\"id\": \"shortcut-merchant-settings\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Настройки\", \"col\": 4}}]",
     "creation": "2026-01-07 02:02:00.000000",
     "custom_blocks": [],
     "docstatus": 0,
@@ -31,25 +31,17 @@
         {
             "hidden": 0,
             "is_query_report": 0,
-            "label": "Продажи",
+            "label": "Импорт данных",
             "link_type": "DocType",
-            "link_to": "Sales Order",
+            "link_to": "Data Import Tool",
             "type": "Link"
         },
         {
             "hidden": 0,
             "is_query_report": 0,
-            "label": "Платежи",
+            "label": "Рассрочка",
             "link_type": "DocType",
-            "link_to": "Payment Transaction",
-            "type": "Link"
-        },
-        {
-            "hidden": 0,
-            "is_query_report": 0,
-            "label": "Коллекции",
-            "link_type": "Page",
-            "link_to": "overdue-collector",
+            "link_to": "Installment Plan",
             "type": "Link"
         },
         {
@@ -103,14 +95,6 @@
         {
             "hidden": 0,
             "is_query_report": 0,
-            "label": "Рассрочка",
-            "link_type": "DocType",
-            "link_to": "Installment Plan",
-            "type": "Link"
-        },
-        {
-            "hidden": 0,
-            "is_query_report": 0,
             "label": "Расходы",
             "link_type": "DocType",
             "link_to": "Expense",
@@ -122,6 +106,30 @@
             "label": "Касса",
             "link_type": "DocType",
             "link_to": "Cashbox",
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "📞 Взыскание и платежи",
+            "link_to": null,
+            "link_type": null,
+            "type": "Card Break"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Платежи",
+            "link_type": "DocType",
+            "link_to": "Payment Transaction",
+            "type": "Link"
+        },
+        {
+            "hidden": 0,
+            "is_query_report": 0,
+            "label": "Коллекции",
+            "link_type": "Page",
+            "link_to": "overdue-collector",
             "type": "Link"
         },
         {
@@ -163,9 +171,9 @@
         },
         {
             "color": "Green",
-            "doc_view": "New",
-            "label": "Продать в рассрочку",
-            "link_to": "Sales Order",
+            "doc_view": "List",
+            "label": "Импорт данных",
+            "link_to": "Data Import Tool",
             "type": "DocType"
         },
         {
@@ -180,13 +188,6 @@
             "doc_view": "New",
             "label": "Новый клиент",
             "link_to": "Customer Profile",
-            "type": "DocType"
-        },
-        {
-            "color": "Orange",
-            "doc_view": "List",
-            "label": "Продажи",
-            "link_to": "Sales Order",
             "type": "DocType"
         },
         {

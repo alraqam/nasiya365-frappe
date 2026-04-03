@@ -44,9 +44,9 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 	renderCtaRow() {
 		const row = this.container.find(".bnpl-cta-row").empty();
 		const primary = {
-			label: __("Продать в рассрочку"),
+			label: __("Импорт данных"),
 			cssClass: "bnpl-cta-primary",
-			handler: () => frappe.set_route("Form", "Sales Order", "new-sales-order-1"),
+			handler: () => frappe.set_route("List", "Data Import Tool"),
 		};
 		const secondaries = [
 			{
@@ -628,7 +628,11 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 		const steps = [
 			{ n: 1, label: __("Создайте клиента"), route: () => frappe.new_doc("Customer Profile") },
 			{ n: 2, label: __("Добавьте товар"), route: () => frappe.new_doc("Product") },
-			{ n: 3, label: __("Оформите первую продажу"), route: () => frappe.set_route("Form", "Sales Order", "new-sales-order-1") },
+			{
+				n: 3,
+				label: __("Загрузите продажи через импорт"),
+				route: () => frappe.set_route("List", "Data Import Tool"),
+			},
 		];
 		const wrap = $(`<div class="bnpl-onboarding"></div>`);
 		wrap.append(`<div class="bnpl-onboarding-title">${__("Начните за 3 шага")}</div>`);

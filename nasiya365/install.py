@@ -18,6 +18,7 @@ def after_install():
     set_default_desk_home()
     create_default_print_templates()
     frappe.db.commit()
+    frappe.clear_cache()
     print("Nasiya365 installed successfully!")
 
 
@@ -30,6 +31,19 @@ def after_migrate():
     sync_customer_name_denormalized()
     backfill_stock_entry_supplier_from_remarks()
     frappe.db.commit()
+    frappe.clear_cache()
+
+
+def sync_desk_navigation():
+    """
+    Re-import Nasiya365 Workspace from app JSON and refresh Workspace Sidebar rows.
+    Use when menu changes do not show after deploy: ``bench --site SITE execute nasiya365.install.sync_desk_navigation``
+    """
+    sync_workspace()
+    sync_workspace_sidebar()
+    set_default_desk_home()
+    frappe.db.commit()
+    frappe.clear_cache()
 
 
 def backfill_stock_entry_supplier_from_remarks():
@@ -144,14 +158,19 @@ def set_default_desk_home():
 
 def sync_workspace():
     """Ensure Nasiya365 workspace is synced from app JSON so it shows on the desk."""
+    last_error = None
     for name in ("Nasiya365", "nasiya365"):
         try:
             frappe.reload_doc("nasiya365", "workspace", name, force=True)
             print("Nasiya365 workspace synced.")
             return
         except Exception as e:
+            last_error = e
             continue
-    frappe.log_error("Workspace sync failed: nasiya365 workspace not found", "Nasiya365 Install")
+    frappe.log_error(
+        f"Workspace sync failed (tried Nasiya365, nasiya365): {last_error!r}",
+        "Nasiya365 Install",
+    )
 
 
 def sync_workspace_sidebar():
@@ -159,41 +178,77 @@ def sync_workspace_sidebar():
     Frappe v16+ builds a flat DocType list per module via auto_generate_sidebar_from_module()
     unless a Workspace Sidebar row exists for that module (see frappe.boot.get_sidebar_items).
 
-    Creating this document replaces the flat menu with the same Russian structure as the Workspace.
+    Updates every matching public sidebar for this app. A single LIMIT 1 + wrong module key
+    left a stale duplicate row, so the desk kept showing Naqd Savdo under Финансы.
     """
     if not frappe.db.exists("DocType", "Workspace Sidebar"):
         return
 
-    mod_rows = frappe.get_all("Module Def", filters={"app_name": "nasiya365"}, pluck="name", limit=1)
-    module_name = mod_rows[0] if mod_rows else "nasiya365"
-
     rows = _nasiya365_workspace_sidebar_items()
-
-    existing = frappe.db.sql(
-        """
-        SELECT name FROM `tabWorkspace Sidebar`
-        WHERE module = %s AND IFNULL(for_user, '') = ''
-        LIMIT 1
-        """,
-        (module_name,),
+    module_names = list(
+        dict.fromkeys(
+            frappe.get_all("Module Def", filters={"app_name": "nasiya365"}, pluck="name")
+            or ["nasiya365"]
+        )
     )
 
-    if existing:
-        doc = frappe.get_doc("Workspace Sidebar", existing[0][0])
-    else:
+    meta = frappe.get_meta("Workspace Sidebar")
+    has_app = "app" in {f.fieldname for f in meta.fields}
+
+    names = set()
+    if module_names:
+        ph = ",".join(["%s"] * len(module_names))
+        for (n,) in frappe.db.sql(
+            f"""
+            SELECT name FROM `tabWorkspace Sidebar`
+            WHERE IFNULL(for_user, '') = '' AND module IN ({ph})
+            """,
+            tuple(module_names),
+        ):
+            names.add(n)
+
+    if has_app:
+        for (n,) in frappe.db.sql(
+            """
+            SELECT name FROM `tabWorkspace Sidebar`
+            WHERE IFNULL(for_user, '') = '' AND IFNULL(app, '') = %s
+            """,
+            ("nasiya365",),
+        ):
+            names.add(n)
+
+    for (n,) in frappe.db.sql(
+        """
+        SELECT name FROM `tabWorkspace Sidebar`
+        WHERE IFNULL(for_user, '') = '' AND LOWER(IFNULL(module, '')) = %s
+        """,
+        ("nasiya365",),
+    ):
+        names.add(n)
+
+    def _write_sidebar_items(doc):
+        doc.header_icon = "money"
+        if has_app:
+            doc.app = "nasiya365"
+        doc.for_user = None
+        doc.items = []
+        for row in rows:
+            doc.append("items", row)
+        doc.save(ignore_permissions=True)
+
+    primary_module = module_names[0]
+    if not names:
         doc = frappe.new_doc("Workspace Sidebar")
-        doc.title = module_name
-        doc.module = module_name
+        doc.title = primary_module
+        doc.module = primary_module
+        _write_sidebar_items(doc)
+        print(f"Nasiya365 Workspace Sidebar created (module={primary_module}).")
+        return
 
-    doc.header_icon = "money"
-    doc.app = "nasiya365"
-    doc.for_user = None
-    doc.items = []
-    for row in rows:
-        doc.append("items", row)
-
-    doc.save(ignore_permissions=True)
-    print(f"Nasiya365 Workspace Sidebar synced (module={module_name}).")
+    for sb_name in sorted(names):
+        doc = frappe.get_doc("Workspace Sidebar", sb_name)
+        _write_sidebar_items(doc)
+    print(f"Nasiya365 Workspace Sidebar synced ({len(names)} document(s)).")
 
 
 def _nasiya365_workspace_sidebar_items():
@@ -229,18 +284,19 @@ def _nasiya365_workspace_sidebar_items():
 
     link("Дашборд", "Page", "bnpl-control-center", child=0)
     section("💰 Основное")
-    link("Продажи", "DocType", "Sales Order", child=1)
-    link("Платежи", "DocType", "Payment Transaction", child=1)
-    link("Коллекции", "Page", "overdue-collector", child=1)
+    link("Импорт данных", "DocType", "Data Import Tool", child=1)
+    link("Рассрочка", "DocType", "Installment Plan", child=1)
     section("👥 Клиенты")
     link("Клиенты", "DocType", "Customer Profile", child=1)
     section("📦 Операции")
     link("Товары", "DocType", "Product", child=1)
     link("Склад", "DocType", "Stock Entry", child=1)
     section("⚙️ Финансы")
-    link("Рассрочка", "DocType", "Installment Plan", child=1)
     link("Расходы", "DocType", "Expense", child=1)
     link("Касса", "DocType", "Cashbox", child=1)
+    section("📞 Взыскание и платежи")
+    link("Платежи", "DocType", "Payment Transaction", child=1)
+    link("Коллекции", "Page", "overdue-collector", child=1)
     link("Настройки", "DocType", "Merchant Settings", child=1)
     return out
 

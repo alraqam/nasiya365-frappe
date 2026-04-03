@@ -7,6 +7,7 @@ frappe.ui.form.on("Installment Plan", {
 
 	refresh(frm) {
 		frm.$wrapper.addClass("nasiya-ip-wizard");
+		set_stock_entry_filter(frm);
 		set_sales_order_filter(frm);
 		setup_bnpl_actions(frm);
 		load_risk_panel(frm);
@@ -14,14 +15,41 @@ frappe.ui.form.on("Installment Plan", {
 	},
 
 	customer(frm) {
+		set_stock_entry_filter(frm);
 		set_sales_order_filter(frm);
 		if (!frm.doc.customer) {
+			frm.set_value("stock_entry", "");
 			frm.set_value("sales_order", "");
 			frm.set_value("customer_phone", "");
 			clear_panels(frm);
 			return;
 		}
 		load_risk_panel(frm);
+	},
+
+	stock_entry(frm) {
+		if (!frm.doc.stock_entry) return;
+		frappe.call({
+			method:
+				"nasiya365.api.bnpl_dashboard.get_stock_entry_details_for_installment_plan",
+			args: {
+				stock_entry: frm.doc.stock_entry,
+				installment_plan: frm.doc.name || "",
+			},
+			callback(r) {
+				if (!r.message) return;
+				const d = r.message;
+				if (flt(d.total_amount) > 0) {
+					frm.set_value("principal_amount", d.total_amount);
+				}
+				if (d.product_name) frm.set_value("product_name", d.product_name);
+				if (d.imei) {
+					const full = (d.imei || "").trim();
+					frm.set_value("imei", full.length >= 6 ? full.slice(-6) : full);
+				}
+				schedule_preview_refresh(frm, 0);
+			},
+		});
 	},
 
 	sales_order(frm) {
@@ -55,6 +83,13 @@ frappe.ui.form.on("Installment Plan", {
 
 function schedule_preview_change(frm) {
 	schedule_preview_refresh(frm, PREVIEW_DEBOUNCE_MS);
+}
+
+function set_stock_entry_filter(frm) {
+	frm.set_query("stock_entry", () => ({
+		query: "nasiya365.api.bnpl_dashboard.installment_plan_stock_entry_query",
+		filters: { installment_plan: frm.doc.name || "" },
+	}));
 }
 
 function set_sales_order_filter(frm) {

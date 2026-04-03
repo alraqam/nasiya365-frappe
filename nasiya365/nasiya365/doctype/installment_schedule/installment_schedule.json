@@ -34,7 +34,7 @@
             "reqd": 1
         },
         {
-            "default": "Pending",
+            "default": "Ожидает",
             "fieldname": "status",
             "fieldtype": "Select",
             "in_list_view": 1,

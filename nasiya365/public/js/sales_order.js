@@ -1,9 +1,31 @@
 frappe.ui.form.on("Sales Order", {
 	refresh(frm) {
-		if (!frm.is_new()) return;
-		frm.add_custom_button(__("Оформить в рассрочку"), () => new NasiyaSalesWizard().start()).addClass("btn-primary");
+		if (frm.is_new()) {
+			frm.add_custom_button(__("Оформить в рассрочку"), () => new NasiyaSalesWizard().start()).addClass("btn-primary");
+		}
+		show_stock_hint(frm);
+	},
+	warehouse(frm) {
+		show_stock_hint(frm);
+	},
+	items_on_form_rendered(frm) {
+		show_stock_hint(frm);
 	},
 });
+
+function show_stock_hint(frm) {
+	const item = (frm.doc.items || [])[0];
+	if (!item || !item.product) return;
+	frappe.call({
+		method: "nasiya365.nasiya365.doctype.sales_order.sales_order.get_product_stock_available",
+		args: { product: item.product, warehouse: frm.doc.warehouse || null },
+		callback: (r) => {
+			const available = flt(r.message?.available_qty || 0);
+			const color = available > 0 ? "green" : "red";
+			frm.set_intro(__("Остаток на складе по выбранному товару: {0}", [available]), color);
+		},
+	});
+}
 
 class NasiyaSalesWizard {
 	constructor() {
@@ -68,6 +90,7 @@ class NasiyaSalesWizard {
 				{ fieldname: "product", label: __("Товар"), fieldtype: "Link", options: "Product", reqd: 1, default: this.state.product },
 				{ fieldname: "qty", label: __("Количество"), fieldtype: "Int", reqd: 1, default: this.state.qty },
 				{ fieldname: "price_info", fieldtype: "HTML" },
+				{ fieldname: "stock_info", fieldtype: "HTML" },
 			],
 			primary_action_label: __("Далее"),
 			secondary_action_label: __("Назад"),
@@ -91,6 +114,17 @@ class NasiyaSalesWizard {
 				d.fields_dict.price_info.$wrapper.html(
 					`<div class="small text-muted">Цена: <b>${format_currency(this.state.price)}</b> · Итого: <b>${format_currency(this.state.price * qty)}</b></div>`
 				);
+			});
+			frappe.call({
+				method: "nasiya365.nasiya365.doctype.sales_order.sales_order.get_product_stock_available",
+				args: { product, warehouse: this.state.warehouse || null },
+				callback: (r) => {
+					const available = flt(r.message?.available_qty || 0);
+					const cls = available > 0 ? "text-success" : "text-danger";
+					d.fields_dict.stock_info.$wrapper.html(
+						`<div class="small ${cls}">Остаток на складе: <b>${available}</b></div>`
+					);
+				},
 			});
 		};
 		d.fields_dict.product.$input.on("change", updatePrice);
@@ -190,7 +224,6 @@ class NasiyaSalesWizard {
 							qty: this.state.qty,
 							months: this.state.months,
 							down_payment: this.state.down_payment,
-							sale_type: "Рассрочка",
 						},
 					},
 					callback: (r) => {

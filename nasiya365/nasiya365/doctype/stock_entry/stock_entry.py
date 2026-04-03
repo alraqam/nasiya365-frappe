@@ -6,35 +6,46 @@ class StockEntry(Document):
 	def validate(self):
 		self.calculate_totals()
 		self.set_items_summary()
+		self.set_business_status()
 
 	def set_items_summary(self):
-		"""Set items summary for list view"""
+		"""Human-readable line summary for list views and Link field titles (name + attributes)."""
 		summary_items = []
-		for item in self.items[:3]:  # Take first 3 items
+		for item in self.items[:3]:
 			if not item.product:
 				continue
-				
+
 			product_name = frappe.get_cached_value("Product", item.product, "product_name")
 			brand = frappe.get_cached_value("Product", item.product, "brand")
-			
-			item_desc = product_name or item.product
-			
-			# Add IMEI/Serial (last 6 digits)
+
+			parts = []
+			base = (product_name or item.product or "").strip()
+			if base:
+				parts.append(base)
+
+			color = (getattr(item, "color", None) or "").strip()
+			if color:
+				parts.append(color)
+			storage = (getattr(item, "storage", None) or "").strip()
+			if storage:
+				parts.append(storage)
+
+			item_desc = " · ".join(parts) if parts else (item.product or "")
+
 			if item.serial_no:
-				serial = item.serial_no
+				serial = (item.serial_no or "").strip()
 				if len(serial) > 6:
-					serial = "..." + serial[-6:]
-				item_desc += f" ({serial})"
-			
-			# Add Brand
+					serial = "…" + serial[-6:]
+				item_desc = f"{item_desc} ({serial})"
+
 			if brand:
-				item_desc += f" - {brand}"
-				
+				item_desc = f"{item_desc} — {brand}"
+
 			summary_items.append(item_desc)
-		
+
 		if len(self.items) > 3:
-			summary_items.append(f"... (+{len(self.items) - 3})")
-			
+			summary_items.append(f"… (+{len(self.items) - 3})")
+
 		self.items_summary = ", ".join(summary_items)
 
 	
@@ -49,11 +60,28 @@ class StockEntry(Document):
 	
 	def on_submit(self):
 		"""Update stock ledger when submitted"""
+		self.business_status = self._resolve_sale_source_status()
+		self.db_update()
 		self.update_stock_ledger()
 	
 	def on_cancel(self):
 		"""Reverse stock ledger entries when cancelled"""
+		self.business_status = "Возврат"
+		self.db_update()
 		self.update_stock_ledger(cancel=True)
+
+	def set_business_status(self):
+		if self.docstatus == 0:
+			self.business_status = "Черновик"
+		elif self.docstatus == 1 and not self.business_status:
+			self.business_status = "Проведен"
+
+	def _resolve_sale_source_status(self):
+		if "Рассрочка" in (self.remarks or ""):
+			return "Rassrochka savdo"
+		if "Наличные" in (self.remarks or "") or "Naqd" in (self.remarks or ""):
+			return "Naqd savdo"
+		return "Проведен"
 	
 	def update_stock_ledger(self, cancel=False):
 		"""Create stock ledger entries"""

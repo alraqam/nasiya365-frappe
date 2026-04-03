@@ -6,6 +6,7 @@
     "engine": "InnoDB",
     "field_order": [
         "entry_type",
+        "business_status",
         "posting_date",
         "posting_time",
         "column_break_1",
@@ -31,6 +32,14 @@
             "label": "Тип операции",
             "options": "Поступление\nОтпуск\nПеремещение\nКорректировка",
             "reqd": 1
+        },
+        {
+            "fieldname": "business_status",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Бизнес статус",
+            "options": "Черновик\nПроведен\nNaqd savdo\nRassrochka savdo\nВозврат",
+            "read_only": 1
         },
         {
             "default": "Today",
@@ -166,10 +175,11 @@
             "write": 1
         }
     ],
+    "search_fields": "items_summary,warehouse,posting_date,supplier",
     "sort_field": "modified",
     "sort_order": "DESC",
     "states": [],
     "show_title_field_in_link": 1,
-    "title_field": "entry_type",
+    "title_field": "items_summary",
     "track_changes": 1
 }

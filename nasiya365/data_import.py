@@ -404,12 +404,6 @@ def process_row(row, default_branch, summary, skip_validation=False):
     so.po_no = doc_number  # Legacy document number
     so.notes = f"Imported from legacy system. Original ID: {doc_number}"
     
-    # Set sale type based on payment status
-    if remaining_debt > 0:
-        so.sale_type = "Рассрочка" if paid_amount == 0 else "Смешанный"
-    else:
-        so.sale_type = "Наличные"
-    
     # Set payment amounts
     so.subtotal = total_amount
     so.total_amount = total_amount

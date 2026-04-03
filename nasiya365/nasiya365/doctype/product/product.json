@@ -15,6 +15,7 @@
         "brand",
         "color",
         "storage",
+        "condition",
         "is_active",
         "attributes_section",
         "attributes",
@@ -89,6 +90,13 @@
             "in_list_view": 1,
             "in_standard_filter": 1,
             "label": "Память"
+        },
+        {
+            "fieldname": "condition",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Состояние",
+            "options": "Новый\nБ/У"
         },
         {
             "default": "1",
@@ -228,7 +236,7 @@
             "share": 1
         }
     ],
-    "search_fields": "product_name,product_code,brand,color,storage",
+    "search_fields": "product_name,product_code,brand,color,storage,condition",
     "show_title_field_in_link": 1,
     "sort_field": "modified",
     "sort_order": "DESC",

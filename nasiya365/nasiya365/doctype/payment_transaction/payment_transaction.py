@@ -37,13 +37,24 @@ def get_customer_installment_plans(customer):
             ip.total_amount,
             ip.installment_amount,
             ip.sales_order,
+            ip.stock_entry,
             ip.imei,
+            ip.contract_number,
             COALESCE(NULLIF(TRIM(CONCAT_WS(' · ',
-                NULLIF(TRIM(COALESCE(NULLIF(ip.product_name, ''), soi.product_name, '')), ''),
-                NULLIF(TRIM(soi.color), ''),
-                NULLIF(TRIM(soi.storage), '')
+                NULLIF(TRIM(COALESCE(
+                    NULLIF(ip.product_name, ''),
+                    NULLIF(p.product_name, ''),
+                    NULLIF(soi.product_name, ''),
+                    ''
+                )), ''),
+                NULLIF(TRIM(COALESCE(NULLIF(sei.color, ''), NULLIF(soi.color, ''), '')), ''),
+                NULLIF(TRIM(COALESCE(NULLIF(sei.storage, ''), NULLIF(soi.storage, ''), '')), '')
             )), ''), '') AS device_name
         FROM `tabInstallment Plan` ip
+        LEFT JOIN `tabStock Entry Item` sei
+            ON sei.parent = ip.stock_entry AND sei.idx = 1
+        LEFT JOIN `tabProduct` p
+            ON p.name = sei.product
         LEFT JOIN `tabSales Order Item` soi
             ON soi.parent = ip.sales_order AND soi.idx = 1
         WHERE ip.customer = %s

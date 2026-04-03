@@ -1,6 +1,34 @@
+import json
+
 import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, get_first_day, get_last_day, getdate, nowdate, today
+
+# Поступление already consumed (cash/BNPL issue) or returned — hide from new installment plans.
+_STOCK_ENTRY_UNAVAILABLE_BUSINESS = ("Naqd savdo", "Rassrochka savdo", "Возврат")
+
+# Installment Schedule child default was "Pending" while valid options are Russian — include both in SQL.
+_OPEN_SCHEDULE_STATUSES = ("Ожидает", "Частично", "Pending")
+
+# Collector lists: not only submitted (1); drafts often stay docstatus 0 until first payment flow.
+_COLLECTION_PLAN_WHERE = (
+    "ip.docstatus < 2 AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан')"
+)
+
+
+def _collection_customer_select():
+    """Prefer Customer Profile name; fall back to denormalized plan fields if link is missing."""
+    return (
+        "COALESCE(NULLIF(TRIM(cp.full_name), ''), NULLIF(TRIM(ip.customer_name), ''), ip.customer) "
+        "AS customer_name"
+    )
+
+
+def _schedule_open_predicate(in_open_placeholders: str) -> str:
+    """Treat blank/null schedule status as unpaid/open (imports sometimes omit it)."""
+    return (
+        f"(isc.status IN ({in_open_placeholders}) OR TRIM(IFNULL(isc.status, '')) = '')"
+    )
 
 
 def _to_float(value):
@@ -81,27 +109,34 @@ def _kpi_metrics(base_date, branch=None):
         (),
     )[0][0]
 
+    in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
+    open_pred = _schedule_open_predicate(in_open)
     due_today = frappe.db.sql(
-        """
+        f"""
         SELECT COALESCE(SUM(isc.amount - COALESCE(isc.paid_amount, 0)), 0)
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
-        WHERE ip.docstatus = 1
-          AND isc.status IN ('Ожидает', 'Частично')
+        WHERE {_COLLECTION_PLAN_WHERE}
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND {open_pred}
           AND isc.due_date = %s
     """,
-        (base_date,),
+        (*_OPEN_SCHEDULE_STATUSES, base_date),
     )[0][0]
 
     overdue = frappe.db.sql(
-        """
+        f"""
         SELECT COALESCE(SUM(isc.amount - COALESCE(isc.paid_amount, 0)), 0)
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
-        WHERE ip.docstatus = 1
-          AND isc.status = 'Просрочен'
+        WHERE {_COLLECTION_PLAN_WHERE}
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (
+            isc.status = 'Просрочен'
+            OR (isc.due_date < %s AND {open_pred})
+          )
     """,
-        (),
+        (base_date, *_OPEN_SCHEDULE_STATUSES),
     )[0][0]
 
     collected_today = frappe.db.sql(
@@ -152,7 +187,11 @@ def get_bnpl_kpis(date=None, branch=None):
 @frappe.whitelist()
 def get_overdue_list(limit=20, branch=None, collector=None):
     query_limit = _safe_limit(limit, default_value=20, max_value=200)
-    args = [getdate(today())]
+    base_date = getdate(today())
+    in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
+    open_pred = _schedule_open_predicate(in_open)
+    # DATEDIFF, then due_date < for "still open but job didn't mark Просрочен"
+    args = [base_date, base_date, *_OPEN_SCHEDULE_STATUSES]
     collector_clause = ""
     if collector:
         collector_clause = """
@@ -170,16 +209,20 @@ def get_overdue_list(limit=20, branch=None, collector=None):
         SELECT
             ip.name AS installment_plan,
             ip.customer,
-            cp.full_name AS customer_name,
+            {_collection_customer_select()},
             isc.name AS schedule_name,
             isc.due_date,
             (isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due,
             DATEDIFF(%s, isc.due_date) AS days_overdue
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
-        INNER JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
-        WHERE ip.docstatus = 1
-          AND isc.status = 'Просрочен'
+        LEFT JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
+        WHERE {_COLLECTION_PLAN_WHERE}
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (
+            isc.status = 'Просрочен'
+            OR (isc.due_date < %s AND {open_pred})
+          )
           {collector_clause}
         ORDER BY days_overdue DESC, amount_due DESC
         LIMIT {query_limit}
@@ -203,23 +246,27 @@ def get_overdue_list(limit=20, branch=None, collector=None):
 def get_due_today_list(limit=20, branch=None):
     query_limit = _safe_limit(limit, default_value=20, max_value=200)
     filters = ""
-    args = [getdate(today())]
+    in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
+    open_pred = _schedule_open_predicate(in_open)
+    base_date = getdate(today())
+    args = [*_OPEN_SCHEDULE_STATUSES, base_date]
 
     rows = frappe.db.sql(
         f"""
         SELECT
             ip.name AS installment_plan,
             ip.customer,
-            cp.full_name AS customer_name,
+            {_collection_customer_select()},
             isc.name AS schedule_name,
             isc.due_date,
             isc.status AS schedule_status,
             (isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
-        INNER JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
-        WHERE ip.docstatus = 1
-          AND isc.status IN ('Ожидает', 'Частично')
+        LEFT JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
+        WHERE {_COLLECTION_PLAN_WHERE}
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND {open_pred}
           AND isc.due_date = %s
           {filters}
         ORDER BY
@@ -233,6 +280,11 @@ def get_due_today_list(limit=20, branch=None):
     for row in rows:
         row["amount_due"] = _to_float(row["amount_due"])
         row["urgency"] = "high" if row.get("schedule_status") == "Частично" else "normal"
+        row["phone"] = frappe.db.get_value(
+            "Customer Phone Number",
+            {"parent": row["customer"], "is_primary": 1},
+            "phone_number",
+        )
     return rows
 
 
@@ -360,6 +412,9 @@ def _merge_timeline_events(limit=24):
         order_by="creation desc",
         limit=per,
     )
+    in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
+    open_pred = _schedule_open_predicate(in_open)
+    base_td = getdate(today())
     missed = frappe.db.sql(
         f"""
         SELECT
@@ -368,18 +423,22 @@ def _merge_timeline_events(limit=24):
             isc.due_date,
             ip.name AS installment_plan,
             ip.customer,
-            cp.full_name AS customer_name,
+            {_collection_customer_select()},
             (isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due,
             DATEDIFF(%s, isc.due_date) AS days_overdue
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
-        INNER JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
-        WHERE ip.docstatus = 1
-          AND isc.status = 'Просрочен'
+        LEFT JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
+        WHERE {_COLLECTION_PLAN_WHERE}
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (
+            isc.status = 'Просрочен'
+            OR (isc.due_date < %s AND {open_pred})
+          )
         ORDER BY isc.modified DESC
         LIMIT {per}
         """,
-        (getdate(today()),),
+        (base_td, base_td, *_OPEN_SCHEDULE_STATUSES),
         as_dict=True,
     )
 
@@ -464,16 +523,18 @@ def send_due_payment_reminder(installment_plan, schedule_name=None, amount=None)
             frappe.db.get_value("Installment Schedule", schedule_name, "paid_amount")
         )
     if amt <= 0:
+        in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
+        open_pred = _schedule_open_predicate(in_open)
         amt = _to_float(
             frappe.db.sql(
-                """
+                f"""
                 SELECT COALESCE(SUM(isc.amount - COALESCE(isc.paid_amount, 0)), 0)
                 FROM `tabInstallment Schedule` isc
                 WHERE isc.parent = %s
-                  AND isc.status IN ('Ожидает', 'Частично')
+                  AND {open_pred}
                   AND isc.due_date = %s
                 """,
-                (installment_plan, getdate(today())),
+                (installment_plan, *_OPEN_SCHEDULE_STATUSES, getdate(today())),
             )[0][0]
         )
 
@@ -505,27 +566,37 @@ def get_control_center_snapshot(date=None):
     prev_start, prev_end = _revenue_mtd_prev_month_window(base_date)
     revenue_prev_mtd = _sum_payments_between(prev_start, prev_end)
 
+    in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
+    open_pred = _schedule_open_predicate(in_open)
     overdue_lines = frappe.db.sql(
-        """
+        f"""
         SELECT COUNT(*)
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
-        WHERE ip.docstatus = 1
-          AND isc.status = 'Просрочен'
+        WHERE {_COLLECTION_PLAN_WHERE}
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (
+            isc.status = 'Просрочен'
+            OR (isc.due_date < %s AND {open_pred})
+          )
     """,
-        (),
+        (base_date, *_OPEN_SCHEDULE_STATUSES),
     )[0][0]
 
     high_risk_clients = frappe.db.sql(
-        """
+        f"""
         SELECT COUNT(DISTINCT ip.customer)
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
-        WHERE ip.docstatus = 1
-          AND isc.status = 'Просрочен'
+        WHERE {_COLLECTION_PLAN_WHERE}
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (
+            isc.status = 'Просрочен'
+            OR (isc.due_date < %s AND {open_pred})
+          )
           AND DATEDIFF(%s, isc.due_date) > 7
     """,
-        (base_date,),
+        (base_date, *_OPEN_SCHEDULE_STATUSES, base_date),
     )[0][0]
 
     due_today = cur["due_today_amount"]
@@ -664,7 +735,7 @@ def create_sales_order_from_wizard(payload):
     if not data:
         frappe.throw(_("Нет данных для оформления"))
 
-    required_fields = ["customer", "branch", "product", "sale_type", "months"]
+    required_fields = ["customer", "branch", "product", "months"]
     for key in required_fields:
         if not data.get(key):
             frappe.throw(_("Поле {0} обязательно").format(key))
@@ -677,8 +748,7 @@ def create_sales_order_from_wizard(payload):
     so = frappe.new_doc("Sales Order")
     so.customer = data["customer"]
     so.branch = data["branch"]
-    so.sale_type = data["sale_type"]
-    so.paid_amount = down_payment if data["sale_type"] in ("Рассрочка", "Смешанный") else total_amount
+    so.paid_amount = down_payment if down_payment > 0 else 0
     so.append(
         "items",
         {
@@ -690,3 +760,267 @@ def create_sales_order_from_wizard(payload):
     )
     so.insert(ignore_permissions=True)
     return {"name": so.name, "docstatus": so.docstatus}
+
+
+def _purchase_serial_tracks_consumed(serial_raw, exclude_installment_plan_name=""):
+    """
+    Serial / IMEI already tied to a sale (SO), warehouse issue (Отпуск), or another open plan (import IMEI only).
+    """
+    s = (serial_raw or "").strip().replace(" ", "").upper()
+    if not s:
+        return False
+    tail6 = s[-6:] if len(s) >= 6 else s
+
+    if frappe.db.sql(
+        """
+        SELECT 1 FROM `tabStock Entry Item` oxi
+        INNER JOIN `tabStock Entry` ox ON ox.name = oxi.parent
+        WHERE ox.docstatus = 1 AND ox.entry_type = 'Отпуск'
+          AND NULLIF(TRIM(oxi.serial_no), '') IS NOT NULL
+          AND (
+            REPLACE(UPPER(TRIM(oxi.serial_no)), ' ', '') = %s
+            OR RIGHT(REPLACE(UPPER(TRIM(oxi.serial_no)), ' ', ''), 6) = %s
+          )
+        LIMIT 1
+        """,
+        (s, tail6),
+    ):
+        return True
+
+    if frappe.db.sql(
+        """
+        SELECT 1 FROM `tabSales Order Item` soi
+        INNER JOIN `tabSales Order` so ON so.name = soi.parent
+        WHERE so.docstatus = 1
+          AND NULLIF(TRIM(soi.imei), '') IS NOT NULL
+          AND (
+            REPLACE(UPPER(TRIM(soi.imei)), ' ', '') = %s
+            OR REPLACE(UPPER(TRIM(soi.imei)), ' ', '') = %s
+            OR RIGHT(REPLACE(UPPER(TRIM(soi.imei)), ' ', ''), 6) = %s
+          )
+        LIMIT 1
+        """,
+        (s, tail6, tail6),
+    ):
+        return True
+
+    plan = exclude_installment_plan_name or ""
+    if frappe.db.sql(
+        """
+        SELECT 1 FROM `tabInstallment Plan` ip
+        WHERE IFNULL(ip.docstatus, 0) < 2
+          AND (%s = '' OR ip.name != %s)
+          AND NULLIF(TRIM(ip.imei), '') IS NOT NULL
+          AND IFNULL(TRIM(ip.stock_entry), '') = ''
+          AND (
+            REPLACE(UPPER(TRIM(ip.imei)), ' ', '') = %s
+            OR REPLACE(UPPER(TRIM(ip.imei)), ' ', '') = %s
+            OR RIGHT(REPLACE(UPPER(TRIM(ip.imei)), ' ', ''), 6) = %s
+          )
+        LIMIT 1
+        """,
+        (plan, plan, s, tail6, tail6),
+    ):
+        return True
+
+    return False
+
+
+def assert_stock_entry_available_for_installment_plan(stock_entry, current_plan_name=None):
+    """
+    Submitted Поступление only; positive stock in ledger; not marked sold/return;
+    serial not already sold (SO / Отпуск / other plan IMEI); not linked to another open plan.
+    """
+    if not stock_entry:
+        return
+    row = frappe.db.get_value(
+        "Stock Entry",
+        stock_entry,
+        ["docstatus", "entry_type", "business_status", "warehouse"],
+        as_dict=True,
+    )
+    if not row:
+        frappe.throw(_("Документ поступления не найден"))
+    if row.docstatus != 1:
+        frappe.throw(_("Выберите проведённое поступление на склад"))
+    if row.entry_type != "Поступление":
+        frappe.throw(_("Для рассрочки доступны только операции типа «Поступление»"))
+    bs = (row.business_status or "").strip()
+    if bs in _STOCK_ENTRY_UNAVAILABLE_BUSINESS:
+        frappe.throw(
+            _("Это поступление уже отражено как продажа или возврат. Выберите другой документ.")
+        )
+    plan = current_plan_name or ""
+    conflict = frappe.db.sql(
+        """
+        SELECT name FROM `tabInstallment Plan`
+        WHERE stock_entry = %s
+          AND docstatus < 2
+          AND name != %s
+        LIMIT 1
+        """,
+        (stock_entry, plan),
+    )
+    if conflict:
+        frappe.throw(
+            _("Этот документ поступления уже привязан к плану {0}.").format(conflict[0][0])
+        )
+
+    sei = frappe.db.get_value(
+        "Stock Entry Item",
+        {"parent": stock_entry, "idx": 1},
+        ["product", "serial_no"],
+        as_dict=True,
+    )
+    if sei and sei.product and row.warehouse:
+        bal = frappe.db.sql(
+            """
+            SELECT COALESCE(SUM(quantity_change), 0) FROM `tabStock Ledger`
+            WHERE product = %s AND warehouse = %s
+            """,
+            (sei.product, row.warehouse),
+        )[0][0]
+        if flt(bal) <= 0:
+            frappe.throw(
+                _("По этому складу для товара нет остатка — единица уже списана (продажа или отпуск).")
+            )
+
+    if sei and sei.serial_no and str(sei.serial_no).strip():
+        if _purchase_serial_tracks_consumed(sei.serial_no, plan):
+            frappe.throw(
+                _(
+                    "Этот серийный номер уже в продаже (заказ), отпуске или другом плане рассрочки. Выберите другое поступление."
+                )
+            )
+
+
+@frappe.whitelist()
+def installment_plan_stock_entry_query(
+    doctype,
+    txt,
+    searchfield,
+    start,
+    page_length,
+    filters,
+    as_dict=False,
+    reference_doctype=None,
+    ignore_user_permissions=False,
+    link_fieldname=None,
+):
+    """Link search: only free Поступление (not sold / not used on another plan)."""
+    if isinstance(filters, str):
+        filters = json.loads(filters) if filters else {}
+    plan_name = (filters or {}).get("installment_plan") or ""
+
+    start, page_length = cint(start), cint(page_length)
+
+    conditions = [
+        "se.docstatus = 1",
+        "se.entry_type = %s",
+        """IFNULL(NULLIF(TRIM(se.business_status), ''), 'Проведен') NOT IN (
+            'Naqd savdo', 'Rassrochka savdo', 'Возврат'
+        )""",
+        """NOT EXISTS (
+            SELECT 1 FROM `tabInstallment Plan` ip
+            WHERE ip.stock_entry = se.name
+              AND IFNULL(ip.docstatus, 0) < 2
+              AND (%s = '' OR ip.name != %s)
+        )""",
+        """IFNULL((
+            SELECT SUM(sl.quantity_change) FROM `tabStock Ledger` sl
+            WHERE sl.product = sei.product AND sl.warehouse = se.warehouse
+        ), 0) > 0""",
+        """NOT (
+            NULLIF(TRIM(sei.serial_no), '') IS NOT NULL
+            AND (
+                EXISTS (
+                    SELECT 1 FROM `tabStock Entry Item` oxi
+                    INNER JOIN `tabStock Entry` ox ON ox.name = oxi.parent
+                    WHERE ox.docstatus = 1 AND ox.entry_type = 'Отпуск'
+                      AND NULLIF(TRIM(oxi.serial_no), '') IS NOT NULL
+                      AND (
+                        REPLACE(UPPER(TRIM(oxi.serial_no)), ' ', '') = REPLACE(UPPER(TRIM(sei.serial_no)), ' ', '')
+                        OR RIGHT(REPLACE(UPPER(TRIM(oxi.serial_no)), ' ', ''), 6)
+                         = RIGHT(REPLACE(UPPER(TRIM(sei.serial_no)), ' ', ''), 6)
+                      )
+                )
+                OR EXISTS (
+                    SELECT 1 FROM `tabSales Order Item` soi
+                    INNER JOIN `tabSales Order` so_order ON so_order.name = soi.parent
+                    WHERE so_order.docstatus = 1
+                      AND NULLIF(TRIM(soi.imei), '') IS NOT NULL
+                      AND (
+                        REPLACE(UPPER(TRIM(soi.imei)), ' ', '') = REPLACE(UPPER(TRIM(sei.serial_no)), ' ', '')
+                        OR REPLACE(UPPER(TRIM(soi.imei)), ' ', '')
+                         = RIGHT(REPLACE(UPPER(TRIM(sei.serial_no)), ' ', ''), 6)
+                        OR RIGHT(REPLACE(UPPER(TRIM(soi.imei)), ' ', ''), 6)
+                         = RIGHT(REPLACE(UPPER(TRIM(sei.serial_no)), ' ', ''), 6)
+                      )
+                )
+                OR EXISTS (
+                    SELECT 1 FROM `tabInstallment Plan` ip2
+                    WHERE IFNULL(ip2.docstatus, 0) < 2
+                      AND (%s = '' OR ip2.name != %s)
+                      AND NULLIF(TRIM(ip2.imei), '') IS NOT NULL
+                      AND IFNULL(TRIM(ip2.stock_entry), '') = ''
+                      AND (
+                        REPLACE(UPPER(TRIM(ip2.imei)), ' ', '') = REPLACE(UPPER(TRIM(sei.serial_no)), ' ', '')
+                        OR REPLACE(UPPER(TRIM(ip2.imei)), ' ', '')
+                         = RIGHT(REPLACE(UPPER(TRIM(sei.serial_no)), ' ', ''), 6)
+                        OR RIGHT(REPLACE(UPPER(TRIM(ip2.imei)), ' ', ''), 6)
+                         = RIGHT(REPLACE(UPPER(TRIM(sei.serial_no)), ' ', ''), 6)
+                      )
+                )
+            )
+        )""",
+    ]
+    args = ["Поступление", plan_name, plan_name, plan_name, plan_name]
+
+    if txt:
+        conditions.append("(se.name LIKE %s OR se.items_summary LIKE %s)")
+        args.extend([f"%{txt}%", f"%{txt}%"])
+
+    where_sql = " AND ".join(conditions)
+    args.extend([page_length, start])
+
+    return frappe.db.sql(
+        f"""
+        SELECT se.name, IFNULL(NULLIF(TRIM(se.items_summary), ''), se.name)
+        FROM `tabStock Entry` se
+        INNER JOIN `tabStock Entry Item` sei ON sei.parent = se.name AND sei.idx = 1
+        WHERE {where_sql}
+        ORDER BY se.modified DESC
+        LIMIT %s OFFSET %s
+        """,
+        tuple(args),
+        as_list=1,
+    )
+
+
+@frappe.whitelist()
+def get_stock_entry_details_for_installment_plan(stock_entry, installment_plan=None):
+    """
+    Installment Plan form: auto-fill principal / product / serial from a submitted receipt.
+    Implemented under api.* (not doctype controller) so desk RPC always resolves the method.
+    """
+    if not stock_entry:
+        return {}
+    assert_stock_entry_available_for_installment_plan(stock_entry, installment_plan or "")
+    ste = frappe.get_doc("Stock Entry", stock_entry)
+    total = flt(ste.total_value)
+    if not total and ste.items:
+        total = sum(flt(i.amount) for i in ste.items)
+    result = {
+        "total_amount": total,
+        "customer": None,
+        "product_name": None,
+        "imei": None,
+    }
+    if ste.items:
+        first = ste.items[0]
+        if first.product:
+            result["product_name"] = frappe.db.get_value(
+                "Product", first.product, "product_name"
+            )
+        result["imei"] = first.serial_no
+    return result

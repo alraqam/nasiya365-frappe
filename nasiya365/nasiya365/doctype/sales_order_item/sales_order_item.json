@@ -8,6 +8,7 @@
         "product_name",
         "color",
         "storage",
+        "condition",
         "quantity",
         "unit_price",
         "discount_percent",
@@ -44,6 +45,13 @@
             "fieldtype": "Data",
             "in_list_view": 1,
             "label": "Память"
+        },
+        {
+            "fetch_from": "product.condition",
+            "fieldname": "condition",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Состояние"
         },
         {
             "default": "1",

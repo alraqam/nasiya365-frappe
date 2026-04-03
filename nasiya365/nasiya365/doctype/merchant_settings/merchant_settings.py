@@ -23,6 +23,3 @@ class MerchantSettings(Document):
         
         if self.default_down_payment_percent and self.default_down_payment_percent > 100:
             frappe.throw("Down payment percentage cannot be more than 100%")
-        
-        if self.late_fee_percentage and self.late_fee_percentage > 50:
-            frappe.msgprint("Late fee percentage is very high. Please verify.")

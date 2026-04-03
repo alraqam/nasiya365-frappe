@@ -44,7 +44,6 @@ def run_test():
         # Create Sales Order
         so = frappe.new_doc("Sales Order")
         so.customer = customer.name
-        so.sale_type = "Рассрочка"
         so.status = "Черновик"
         wh_name = frappe.db.get_value("Warehouse", {}, "name")
         if not wh_name:

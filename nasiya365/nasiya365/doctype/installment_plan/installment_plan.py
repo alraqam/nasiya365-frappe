@@ -41,6 +41,7 @@ class InstallmentPlan(Document):
         self.frequency = _normalize_frequency(self.frequency)
 
         self.validate_customer_limit()
+        self.validate_stock_entry_for_bnpl()
         self.calculate_amounts()
         self.generate_schedule()
         self.update_progress()
@@ -55,9 +56,26 @@ class InstallmentPlan(Document):
         if hasattr(self, "contract_number") and not self.contract_number:
             self.contract_number = self.name
 
-        # Populate product model + IMEI from Sales Order
-        if hasattr(self, "product_name") and hasattr(self, "imei") and self.sales_order:
-            if not self.product_name or not self.imei:
+        # Populate product model + IMEI from Stock Entry (preferred) or Sales Order (legacy / import)
+        if hasattr(self, "product_name") and hasattr(self, "imei"):
+            if (not self.product_name or not self.imei) and getattr(self, "stock_entry", None):
+                sei = frappe.get_all(
+                    "Stock Entry Item",
+                    filters={"parent": self.stock_entry},
+                    fields=["product", "serial_no"],
+                    order_by="idx asc",
+                    limit=1,
+                )
+                if sei:
+                    row = sei[0]
+                    if not self.product_name and row.get("product"):
+                        self.product_name = frappe.db.get_value(
+                            "Product", row["product"], "product_name"
+                        )
+                    if not self.imei and row.get("serial_no"):
+                        full_imei = (row["serial_no"] or "").strip()
+                        self.imei = full_imei[-6:] if len(full_imei) >= 6 else full_imei
+            elif (not self.product_name or not self.imei) and self.sales_order:
                 items = frappe.get_all(
                     "Sales Order Item",
                     filters={"parent": self.sales_order},
@@ -104,6 +122,13 @@ class InstallmentPlan(Document):
     def on_cancel(self):
         self.release_customer_limit()
     
+    def validate_stock_entry_for_bnpl(self):
+        if not getattr(self, "stock_entry", None):
+            return
+        from nasiya365.api.bnpl_dashboard import assert_stock_entry_available_for_installment_plan
+
+        assert_stock_entry_available_for_installment_plan(self.stock_entry, self.name or "")
+
     def validate_customer_limit(self):
         """Check if customer has sufficient credit limit"""
         if self.is_new():
@@ -245,8 +270,16 @@ class InstallmentPlan(Document):
 
 
 @frappe.whitelist()
+def get_stock_entry_details(stock_entry, installment_plan=None):
+    """Backward-compatible alias; desk calls api.bnpl_dashboard.get_stock_entry_details_for_installment_plan."""
+    from nasiya365.api.bnpl_dashboard import get_stock_entry_details_for_installment_plan
+
+    return get_stock_entry_details_for_installment_plan(stock_entry, installment_plan)
+
+
+@frappe.whitelist()
 def get_sales_order_details(sales_order):
-    """Return SO total and first item's product_name + imei for auto-fill."""
+    """Return SO total and first item's product_name + imei for auto-fill (legacy)."""
     so = frappe.get_doc("Sales Order", sales_order)
     result = {
         "total_amount": flt(so.total_amount),

@@ -15,6 +15,7 @@
         "customer_name",
         "status",
         "customer_phone",
+        "stock_entry",
         "sales_order",
         "column_break_1",
         "amounts_section",
@@ -134,9 +135,17 @@
             "read_only": 1
         },
         {
+            "fieldname": "stock_entry",
+            "fieldtype": "Link",
+            "label": "Поступление на склад",
+            "options": "Stock Entry"
+        },
+        {
             "fieldname": "sales_order",
             "fieldtype": "Link",
-            "label": "Заказ на продажу",
+            "hidden": 1,
+            "label": "Заказ на продажу (импорт / legacy)",
+            "no_copy": 1,
             "options": "Sales Order"
         },
         {

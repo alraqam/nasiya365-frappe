@@ -1,11 +1,28 @@
 frappe.ui.form.on("Payment Transaction", {
 	refresh(frm) {
+		if (frm.fields_dict.late_fee_applied) {
+			frm.set_df_property("late_fee_applied", "hidden", 1);
+		}
 		render_installment_plans(frm);
+	},
+	reference_doctype(frm) {
+		refresh_plan_panel(frm);
+	},
+	reference_name(frm) {
+		refresh_plan_panel(frm);
 	},
 	customer(frm) {
 		render_installment_plans(frm);
 	},
 });
+
+function refresh_plan_panel(frm) {
+	if (frm._nasiya_payment_plans_cache && frm.doc.customer) {
+		paint_installment_plans(frm, frm._nasiya_payment_plans_cache);
+	} else {
+		render_installment_plans(frm);
+	}
+}
 
 function render_installment_plans(frm) {
 	const wrapper = frm.fields_dict.installment_plans_info?.$wrapper;
@@ -13,6 +30,7 @@ function render_installment_plans(frm) {
 
 	const customer = frm.doc.customer;
 	if (!customer) {
+		frm._nasiya_payment_plans_cache = null;
 		wrapper.html('<div class="text-muted">Выберите клиента, чтобы увидеть его планы рассрочки.</div>');
 		return;
 	}
@@ -22,68 +40,164 @@ function render_installment_plans(frm) {
 		method: "nasiya365.nasiya365.doctype.payment_transaction.payment_transaction.get_customer_installment_plans",
 		args: { customer },
 		callback: (r) => {
-			const plans = r.message || [];
-			if (!plans.length) {
-				wrapper.html('<div class="text-muted">У этого клиента нет планов рассрочки.</div>');
-				return;
-			}
-
-			const rows = plans
-				.map((p) => {
-					const debt = frappe.format(p.remaining_balance || 0, { fieldtype: "Currency" });
-					const device = frappe.utils.escape_html(p.device_name || "-");
-					const imei = p.imei ? ` / IMEI: ${frappe.utils.escape_html(p.imei)}` : "";
-					const status = frappe.utils.escape_html(p.contract_status || p.status || "");
-					const disabled = (p.remaining_balance || 0) <= 0 ? "disabled" : "";
-					return `
-						<tr>
-							<td><a href="/app/installment-plan/${encodeURIComponent(p.name)}" target="_blank">${frappe.utils.escape_html(p.name)}</a></td>
-							<td>${device}${imei}</td>
-							<td>${debt}</td>
-							<td>${status}</td>
-							<td><button class="btn btn-xs btn-primary use-plan" data-plan="${frappe.utils.escape_html(p.name)}" ${disabled}>Выбрать</button></td>
-						</tr>
-					`;
-				})
-				.join("");
-
-			wrapper.html(`
-				<div>
-					<div class="text-muted" style="margin-bottom: 8px;">Планы рассрочки клиента:</div>
-					<div class="table-responsive">
-						<table class="table table-bordered table-sm">
-							<thead>
-								<tr>
-									<th>План</th>
-									<th>Устройство</th>
-									<th>Остаток долга</th>
-									<th>Статус</th>
-									<th>Действие</th>
-								</tr>
-							</thead>
-							<tbody>${rows}</tbody>
-						</table>
-					</div>
-				</div>
-			`);
-
-			wrapper.find(".use-plan").on("click", function () {
-				const planName = $(this).data("plan");
-				const plan = plans.find((x) => x.name === planName) || {};
-				const suggested = Math.max(
-					0,
-					Math.min(
-						flt(plan.installment_amount || 0),
-						flt(plan.remaining_balance || 0)
-					)
-				);
-				frm.set_value("reference_doctype", "Installment Plan");
-				frm.set_value("reference_name", planName);
-				// Auto-suggest amount from selected plan unless user has already entered one.
-				if (!flt(frm.doc.amount) && suggested > 0) {
-					frm.set_value("amount", suggested);
-				}
-			});
+			frm._nasiya_payment_plans_cache = r.message || [];
+			paint_installment_plans(frm, frm._nasiya_payment_plans_cache);
 		},
 	});
+}
+
+function ensure_nasiya_payment_plans_css() {
+	const id = "nasiya-payment-plans-css";
+	const css = `
+		[data-fieldname="installment_plans_info"] .frappe-control,
+		[data-fieldname="installment_plans_info"] .control-value {
+			max-width: 100%;
+		}
+		.nasiya-payment-plans-wrap {
+			width: 100%;
+			max-width: 100%;
+			overflow-x: visible;
+			min-width: 0;
+		}
+		.nasiya-payment-plans {
+			table-layout: fixed;
+			width: 100%;
+			margin-bottom: 0;
+			font-size: inherit;
+		}
+		.nasiya-payment-plans th,
+		.nasiya-payment-plans td {
+			word-break: break-word;
+			overflow-wrap: anywhere;
+			vertical-align: middle;
+			padding: var(--padding-sm, 0.5rem) var(--padding-md, 0.75rem);
+			font-size: inherit;
+			line-height: inherit;
+		}
+		.nasiya-payment-plans td.nasiya-pay-action,
+		.nasiya-payment-plans th.nasiya-pay-action {
+			width: 5.5rem;
+			white-space: nowrap;
+			text-align: center;
+		}
+		.nasiya-payment-plans .use-plan {
+			font-size: inherit;
+		}
+	`;
+	let el = document.getElementById(id);
+	if (!el) {
+		el = document.createElement("style");
+		el.id = id;
+		document.head.appendChild(el);
+	}
+	el.textContent = css;
+}
+
+function paint_installment_plans(frm, plans) {
+	ensure_nasiya_payment_plans_css();
+	const wrapper = frm.fields_dict.installment_plans_info?.$wrapper;
+	if (!wrapper) return;
+
+	if (!plans.length) {
+		wrapper.html('<div class="text-muted">У этого клиента нет планов рассрочки.</div>');
+		return;
+	}
+
+	const refOk =
+		frm.doc.reference_doctype === "Installment Plan" &&
+		(frm.doc.reference_name || "").toString().trim();
+	const selectedPlanMeta = refOk ? plans.find((x) => x.name === frm.doc.reference_name) : null;
+
+	const contractLabel =
+		(selectedPlanMeta && (selectedPlanMeta.contract_number || selectedPlanMeta.name)) ||
+		frm.doc.reference_name ||
+		"";
+
+	const selectionBanner = refOk
+		? `<div class="alert alert-info nasiya-pay-selection" style="margin-bottom:10px;">
+				<strong>Платёж привязан к:</strong>
+				${frappe.utils.escape_html(contractLabel)}
+				<span class="text-muted"> · план </span>
+				<a href="/app/installment-plan/${encodeURIComponent(frm.doc.reference_name)}" target="_blank">${frappe.utils.escape_html(frm.doc.reference_name)}</a>
+		   </div>`
+		: `<div class="alert alert-warning nasiya-pay-selection" style="margin-bottom:10px;">
+				<strong>Договор не выбран.</strong> Нажмите «Выбрать» в строке нужного плана.
+		   </div>`;
+
+	const rows = plans
+		.map((p) => {
+			const debt = frappe.format(p.remaining_balance || 0, { fieldtype: "Currency" });
+			const device = frappe.utils.escape_html(p.device_name || "-");
+			const imei = p.imei ? ` / IMEI: ${frappe.utils.escape_html(p.imei)}` : "";
+			const status = frappe.utils.escape_html(p.contract_status || p.status || "");
+			const disabled = (p.remaining_balance || 0) <= 0 ? "disabled" : "";
+			const isSelected = refOk && p.name === frm.doc.reference_name;
+			const rowClass = isSelected ? ' class="table-info"' : "";
+			const dogovor = (p.contract_number || p.name || "-").toString().trim();
+			const actionCell = isSelected
+				? `<td class="nasiya-pay-action"></td>`
+				: `<td class="nasiya-pay-action"><button type="button" class="btn btn-primary btn-sm use-plan" data-plan="${frappe.utils.escape_html(p.name)}" ${disabled}>${__("Выбрать")}</button></td>`;
+			return `
+				<tr${rowClass}>
+					<td><a href="/app/installment-plan/${encodeURIComponent(p.name)}" target="_blank">${frappe.utils.escape_html(p.name)}</a></td>
+					<td>${frappe.utils.escape_html(dogovor)}</td>
+					<td>${device}${imei}</td>
+					<td>${debt}</td>
+					<td>${status}</td>
+					${actionCell}
+				</tr>
+			`;
+		})
+		.join("");
+
+	wrapper.html(`
+		<div>
+			${selectionBanner}
+			<div class="text-muted" style="margin-bottom: 8px;">Планы рассрочки клиента:</div>
+			<div class="nasiya-payment-plans-wrap">
+				<table class="table table-bordered nasiya-payment-plans">
+					<colgroup>
+						<col style="width:15%" />
+						<col style="width:14%" />
+						<col style="width:30%" />
+						<col style="width:14%" />
+						<col style="width:14%" />
+						<col style="width:13%" />
+					</colgroup>
+					<thead>
+						<tr>
+							<th>План</th>
+							<th>Договор</th>
+							<th>Устройство</th>
+							<th>Остаток</th>
+							<th>Статус</th>
+							<th class="nasiya-pay-action">Выбор</th>
+						</tr>
+					</thead>
+					<tbody>${rows}</tbody>
+				</table>
+			</div>
+		</div>
+	`);
+
+	wrapper.find(".use-plan").on("click", function () {
+		const planName = $(this).data("plan");
+		const plan = plans.find((x) => x.name === planName) || {};
+		select_installment_plan_for_payment(frm, plan, plans);
+	});
+}
+
+function select_installment_plan_for_payment(frm, plan, plans) {
+	const suggested = Math.max(
+		0,
+		Math.min(flt(plan.installment_amount || 0), flt(plan.remaining_balance || 0))
+	);
+	frappe.model.set_value(frm.doc.doctype, frm.doc.name, "reference_doctype", "Installment Plan");
+	frappe.model.set_value(frm.doc.doctype, frm.doc.name, "reference_name", plan.name);
+	if (!flt(frm.doc.amount) && suggested > 0) {
+		frappe.model.set_value(frm.doc.doctype, frm.doc.name, "amount", suggested);
+	}
+	frm.refresh_fields(["reference_doctype", "reference_name", "amount"]);
+	frm._nasiya_payment_plans_cache = plans;
+	paint_installment_plans(frm, plans);
 }

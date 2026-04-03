@@ -3,8 +3,7 @@ Daily Scheduled Tasks for Nasiya365
 """
 
 import frappe
-from frappe import _
-from frappe.utils import today, add_days, getdate
+from frappe.utils import today, add_days
 from nasiya365.utils.sms_manager import SMSManager
 
 
@@ -25,7 +24,7 @@ def check_overdue_installments():
             due_date,
             amount
         FROM `tabInstallment Schedule`
-        WHERE status IN ('Ожидает', 'Частично')
+        WHERE status IN ('Ожидает', 'Частично', 'Pending')
         AND due_date < %s
     """, (today(),), as_dict=True)
     
@@ -38,28 +37,9 @@ def check_overdue_installments():
             "Просрочен"
         )
         overdue_count += 1
-        
-        # Check if we need to apply late fee
-        plan = frappe.get_doc("Installment Plan", installment.installment_plan)
-        days_overdue = (getdate(today()) - getdate(installment.due_date)).days
-        
-        # Apply late fee after grace period (get from merchant settings)
-        grace_period = frappe.db.get_single_value("Merchant Settings", "grace_period_days") or 3
-        
-        if days_overdue > grace_period:
-            apply_late_fee(plan, installment)
     
     frappe.db.commit()
     frappe.logger().info(f"Marked {overdue_count} installments as overdue")
-
-
-def apply_late_fee(plan, installment):
-    """Apply late fee to an overdue installment"""
-    late_fee_percentage = frappe.db.get_single_value("Merchant Settings", "late_fee_percentage") or 1
-    late_fee = (installment.amount * late_fee_percentage) / 100
-    
-    # Record late fee (implement based on your late fee tracking approach)
-    frappe.logger().info(f"Late fee of {late_fee} applied to {installment.schedule_name}")
 
 
 def send_payment_reminders():
@@ -82,7 +62,7 @@ def send_payment_reminders():
         FROM `tabInstallment Plan` ip
         INNER JOIN `tabInstallment Schedule` isc ON isc.parent = ip.name
         INNER JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
-        WHERE isc.status IN ('Ожидает', 'Частично')
+        WHERE isc.status IN ('Ожидает', 'Частично', 'Pending')
         AND isc.due_date = %s
     """, (tomorrow,), as_dict=True)
 

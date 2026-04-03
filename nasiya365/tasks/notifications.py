@@ -25,7 +25,7 @@ def send_due_today_reminders():
         FROM `tabInstallment Plan` ip
         INNER JOIN `tabInstallment Schedule` isc ON isc.parent = ip.name
         INNER JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
-        WHERE isc.status IN ('Ожидает', 'Частично')
+        WHERE isc.status IN ('Ожидает', 'Частично', 'Pending')
         AND isc.due_date = %s
     """, (today(),), as_dict=True)
 
