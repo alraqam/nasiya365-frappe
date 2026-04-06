@@ -53,11 +53,13 @@ def installment_plans_with_outstanding_for_customer(customer):
     """
     if not customer:
         return []
+    # ignore_permissions: cashiers often cannot read Installment Plan; autolink must still work.
     names = frappe.get_all(
         "Installment Plan",
         filters={"customer": customer, "status": ["not in", ["Завершен", "Списан"]]},
         pluck="name",
         order_by="modified desc",
+        ignore_permissions=True,
     )
     return [n for n in names if _installment_plan_has_outstanding_payment(n)]
 
@@ -108,7 +110,7 @@ def allocate_payment_transaction_to_installment_plan(doc):
     amt = flt(doc.amount)
     if amt <= 0:
         return
-    plan = frappe.get_doc("Installment Plan", rn)
+    plan = frappe.get_doc("Installment Plan", rn, ignore_permissions=True)
     try:
         plan.apply_payment(amt, payment_transaction=doc.name)
     except Exception:
@@ -201,7 +203,7 @@ class PaymentTransaction(Document):
 def _send_payment_receipt_sms(doc):
     if not doc.customer:
         return
-    cust = frappe.get_doc("Customer Profile", doc.customer)
+    cust = frappe.get_doc("Customer Profile", doc.customer, ignore_permissions=True)
     phone = cust.get_primary_phone()
     if not phone:
         return
@@ -286,6 +288,7 @@ def backfill_unlinked_payments_for_customer(customer):
         filters={"customer": customer, "amount": [">", 0]},
         fields=["name", "reference_doctype", "reference_name"],
         order_by="payment_date asc, creation asc",
+        ignore_permissions=True,
     )
     updated = []
     for row in rows:

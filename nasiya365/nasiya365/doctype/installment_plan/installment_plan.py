@@ -311,12 +311,17 @@ class InstallmentPlan(Document):
         if all(s.status == "Оплачен" for s in self.schedule):
             self.status = "Завершен"
         
-        self.flags.ignore_validate_update_after_submit = True
+        # Only submitted docs need this flag; draft plans (docstatus 0) can misbehave if it is always set.
+        if getattr(self, "docstatus", 0) == 1:
+            self.flags.ignore_validate_update_after_submit = True
         # Cashiers can create payments but often have no Write on Installment Plan; allocation must still persist.
         self.save(ignore_permissions=True)
         
-        # Update customer statistics
-        frappe.get_doc("Customer Profile", self.customer).update_statistics()
+        # Update customer statistics (must not roll back a successful plan save)
+        try:
+            frappe.get_doc("Customer Profile", self.customer, ignore_permissions=True).update_statistics()
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "Installment Plan: update_statistics after payment")
         
         return remaining_payment  # Return any excess payment
 
