@@ -288,11 +288,15 @@ class InstallmentPlan(Document):
                     installment.paid_amount = installment.amount
                     installment.status = "Оплачен"
                     installment.paid_date = today()
+                    if payment_transaction:
+                        installment.payment_transaction = payment_transaction
                     remaining_payment -= due_amount
                 elif remaining_payment > 0:
                     # Partial payment
                     installment.paid_amount = flt(installment.paid_amount) + remaining_payment
                     installment.status = "Частично"
+                    if payment_transaction:
+                        installment.payment_transaction = payment_transaction
                     remaining_payment = 0
                 
                 if remaining_payment <= 0:
