@@ -345,6 +345,8 @@ def get_client_risk_snapshot(customer):
     )
     if phones:
         primary_phone = (phones[0].phone_number or "").strip()
+    credit_limit = _to_float(doc.credit_limit)
+    unlimited = credit_limit <= 0
     return {
         "customer": doc.name,
         "full_name": doc.full_name,
@@ -354,7 +356,8 @@ def get_client_risk_snapshot(customer):
         "active_loans": active_plans,
         "overdue_loans": overdue_count,
         "total_debt": _to_float(doc.total_debt),
-        "available_limit": _to_float(doc.available_limit),
+        "available_limit": None if unlimited else _to_float(doc.available_limit),
+        "unlimited_credit": unlimited,
     }
 
 
@@ -714,16 +717,27 @@ def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Налич�
     if not plan_name:
         frappe.throw(_("Не найден активный план рассрочки"))
 
+    from nasiya365.nasiya365.doctype.payment_transaction.payment_transaction import (
+        _normalize_payment_line_method,
+    )
+
     customer = frappe.db.get_value("Installment Plan", plan_name, "customer")
     payment = frappe.new_doc("Payment Transaction")
     payment.customer = customer
-    payment.amount = amount
     payment.status = "Завершен"
     payment.payment_method = mode
     payment.payment_date = nowdate()
     payment.reference_doctype = "Installment Plan"
     payment.reference_name = plan_name
     payment.received_by = frappe.session.user
+    payment.append(
+        "payment_lines",
+        {
+            "payment_method": _normalize_payment_line_method(mode),
+            "currency": "USD",
+            "amount": amount,
+        },
+    )
     payment.insert(ignore_permissions=True)
     frappe.db.commit()
     return {"name": payment.name, "plan": plan_name}

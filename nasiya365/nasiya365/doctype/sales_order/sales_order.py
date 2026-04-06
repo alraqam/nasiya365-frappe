@@ -8,6 +8,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, today
 
+from nasiya365.utils.credit import is_customer_credit_limit_enforced
+
 
 class SalesOrder(Document):
     def validate(self):
@@ -70,8 +72,10 @@ class SalesOrder(Document):
             customer = frappe.get_doc("Customer Profile", self.customer)
             if customer.status != "Активный":
                 frappe.throw(_("Клиент не имеет права на рассрочку (BNPL)"))
-            if self.total_amount > customer.available_limit:
-                frappe.throw(_("Сумма заказа превышает доступный кредитный лимит клиента"))
+            if is_customer_credit_limit_enforced() and flt(customer.credit_limit) > 0:
+                customer.update_statistics()
+                if self.total_amount > flt(customer.available_limit):
+                    frappe.throw(_("Сумма заказа превышает доступный кредитный лимит клиента"))
             for item in self.items:
                 product = frappe.get_doc("Product", item.product)
                 if not product.allow_installment:
@@ -140,8 +144,7 @@ class SalesOrder(Document):
         valuation_rate = current[0][1] if current else 0
         
         if not valuation_rate:
-            # Get from product cost
-            valuation_rate = frappe.db.get_value("Product", product, "product_cost") or 0
+            valuation_rate = 0
         
         new_balance = current_qty + quantity
         
@@ -186,11 +189,18 @@ class SalesOrder(Document):
         """Create payment transaction for full cash payment"""
         receipt = frappe.new_doc("Payment Transaction")
         receipt.customer = self.customer
-        receipt.amount = self.paid_amount
         receipt.payment_method = "Наличные"
         receipt.reference_doctype = "Sales Order"
         receipt.reference_name = self.name
         receipt.received_by = frappe.session.user
+        receipt.append(
+            "payment_lines",
+            {
+                "payment_method": "Наличные",
+                "currency": "USD",
+                "amount": flt(self.paid_amount),
+            },
+        )
         receipt.insert()
 
 

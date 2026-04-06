@@ -22,9 +22,12 @@ class TestPaymentTransaction(FrappeTestCase):
         doc = frappe.get_doc({
             "doctype": "Payment Transaction",
             "customer": self.customer_name,
-            "amount": 1000,
-            "payment_method": "Cash",
-            "payment_date": frappe.utils.today()
+            "payment_lines": [
+                {"payment_method": "Наличные USD", "currency": "USD", "amount": 1000},
+            ],
+            "payment_method": "Наличные",
+            "payment_date": frappe.utils.today(),
+            "send_payment_sms": 0,
         })
         doc.insert()
         
@@ -35,13 +38,34 @@ class TestPaymentTransaction(FrappeTestCase):
         doc = frappe.get_doc({
             "doctype": "Payment Transaction",
             "customer": self.customer_name,
-            "amount": 500,
-            "payment_method": "Card",
+            "payment_lines": [
+                {"payment_method": "Карта", "currency": "USD", "amount": 500},
+            ],
+            "payment_method": "Карта",
             "payment_date": frappe.utils.today(),
-            "received_by": other_user
+            "received_by": other_user,
+            "send_payment_sms": 0,
         })
         doc.insert()
         self.assertEqual(doc.received_by, other_user)
+
+    def test_split_channels_total_and_combined_method(self):
+        from frappe.utils import flt
+        doc = frappe.get_doc({
+            "doctype": "Payment Transaction",
+            "customer": self.customer_name,
+            "payment_date": frappe.utils.today(),
+            "exchange_rate": 12200,
+            "payment_lines": [
+                {"payment_method": "Наличные USD", "currency": "USD", "amount": 10},
+                {"payment_method": "Наличные UZS", "currency": "UZS", "amount": 122000, "exchange_rate": 12200},
+            ],
+            "payment_method": "Наличные",
+            "send_payment_sms": 0,
+        })
+        doc.insert()
+        self.assertEqual(flt(doc.amount), 20)
+        self.assertEqual(doc.payment_method, "Комбинированный")
 
 
     def tearDown(self):

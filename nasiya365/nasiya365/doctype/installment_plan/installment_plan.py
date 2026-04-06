@@ -6,8 +6,29 @@ Core BNPL logic for managing customer installment plans
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_days, add_months, add_to_date, getdate, today, flt
+from frappe.utils import add_days, add_months, add_to_date, cint, getdate, today, flt
+
+from nasiya365.utils.credit import is_customer_credit_limit_enforced
 from decimal import Decimal
+
+
+def _installment_row_accepts_payment(row) -> bool:
+    """Treat blank / legacy English status as open (same idea as bnpl_dashboard _OPEN_SCHEDULE_STATUSES)."""
+    st = (row.status or "").strip()
+    if not st or st == "Pending":
+        return True
+    return st in ("Ожидает", "Просрочен", "Частично")
+
+
+def _schedule_has_payment_activity(schedule) -> bool:
+    """If any installment was paid, never rebuild the child table in validate (would wipe allocations)."""
+    for row in schedule or []:
+        if flt(row.paid_amount) > 0:
+            return True
+        st = (row.status or "").strip()
+        if st in ("Оплачен", "Частично"):
+            return True
+    return False
 
 
 def _normalize_frequency(freq):
@@ -44,6 +65,9 @@ class InstallmentPlan(Document):
         self.validate_stock_entry_for_bnpl()
         self.calculate_amounts()
         self.generate_schedule()
+        if self.schedule:
+            self.paid_amount = sum(flt(s.paid_amount) for s in self.schedule)
+            self.remaining_balance = flt(self.total_amount) - flt(self.paid_amount)
         self.update_progress()
         self.set_contract_fields_from_plan()
 
@@ -106,7 +130,7 @@ class InstallmentPlan(Document):
             debt_today = 0
             if getattr(self, "schedule", None):
                 for s in self.schedule:
-                    if not s.due_date or s.due_date > today():
+                    if not s.due_date or getdate(s.due_date) > getdate(today()):
                         continue
                     if s.status in ["Ожидает", "Просрочен", "Частично"]:
                         debt_today += flt(s.amount) - flt(s.paid_amount)
@@ -130,20 +154,28 @@ class InstallmentPlan(Document):
         assert_stock_entry_available_for_installment_plan(self.stock_entry, self.name or "")
 
     def validate_customer_limit(self):
-        """Check if customer has sufficient credit limit"""
-        if self.is_new():
-            customer = frappe.get_doc("Customer Profile", self.customer)
-            
-            if customer.status != "Активный":
-                frappe.throw(_("Клиент не активен"))
-            
-            if self.principal_amount > customer.available_limit:
-                frappe.throw(
-                    _("Запрашиваемая сумма {0} превышает доступный кредитный лимит {1}").format(
-                        frappe.format_value(self.principal_amount, {"fieldtype": "Currency"}),
-                        frappe.format_value(customer.available_limit, {"fieldtype": "Currency"})
-                    )
+        """Check customer status; optional cap when Merchant Settings + profile credit_limit apply."""
+        if not self.is_new():
+            return
+        customer = frappe.get_doc("Customer Profile", self.customer)
+
+        if customer.status != "Активный":
+            frappe.throw(_("Клиент не активен"))
+
+        if not is_customer_credit_limit_enforced():
+            return
+        # credit_limit <= 0 = без лимита
+        if flt(customer.credit_limit) <= 0:
+            return
+
+        customer.update_statistics()
+        if self.principal_amount > flt(customer.available_limit):
+            frappe.throw(
+                _("Запрашиваемая сумма {0} превышает доступный кредитный лимит {1}").format(
+                    frappe.format_value(self.principal_amount, {"fieldtype": "Currency"}),
+                    frappe.format_value(customer.available_limit, {"fieldtype": "Currency"}),
                 )
+            )
     
     def calculate_amounts(self):
         """Calculate total interest 、, financed amount, and installment amount"""
@@ -172,12 +204,19 @@ class InstallmentPlan(Document):
     
     def generate_schedule(self):
         """Generate installment schedule based on frequency"""
-        if not self.schedule or len(self.schedule) != self.number_of_installments:
+        num = cint(self.number_of_installments)
+        if num <= 0:
+            return
+
+        if _schedule_has_payment_activity(self.schedule):
+            return
+
+        if not self.schedule or len(self.schedule) != num:
             self.schedule = []
             
             current_date = getdate(self.start_date)
             
-            for i in range(self.number_of_installments):
+            for i in range(num):
                 if i > 0:
                     freq = (self.frequency or "")
                     if "Еженедельно" in freq:
@@ -229,11 +268,14 @@ class InstallmentPlan(Document):
         """
         remaining_payment = flt(amount)
         
-        # Sort schedule by due date
-        sorted_schedule = sorted(self.schedule, key=lambda x: x.due_date)
+        # Sort schedule by due date (normalize: DB/doc may use date or str)
+        sorted_schedule = sorted(
+            self.schedule,
+            key=lambda x: getdate(x.due_date) if x.due_date else getdate("1900-01-01"),
+        )
         
         for installment in sorted_schedule:
-            if installment.status in ["Ожидает", "Просрочен", "Частично"]:
+            if _installment_row_accepts_payment(installment):
                 due_amount = flt(installment.amount) - flt(installment.paid_amount)
                 
                 if remaining_payment >= due_amount:
@@ -261,7 +303,8 @@ class InstallmentPlan(Document):
             self.status = "Завершен"
         
         self.flags.ignore_validate_update_after_submit = True
-        self.save()
+        # Cashiers can create payments but often have no Write on Installment Plan; allocation must still persist.
+        self.save(ignore_permissions=True)
         
         # Update customer statistics
         frappe.get_doc("Customer Profile", self.customer).update_statistics()

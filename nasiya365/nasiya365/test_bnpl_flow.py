@@ -96,9 +96,17 @@ def run_test():
         payment.reference_doctype = "Installment Plan"
         payment.reference_name = plan.name
         payment.customer = customer.name
-        payment.amount = plan.installment_amount
         payment.payment_method = "Наличные"
         payment.status = "Завершен"
+        payment.payment_date = today()
+        payment.append(
+            "payment_lines",
+            {
+                "payment_method": "Наличные",
+                "currency": "USD",
+                "amount": plan.installment_amount,
+            },
+        )
         payment.insert()
         payment.submit() if getattr(payment, 'submit', None) else payment.save()
         

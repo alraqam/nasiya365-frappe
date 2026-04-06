@@ -104,11 +104,12 @@ after_migrate = "nasiya365.install.after_migrate"
 # Document Events
 # ---------------
 
-# Document Events
-# ---------------
-
 # Hook on document methods and events
 doc_events = {
+    "Payment Transaction": {
+        "after_insert": "nasiya365.payment_doc_events.payment_transaction_after_insert",
+        "on_update": "nasiya365.payment_doc_events.payment_transaction_on_update",
+    },
 }
 
 # Scheduled Tasks

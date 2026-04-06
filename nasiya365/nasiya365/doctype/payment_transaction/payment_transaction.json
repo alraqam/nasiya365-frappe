@@ -11,10 +11,17 @@
         "installment_plans_info",
         "section_payment",
         "payment_date",
+        "payment_top_break",
         "status",
+        "payment_meta_section",
         "transaction_id",
-        "payment_column_break",
+        "payment_meta_break",
+        "exchange_rate",
+        "payment_lines_section",
+        "payment_lines",
+        "summary_section",
         "amount",
+        "send_payment_sms",
         "payment_method",
         "collected_by",
         "reference_section",
@@ -65,6 +72,10 @@
             "reqd": 1
         },
         {
+            "fieldname": "payment_top_break",
+            "fieldtype": "Column Break"
+        },
+        {
             "default": "Завершен",
             "fieldname": "status",
             "fieldtype": "Select",
@@ -73,28 +84,66 @@
             "options": "Ожидает\nЗавершен\nОтменен"
         },
         {
+            "fieldname": "payment_meta_section",
+            "fieldtype": "Section Break"
+        },
+        {
             "fieldname": "transaction_id",
             "fieldtype": "Data",
             "label": "ID транзакции"
         },
         {
-            "fieldname": "payment_column_break",
+            "fieldname": "payment_meta_break",
             "fieldtype": "Column Break"
         },
         {
+            "default": "12200",
+            "description": "Используется как курс по умолчанию для строк в UZS",
+            "fieldname": "exchange_rate",
+            "fieldtype": "Float",
+            "label": "Курс USD/UZS",
+            "non_negative": 1,
+            "precision": "2"
+        },
+        {
+            "fieldname": "payment_lines_section",
+            "fieldtype": "Section Break",
+            "label": "Детали оплаты"
+        },
+        {
+            "description": "Добавьте один или несколько способов оплаты",
+            "fieldname": "payment_lines",
+            "fieldtype": "Table",
+            "in_place_edit": 1,
+            "label": "Способы оплаты",
+            "options": "Payment Transaction Line"
+        },
+        {
+            "fieldname": "summary_section",
+            "fieldtype": "Section Break",
+            "label": "Итог"
+        },
+        {
+            "description": "Суммируется автоматически из каналов выше; при пустых каналах можно ввести вручную",
             "fieldname": "amount",
             "fieldtype": "Currency",
             "in_list_view": 1,
-            "label": "Сумма",
+            "label": "Общая сумма платежа",
             "reqd": 1
         },
         {
-            "default": "Cash",
+            "default": "0",
+            "fieldname": "send_payment_sms",
+            "fieldtype": "Check",
+            "label": "Отправить SMS"
+        },
+        {
+            "default": "Наличные",
             "fieldname": "payment_method",
             "fieldtype": "Select",
             "in_list_view": 1,
             "label": "Метод оплаты",
-            "options": "Наличные\nКарта\nClick\nPayme\nПеревод"
+            "options": "Наличные\nНаличные USD\nАкксессуар касса\nНаличные UZS\nКарта\nClick\nPayme\nПеревод\nТерминал\nКомбинированный"
         },
         {
             "fieldname": "collected_by",
@@ -134,7 +183,7 @@
     ],
     "index_web_pages_for_search": 1,
     "links": [],
-    "modified": "2026-04-03 18:00:00.000000",
+    "modified": "2026-04-06 12:00:00.000000",
     "modified_by": "Administrator",
     "module": "nasiya365",
     "name": "Payment Transaction",

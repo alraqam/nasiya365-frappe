@@ -3,7 +3,13 @@ frappe.ui.form.on("Payment Transaction", {
 		if (frm.fields_dict.late_fee_applied) {
 			frm.set_df_property("late_fee_applied", "hidden", 1);
 		}
+		ensure_payment_form_css();
 		render_installment_plans(frm);
+		recalc_payment_table_total(frm);
+		frm.add_custom_button(__("Сдача"), () => open_change_calculator(frm), __("Касса"));
+	},
+	exchange_rate(frm) {
+		recalc_payment_table_total(frm);
 	},
 	reference_doctype(frm) {
 		refresh_plan_panel(frm);
@@ -14,7 +20,145 @@ frappe.ui.form.on("Payment Transaction", {
 	customer(frm) {
 		render_installment_plans(frm);
 	},
+	payment_lines_add(frm, cdt, cdn) {
+		const row = frappe.get_doc(cdt, cdn);
+		if (!row.exchange_rate && flt(frm.doc.exchange_rate) > 0) {
+			frappe.model.set_value(cdt, cdn, "exchange_rate", flt(frm.doc.exchange_rate));
+		}
+		recalc_payment_table_total(frm);
+	},
+	payment_lines_remove(frm) {
+		recalc_payment_table_total(frm);
+	},
 });
+
+function ensure_payment_form_css() {
+	const id = "nasiya-payment-form-css";
+	if (document.getElementById(id)) return;
+	const css = `
+		.form-layout .section-head {
+			margin-top: 8px;
+			margin-bottom: 8px;
+		}
+		.layout-main-section .form-column .frappe-control {
+			margin-bottom: 8px;
+		}
+		[data-fieldname="payment_lines"] .grid-heading-row {
+			background: var(--subtle-fg);
+		}
+		[data-fieldname="payment_lines"] .grid-body {
+			max-height: 180px;
+			min-height: 90px;
+		}
+		[data-fieldname="payment_lines"] .grid-static-col,
+		[data-fieldname="payment_lines"] .grid-row-check {
+			width: 32px;
+		}
+		[data-fieldname="payment_lines"] .grid-heading-row .grid-row > div {
+			font-size: 12px;
+		}
+		[data-fieldname="payment_lines"] .rows {
+			font-size: 13px;
+		}
+		[data-fieldname="summary_section"] .form-column:first-child {
+			max-width: 560px;
+		}
+	`;
+	const el = document.createElement("style");
+	el.id = id;
+	el.textContent = css;
+	document.head.appendChild(el);
+}
+
+frappe.ui.form.on("Payment Transaction Line", {
+	amount(frm) {
+		recalc_payment_table_total(frm);
+	},
+	currency(frm) {
+		recalc_payment_table_total(frm);
+	},
+	exchange_rate(frm) {
+		recalc_payment_table_total(frm);
+	},
+	payment_method(frm) {
+		recalc_payment_table_total(frm);
+	},
+});
+
+function recalc_payment_table_total(frm) {
+	const lines = frm.doc.payment_lines || [];
+	if (!lines.length) {
+		frm.set_value("amount", 0);
+		frm.set_value("payment_method", "");
+		return;
+	}
+	const defaultRate = flt(frm.doc.exchange_rate);
+	let total = 0;
+	const methods = new Set();
+
+	for (const row of lines) {
+		const amount = flt(row.amount);
+		if (!amount) continue;
+		const currency = (row.currency || "USD").toUpperCase();
+		if (currency === "UZS") {
+			const rate = flt(row.exchange_rate || defaultRate);
+			if (rate <= 0) continue;
+			total += amount / rate;
+		} else {
+			total += amount;
+		}
+		if (row.payment_method) methods.add(row.payment_method);
+	}
+
+	frm.set_value("amount", total);
+
+	if (methods.size > 1) {
+		frm.set_value("payment_method", "Комбинированный");
+	} else if (methods.size === 1) {
+		frm.set_value("payment_method", Array.from(methods)[0]);
+	}
+}
+
+function open_change_calculator(frm) {
+	const due = flt(frm.doc.amount);
+	const d = new frappe.ui.Dialog({
+		title: __("Сдача"),
+		fields: [
+			{
+				fieldname: "hint",
+				fieldtype: "HTML",
+				options: `<p class="text-muted small">${__("К оплате по документу")}: <strong>${format_currency(
+					due
+				)}</strong></p>`,
+			},
+			{
+				fieldname: "tender",
+				fieldtype: "Currency",
+				label: __("Сумма от клиента"),
+			},
+		],
+		primary_action_label: __("Рассчитать"),
+		primary_action(values) {
+			const tender = flt(values.tender);
+			const ch = tender - due;
+			if (ch >= 0) {
+				frappe.msgprint({
+					title: __("Сдача"),
+					message: `${__("Сдача")}: ${format_currency(ch)}`,
+					indicator: "green",
+				});
+			} else {
+				frappe.msgprint({
+					title: __("Недостаточно"),
+					message: `${__("Не хватает")}: ${format_currency(-ch)}`,
+					indicator: "orange",
+				});
+			}
+			d.hide();
+		},
+	});
+	d.show();
+}
 
 function refresh_plan_panel(frm) {
 	if (frm._nasiya_payment_plans_cache && frm.doc.customer) {
