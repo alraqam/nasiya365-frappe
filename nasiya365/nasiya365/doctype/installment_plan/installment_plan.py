@@ -59,6 +59,18 @@ class InstallmentPlan(Document):
         if frappe.flags.in_import:
             return
 
+        # Payment-driven save: skip stock / new-plan checks so cashiers never block allocation.
+        if frappe.flags.get("nasiya_plan_allocating_payment"):
+            self.frequency = _normalize_frequency(self.frequency)
+            self.calculate_amounts()
+            self.generate_schedule()
+            if self.schedule:
+                self.paid_amount = sum(flt(s.paid_amount) for s in self.schedule)
+                self.remaining_balance = flt(self.total_amount) - flt(self.paid_amount)
+            self.update_progress()
+            self.set_contract_fields_from_plan()
+            return
+
         self.frequency = _normalize_frequency(self.frequency)
 
         self.validate_customer_limit()
@@ -288,14 +300,14 @@ class InstallmentPlan(Document):
                     installment.paid_amount = installment.amount
                     installment.status = "Оплачен"
                     installment.paid_date = today()
-                    if payment_transaction:
+                    if payment_transaction and hasattr(installment, "payment_transaction"):
                         installment.payment_transaction = payment_transaction
                     remaining_payment -= due_amount
                 elif remaining_payment > 0:
                     # Partial payment
                     installment.paid_amount = flt(installment.paid_amount) + remaining_payment
                     installment.status = "Частично"
-                    if payment_transaction:
+                    if payment_transaction and hasattr(installment, "payment_transaction"):
                         installment.payment_transaction = payment_transaction
                     remaining_payment = 0
                 
@@ -315,7 +327,11 @@ class InstallmentPlan(Document):
         if getattr(self, "docstatus", 0) == 1:
             self.flags.ignore_validate_update_after_submit = True
         # Cashiers can create payments but often have no Write on Installment Plan; allocation must still persist.
-        self.save(ignore_permissions=True)
+        frappe.flags.nasiya_plan_allocating_payment = True
+        try:
+            self.save(ignore_permissions=True)
+        finally:
+            frappe.flags.nasiya_plan_allocating_payment = False
         
         # Update customer statistics (must not roll back a successful plan save)
         try:

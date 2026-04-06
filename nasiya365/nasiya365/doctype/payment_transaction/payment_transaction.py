@@ -49,19 +49,39 @@ def _installment_plan_has_outstanding_payment(plan_name: str) -> bool:
 def installment_plans_with_outstanding_for_customer(customer):
     """Plans that are not closed/write-off and still have something to collect (by header or график).
 
-    Includes «Черновик» — default plan status — so autolink works before the plan is set to «Активный».
+    Uses SQL so role permissions on Installment Plan never hide rows from autolink.
     """
     if not customer:
         return []
-    # ignore_permissions: cashiers often cannot read Installment Plan; autolink must still work.
-    names = frappe.get_all(
-        "Installment Plan",
-        filters={"customer": customer, "status": ["not in", ["Завершен", "Списан"]]},
-        pluck="name",
-        order_by="modified desc",
-        ignore_permissions=True,
+    names = frappe.db.sql(
+        """
+        SELECT name FROM `tabInstallment Plan`
+        WHERE customer = %s
+          AND IFNULL(`status`, '') NOT IN ('Завершен', 'Списан')
+        ORDER BY modified DESC
+        """,
+        (customer,),
+        pluck=True,
     )
+    names = names or []
     return [n for n in names if _installment_plan_has_outstanding_payment(n)]
+
+
+def _get_installment_plan_for_payment(plan_name: str):
+    """Load plan for allocation; works across Frappe versions and permission setups."""
+    try:
+        return frappe.get_doc("Installment Plan", plan_name, ignore_permissions=True)
+    except TypeError:
+        pass
+    prev = frappe.flags.get("ignore_permissions")
+    frappe.flags.ignore_permissions = True
+    try:
+        return frappe.get_doc("Installment Plan", plan_name)
+    finally:
+        if prev is None:
+            frappe.flags.ignore_permissions = False
+        else:
+            frappe.flags.ignore_permissions = prev
 
 
 def single_open_installment_plan_for_customer(customer):
@@ -110,7 +130,7 @@ def allocate_payment_transaction_to_installment_plan(doc):
     amt = flt(doc.amount)
     if amt <= 0:
         return
-    plan = frappe.get_doc("Installment Plan", rn, ignore_permissions=True)
+    plan = _get_installment_plan_for_payment(rn)
     try:
         plan.apply_payment(amt, payment_transaction=doc.name)
     except Exception:
