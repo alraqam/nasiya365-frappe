@@ -47,12 +47,15 @@ def _installment_plan_has_outstanding_payment(plan_name: str) -> bool:
 
 
 def installment_plans_with_outstanding_for_customer(customer):
-    """Active/overdue plans for this customer that still have something to collect (by header or график)."""
+    """Plans that are not closed/write-off and still have something to collect (by header or график).
+
+    Includes «Черновик» — default plan status — so autolink works before the plan is set to «Активный».
+    """
     if not customer:
         return []
     names = frappe.get_all(
         "Installment Plan",
-        filters={"customer": customer, "status": ["in", ["Активный", "Просрочен"]]},
+        filters={"customer": customer, "status": ["not in", ["Завершен", "Списан"]]},
         pluck="name",
         order_by="modified desc",
     )
@@ -61,7 +64,7 @@ def installment_plans_with_outstanding_for_customer(customer):
 
 def single_open_installment_plan_for_customer(customer):
     """
-    If the customer has exactly one active/overdue plan with outstanding debt (header or schedule), return its name.
+    If the customer has exactly one non-closed plan with outstanding debt (header or schedule), return its name.
     Used to auto-link payments when the cashier did not press «Выбрать».
     """
     eligible = installment_plans_with_outstanding_for_customer(customer)
@@ -70,10 +73,34 @@ def single_open_installment_plan_for_customer(customer):
     return None
 
 
+def _merge_payment_allocation_fields_from_db(doc):
+    """Ensure reference + amount match DB after insert (avoids empty dynamic link on the in-memory doc)."""
+    name = getattr(doc, "name", None)
+    if not name or str(name).startswith("new-"):
+        return
+    if not frappe.db.exists("Payment Transaction", name):
+        return
+    row = frappe.db.get_value(
+        "Payment Transaction",
+        name,
+        ["reference_doctype", "reference_name", "amount"],
+        as_dict=True,
+    )
+    if not row:
+        return
+    if row.get("reference_doctype"):
+        doc.reference_doctype = row.reference_doctype
+    if row.get("reference_name"):
+        doc.reference_name = row.reference_name
+    if row.get("amount") is not None:
+        doc.amount = row.amount
+
+
 def allocate_payment_transaction_to_installment_plan(doc):
     """Apply this payment amount to the linked Installment Plan schedule (idempotent per successful run)."""
     if getattr(doc, "_nasiya_installment_plan_allocated", False):
         return
+    _merge_payment_allocation_fields_from_db(doc)
     rd = (doc.reference_doctype or "").strip()
     rn = (doc.reference_name or "").strip()
     if rd != "Installment Plan" or not rn:
@@ -100,12 +127,20 @@ class PaymentTransaction(Document):
             self.received_by = frappe.session.user
 
     def after_insert(self):
-        """Plan allocation runs via hooks.py doc_events (payment_doc_events)."""
+        """Allocate to plan (also registered in hooks.py doc_events; idempotent flag prevents double apply)."""
+        allocate_payment_transaction_to_installment_plan(self)
         if self.get("send_payment_sms"):
             try:
                 _send_payment_receipt_sms(self)
             except Exception:
                 frappe.log_error(frappe.get_traceback(), "Payment Transaction SMS")
+
+    def on_update(self):
+        if (self.reference_doctype or "").strip() != "Installment Plan":
+            return
+        if not (self.has_value_changed("reference_name") or self.has_value_changed("reference_doctype")):
+            return
+        allocate_payment_transaction_to_installment_plan(self)
 
     def autolink_single_open_installment_plan(self):
         """Set Installment Plan reference when both ref fields are empty and the client has only one open plan with debt."""

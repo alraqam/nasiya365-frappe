@@ -266,6 +266,11 @@ class InstallmentPlan(Document):
         Apply a payment to this installment plan
         Automatically allocates to oldest pending/overdue installments first
         """
+        if not self.schedule:
+            frappe.throw(
+                _("У плана нет строк графика — сохраните план с заполненным графиком, затем повторите оплату.")
+            )
+
         remaining_payment = flt(amount)
         
         # Sort schedule by due date (normalize: DB/doc may use date or str)
