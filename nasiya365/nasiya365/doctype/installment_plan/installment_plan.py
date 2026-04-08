@@ -59,11 +59,15 @@ class InstallmentPlan(Document):
         if frappe.flags.in_import:
             return
 
-        # Payment-driven save: skip stock / new-plan checks so cashiers never block allocation.
+        # Payment-driven save: skip stock / new-plan checks and schedule regeneration so
+        # cashier payments never block allocation or wipe the just-updated schedule rows.
         if frappe.flags.get("nasiya_plan_allocating_payment"):
             self.frequency = _normalize_frequency(self.frequency)
-            self.calculate_amounts()
-            self.generate_schedule()
+            # Recalculate totals directly from the (already-mutated) schedule rows.
+            # Do NOT call calculate_amounts() here — it would overwrite remaining_balance
+            # using the pre-payment paid_amount before the sum below runs.
+            # Do NOT call generate_schedule() — it must not rebuild a schedule that
+            # already has payment allocations on its rows.
             if self.schedule:
                 self.paid_amount = sum(flt(s.paid_amount) for s in self.schedule)
                 self.remaining_balance = flt(self.total_amount) - flt(self.paid_amount)

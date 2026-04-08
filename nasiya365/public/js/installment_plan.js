@@ -1,4 +1,7 @@
 const PREVIEW_DEBOUNCE_MS = 200;
+function nasiya_has_field(frm, fieldname) {
+	return Boolean(frm?.fields_dict?.[fieldname]);
+}
 
 frappe.ui.form.on("Installment Plan", {
 	onload(frm) {
@@ -20,7 +23,9 @@ frappe.ui.form.on("Installment Plan", {
 		if (!frm.doc.customer) {
 			frm.set_value("stock_entry", "");
 			frm.set_value("sales_order", "");
-			frm.set_value("customer_phone", "");
+			if (nasiya_has_field(frm, "customer_phone")) {
+				frm.set_value("customer_phone", "");
+			}
 			clear_panels(frm);
 			return;
 		}
@@ -299,7 +304,9 @@ function clear_panels(frm) {
 function load_risk_panel(frm) {
 	if (!frm.doc.customer) {
 		render_risk_html(frm, null);
-		frm.set_value("customer_phone", "");
+		if (nasiya_has_field(frm, "customer_phone")) {
+			frm.set_value("customer_phone", "");
+		}
 		return;
 	}
 	frappe.call({
@@ -308,7 +315,9 @@ function load_risk_panel(frm) {
 		callback(r) {
 			const m = r.message;
 			if (!m) return;
-			frm.set_value("customer_phone", m.primary_phone || "");
+			if (nasiya_has_field(frm, "customer_phone")) {
+				frm.set_value("customer_phone", m.primary_phone || "");
+			}
 			render_risk_html(frm, m);
 		},
 	});
@@ -370,12 +379,19 @@ function render_payment_preview(frm, preview) {
 
 function schedule_preview_refresh(frm, delay) {
 	if (frm._nasiya_preview_timer) clearTimeout(frm._nasiya_preview_timer);
-	const run = () => maybe_generate_schedule(frm);
+	const run = () => maybe_generate_schedule(frm, false);
 	if (delay) frm._nasiya_preview_timer = setTimeout(run, delay);
 	else run();
 }
 
-function maybe_generate_schedule(frm) {
+function has_schedule_payment_activity(schedule) {
+	return (schedule || []).some((row) => {
+		const st = (row.status || "").toString().trim();
+		return flt(row.paid_amount) > 0 || st === "Оплачен" || st === "Частично";
+	});
+}
+
+function maybe_generate_schedule(frm, force_regenerate) {
 	const d = frm.doc;
 	if (!d.principal_amount || !d.number_of_installments || !d.start_date) {
 		render_payment_preview(frm, null);
@@ -397,12 +413,23 @@ function maybe_generate_schedule(frm) {
 			const preview = r.message;
 			render_payment_preview(frm, preview);
 
+			// Never overwrite an existing график that already has payment allocations.
+			// All header values (remaining_balance, paid_amount, etc.) are authoritative
+			// from the server-saved document; rewriting them here makes the form dirty
+			// and can mask the real post-payment state.
+			if (has_schedule_payment_activity(d.schedule)) return;
+
 			frm.set_value("financed_amount", preview.financed_amount);
 			frm.set_value("total_interest", preview.total_interest);
 			frm.set_value("total_amount", preview.total_amount);
 			frm.set_value("installment_amount", preview.installment_amount);
 			frm.set_value("end_date", preview.end_date);
 			frm.set_value("remaining_balance", preview.total_amount - flt(d.paid_amount || 0));
+
+			// On existing plans, do not rebuild schedule on every refresh;
+			// only fill when schedule is empty, unless caller explicitly forces regeneration.
+			const has_existing_schedule = (d.schedule || []).length > 0;
+			if (!force_regenerate && !frm.is_new() && has_existing_schedule) return;
 
 			frm.clear_table("schedule");
 			(preview.schedule || ([])).forEach((row) => {
@@ -466,7 +493,14 @@ function generate_schedule_now(frm) {
 		frappe.show_alert({ message: __("Заполните сумму, количество платежей и дату"), indicator: "orange" });
 		return;
 	}
-	schedule_preview_refresh(frm, 0);
+	if (has_schedule_payment_activity(frm.doc.schedule)) {
+		frappe.show_alert({
+			message: __("Нельзя перегенерировать график: в нём уже есть оплаты"),
+			indicator: "orange",
+		});
+		return;
+	}
+	maybe_generate_schedule(frm, true);
 	frappe.show_alert({ message: __("График обновлён"), indicator: "green" });
 }
 
