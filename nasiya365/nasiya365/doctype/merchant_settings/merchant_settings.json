@@ -13,6 +13,7 @@
         "credit_section",
         "default_interest_rate",
         "max_credit_limit",
+        "enforce_customer_credit_limit",
         "column_break_2",
         "grace_period_days",
         "installment_section",
@@ -88,6 +89,13 @@
             "fieldname": "max_credit_limit",
             "fieldtype": "Currency",
             "label": "Макс. кредитный лимит на клиента"
+        },
+        {
+            "default": "0",
+            "description": "Если выключено, лимит в профиле клиента не блокирует новые планы и заказы в рассрочку.",
+            "fieldname": "enforce_customer_credit_limit",
+            "fieldtype": "Check",
+            "label": "Требовать кредитный лимит (профиль клиента)"
         },
         {
             "fieldname": "column_break_2",

@@ -678,7 +678,6 @@ def repair_import_stock_inventory():
             product.product_name = name or code
             product.product_code = code or frappe.generate_hash(length=8)
             product.selling_price = 0
-            product.product_cost = 0
             if brand:
                 product.brand = brand
             if color:

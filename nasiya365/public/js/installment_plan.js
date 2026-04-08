@@ -81,7 +81,198 @@ frappe.ui.form.on("Installment Plan", {
 	start_date: schedule_preview_change,
 });
 
+const NASIYA_SCHEDULE_CHILD = "Installment Schedule";
+
+/** Cascade schedule dates from the edited row (same step as server: week / 2 weeks / month). */
+function nasiya_cascade_schedule_from_row(frm, edited_row_name, anchor_date) {
+	const schedule = frm.doc.schedule || [];
+	if (schedule.length < 2) {
+		const only = schedule[0];
+		if (only && only.name === edited_row_name) {
+			frm._nasiya_skip_schedule_preview = true;
+			frm.set_value("start_date", anchor_date);
+			frm._nasiya_skip_schedule_preview = false;
+			frm.set_value("end_date", anchor_date);
+		}
+		return;
+	}
+
+	const rows = [...schedule].sort((a, b) => (a.idx || 0) - (b.idx || 0));
+	const pos = rows.findIndex((r) => r.name === edited_row_name);
+	if (pos === -1) return;
+
+	frm._nasiya_cascade_schedule = true;
+	try {
+		let prev = anchor_date;
+		for (let i = pos + 1; i < rows.length; i++) {
+			const r = rows[i];
+			prev = nasiya_schedule_step_date(prev, frm.doc.frequency);
+			frappe.model.set_value(r.doctype || NASIYA_SCHEDULE_CHILD, r.name, "due_date", prev);
+		}
+		if (pos === 0) {
+			frm._nasiya_skip_schedule_preview = true;
+			frm.set_value("start_date", anchor_date);
+			frm._nasiya_skip_schedule_preview = false;
+		}
+		const last_row = rows[rows.length - 1];
+		const last_due = frappe.model.get_value(
+			last_row.doctype || NASIYA_SCHEDULE_CHILD,
+			last_row.name,
+			"due_date"
+		);
+		if (last_due) frm.set_value("end_date", last_due);
+	} finally {
+		frm._nasiya_cascade_schedule = false;
+	}
+}
+
+/** Set the same payment amount on all schedule rows after the edited row (equal installments). */
+function nasiya_cascade_amount_from_row(frm, edited_row_name, anchor_amount) {
+	const amt = flt(anchor_amount);
+	const schedule = frm.doc.schedule || [];
+	if (schedule.length < 2) return;
+
+	const rows = [...schedule].sort((a, b) => (a.idx || 0) - (b.idx || 0));
+	const pos = rows.findIndex((r) => r.name === edited_row_name);
+	if (pos === -1) return;
+
+	frm._nasiya_cascade_schedule = true;
+	try {
+		for (let i = pos + 1; i < rows.length; i++) {
+			const r = rows[i];
+			frappe.model.set_value(r.doctype || NASIYA_SCHEDULE_CHILD, r.name, "amount", amt);
+		}
+	} finally {
+		frm._nasiya_cascade_schedule = false;
+	}
+}
+
+/**
+ * Implied monthly % from current schedule sums (same simple-interest model as server:
+ * total_interest = financed * (interest_rate/100) * n  →  rate = 100 * total_interest / (financed * n)).
+ * Uses _nasiya_skip_schedule_preview so updating interest_rate does not rebuild the grid.
+ */
+function nasiya_recalc_interest_rate_from_schedule(frm) {
+	const sched = frm.doc.schedule || [];
+	if (!sched.length) return;
+
+	const principal = flt(frm.doc.principal_amount);
+	if (principal <= 0) return;
+
+	const down = flt(frm.doc.down_payment || 0);
+	const financed = principal - down;
+	const n = cint(frm.doc.number_of_installments) || sched.length;
+	if (financed <= 0 || n <= 0) return;
+
+	const schedule_sum = sched.reduce((acc, r) => acc + flt(r.amount), 0);
+	const total_interest_impl = schedule_sum - financed;
+	let rate_pct = (100 * total_interest_impl) / (financed * n);
+	if (!Number.isFinite(rate_pct) || rate_pct < 0) rate_pct = 0;
+
+	frm._nasiya_skip_schedule_preview = true;
+	try {
+		frm.set_value("financed_amount", flt(financed));
+		frm.set_value("total_interest", flt(Math.max(0, total_interest_impl)));
+		frm.set_value("total_amount", flt(schedule_sum));
+		frm.set_value("installment_amount", flt(schedule_sum / n));
+		frm.set_value("remaining_balance", flt(schedule_sum - flt(frm.doc.paid_amount || 0)));
+		frm.set_value("interest_rate", flt(rate_pct, 6));
+	} finally {
+		frm._nasiya_skip_schedule_preview = false;
+	}
+}
+
+/**
+ * Child Date edits go through frappe.model.trigger, not only script_manager.
+ * model.on fires after the value is on the doc; defer one tick so grid/model match.
+ */
+frappe.model.on(NASIYA_SCHEDULE_CHILD, "due_date", function (fieldname, value, doc) {
+	if (fieldname !== "due_date" || !doc) return;
+	if (doc.parenttype !== "Installment Plan" || doc.parentfield !== "schedule") return;
+	const frm = cur_frm;
+	if (!frm || frm.doctype !== "Installment Plan" || frm.docname !== doc.parent) return;
+	if (frm._nasiya_cascade_schedule) return;
+
+	const anchor = value || doc.due_date;
+	if (!anchor) return;
+
+	const parent_name = doc.parent;
+	const row_name = doc.name;
+	setTimeout(() => {
+		const f = cur_frm;
+		if (!f || f.doctype !== "Installment Plan" || f.docname !== parent_name) return;
+		if (f._nasiya_cascade_schedule) return;
+		const anchor_now =
+			frappe.model.get_value(NASIYA_SCHEDULE_CHILD, row_name, "due_date") || anchor;
+		nasiya_cascade_schedule_from_row(f, row_name, anchor_now);
+	}, 0);
+});
+
+frappe.model.on(NASIYA_SCHEDULE_CHILD, "amount", function (fieldname, value, doc) {
+	if (fieldname !== "amount" || !doc) return;
+	if (doc.parenttype !== "Installment Plan" || doc.parentfield !== "schedule") return;
+	const frm = cur_frm;
+	if (!frm || frm.doctype !== "Installment Plan" || frm.docname !== doc.parent) return;
+	if (frm._nasiya_cascade_schedule) return;
+
+	const anchor =
+		value !== undefined && value !== null && value !== ""
+			? value
+			: doc.amount;
+	if (anchor === undefined || anchor === null || anchor === "") return;
+
+	const parent_name = doc.parent;
+	const row_name = doc.name;
+	setTimeout(() => {
+		const f = cur_frm;
+		if (!f || f.doctype !== "Installment Plan" || f.docname !== parent_name) return;
+		if (f._nasiya_cascade_schedule) return;
+		const raw = frappe.model.get_value(NASIYA_SCHEDULE_CHILD, row_name, "amount");
+		const anchor_now = flt(raw !== undefined && raw !== null ? raw : anchor);
+		nasiya_cascade_amount_from_row(f, row_name, anchor_now);
+		nasiya_recalc_interest_rate_from_schedule(f);
+	}, 0);
+});
+
+function nasiya_schedule_step_date(from_date, frequency) {
+	const freq = (frequency || "").toString();
+	if (freq.includes("Еженедельно")) {
+		return nasiya_add_days_iso(from_date, 7);
+	}
+	if (freq.includes("две недели")) {
+		return nasiya_add_days_iso(from_date, 14);
+	}
+	return nasiya_add_months_iso(from_date, 1);
+}
+
+function nasiya_add_days_iso(date_str, days_add) {
+	const p = String(date_str).split("-");
+	if (p.length !== 3) return date_str;
+	const dt = new Date(+p[0], +p[1] - 1, +p[2]);
+	dt.setDate(dt.getDate() + days_add);
+	const y = dt.getFullYear();
+	const m = String(dt.getMonth() + 1).padStart(2, "0");
+	const d = String(dt.getDate()).padStart(2, "0");
+	return `${y}-${m}-${d}`;
+}
+
+/** Calendar-month step aligned with server `add_months` (end-of-month clamp). */
+function nasiya_add_months_iso(date_str, months_add) {
+	const p = String(date_str).split("-");
+	if (p.length !== 3) return date_str;
+	const d0 = parseInt(p[2], 10);
+	let y = parseInt(p[0], 10);
+	let m = parseInt(p[1], 10);
+	const total = y * 12 + (m - 1) + months_add;
+	y = Math.floor(total / 12);
+	m = (total % 12) + 1;
+	const lastDay = new Date(y, m, 0).getDate();
+	const d = Math.min(d0, lastDay);
+	return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
 function schedule_preview_change(frm) {
+	if (frm._nasiya_skip_schedule_preview) return;
 	schedule_preview_refresh(frm, PREVIEW_DEBOUNCE_MS);
 }
 
@@ -137,7 +328,11 @@ function render_risk_html(frm, m) {
 			<div class="row"><span>${__("Скоринг")}</span><span>${frappe.utils.escape_html(String(m.risk_score ?? "—"))} · ${frappe.utils.escape_html(m.risk_level || "")}</span></div>
 			<div class="row"><span>${__("Активные займы")}</span><span>${cint(m.active_loans)}</span></div>
 			<div class="row"><span>${__("Просрочено")}</span><span class="${overdue_cls}">${cint(m.overdue_loans)}</span></div>
-			<div class="row"><span>${__("Доступный лимит")}</span><span>${format_currency(m.available_limit)}</span></div>
+			<div class="row"><span>${__("Доступный лимит")}</span><span>${
+				m.unlimited_credit
+					? `<span class="text-muted">${__("Без ограничений")}</span>`
+					: format_currency(m.available_limit)
+			}</span></div>
 			<div class="row"><span>${__("Текущий долг")}</span><span>${format_currency(m.total_debt)}</span></div>
 		</div>
 	`);

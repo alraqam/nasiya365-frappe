@@ -14,14 +14,14 @@
             "in_list_view": 1,
             "label": "Атрибут",
             "options": "Product Attribute Template",
-            "reqd": 1
+            "reqd": 0
         },
         {
             "fieldname": "value",
             "fieldtype": "Small Text",
             "in_list_view": 1,
             "label": "Значение",
-            "reqd": 1
+            "reqd": 0
         }
     ],
     "index_web_pages_for_search": 1,

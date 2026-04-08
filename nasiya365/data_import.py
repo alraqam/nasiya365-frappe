@@ -477,7 +477,7 @@ def process_row(row, default_branch, summary, skip_validation=False):
         for s in installment_plan.schedule or []:
             if not s.due_date:
                 continue
-            if s.due_date <= today() and s.status in ["Ожидает", "Просрочен", "Частично"]:
+            if getdate(s.due_date) <= getdate(today()) and s.status in ["Ожидает", "Просрочен", "Частично"]:
                 debt_today += flt(s.amount) - flt(s.paid_amount)
         installment_plan.debt_today = debt_today
 
@@ -541,7 +541,6 @@ def get_or_create_product(name, code, imei, price, skip_validation=False):
     item.product_name = name
     item.product_code = code or frappe.generate_hash(length=8)
     item.selling_price = price
-    item.product_cost = 0 # Mandatory field
     
     item.flags.ignore_permissions = True
     if skip_validation:
@@ -1005,7 +1004,6 @@ def process_stock_entry_csv(row, default_branch, summary, skip_validation=False)
         product.product_name = name or code
         product.product_code = code
         product.selling_price = 0
-        product.product_cost = 0
         if brand:
             product.brand = brand
         if color:

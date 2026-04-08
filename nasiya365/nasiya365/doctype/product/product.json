@@ -23,7 +23,6 @@
         "description",
         "image",
         "pricing_section",
-        "product_cost",
         "selling_price",
         "bnpl_section",
         "allow_installment",
@@ -137,13 +136,6 @@
             "fieldname": "pricing_section",
             "fieldtype": "Section Break",
             "label": "Цены"
-        },
-        {
-            "fieldname": "product_cost",
-            "fieldtype": "Currency",
-            "in_list_view": 1,
-            "label": "Себестоимость",
-            "reqd": 1
         },
         {
             "fieldname": "selling_price",

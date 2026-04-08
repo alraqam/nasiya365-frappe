@@ -15,6 +15,7 @@ class Product(Document):
             self.load_category_attributes()
     
     def validate(self):
+        self.strip_empty_attribute_rows()
         self.validate_bnpl_settings()
         self.validate_required_attributes()
     
@@ -36,20 +37,26 @@ class Product(Document):
                 "attribute": cat_attr.attribute
             })
     
+    def strip_empty_attribute_rows(self):
+        """Drop grid rows with no attribute and no value (avoids leftover blank lines)."""
+        for row in list(self.attributes or []):
+            if not row.attribute and not (row.value or "").strip():
+                self.remove(row)
+
     def validate_required_attributes(self):
-        """Validate that all required attributes have values"""
+        """Enforce category flags: only attributes marked required on the category must have values."""
         if not self.category:
             return
-        
+
         category = frappe.get_doc("Product Category", self.category)
         required_attrs = [attr.attribute for attr in category.attributes if attr.is_required]
-        
+
         filled_attrs = [attr.attribute for attr in self.attributes if attr.value]
-        
+
         for req_attr in required_attrs:
             if req_attr not in filled_attrs:
                 frappe.throw(_("Attribute {0} is required for this category").format(req_attr))
-    
+
     def validate_bnpl_settings(self):
         """Validate BNPL-related settings"""
         if self.allow_installment:

@@ -9,6 +9,10 @@ from frappe.model.document import Document
 from frappe.utils import getdate, today, date_diff
 import re
 
+# credit_limit <= 0 means no cap (default unlimited for new clients).
+# Must fit Frappe Currency / MySQL DECIMAL(21,9) (max ~999_999_999_999.999999999).
+_UNLIMITED_CREDIT_NOTIONAL = 999_999_999_999
+
 
 class CustomerProfile(Document):
     def validate(self):
@@ -91,12 +95,15 @@ class CustomerProfile(Document):
         return None
 
     def update_available_limit(self):
-        """Calculate available limit = credit_limit - total_active_debt"""
+        """Calculate available limit = credit_limit - total_active_debt (unlimited if credit_limit <= 0)."""
         from frappe.utils import flt
-        
+
         limit = flt(self.credit_limit)
         debt = flt(self.total_debt)
-        self.available_limit = limit - debt
+        if limit <= 0:
+            self.available_limit = max(flt(0), flt(_UNLIMITED_CREDIT_NOTIONAL) - debt)
+        else:
+            self.available_limit = limit - debt
         
     def update_statistics(self):
         """Update active contracts count and total debt from Installment Plans"""
