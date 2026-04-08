@@ -6,6 +6,7 @@ Handles product attributes auto-population and BNPL settings validation
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import cint, flt
 
 
 class Product(Document):
@@ -60,14 +61,17 @@ class Product(Document):
     def validate_bnpl_settings(self):
         """Validate BNPL-related settings"""
         if self.allow_installment:
-            if not self.min_down_payment_percent:
-                self.min_down_payment_percent = 20  # Default 20%
-            
-            if self.min_down_payment_percent > 100:
+            min_pct = flt(self.min_down_payment_percent)
+            if min_pct <= 0:
+                min_pct = 20.0
+            self.min_down_payment_percent = min_pct
+            if min_pct > 100:
                 frappe.throw(_("Minimum down payment cannot exceed 100%"))
-            
-            if not self.max_installment_months:
-                self.max_installment_months = 12  # Default 12 months
+
+            max_m = cint(self.max_installment_months)
+            if max_m <= 0:
+                max_m = 12
+            self.max_installment_months = max_m
 
 
 @frappe.whitelist()
