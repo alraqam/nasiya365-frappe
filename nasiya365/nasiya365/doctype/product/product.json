@@ -22,8 +22,6 @@
         "details_section",
         "description",
         "image",
-        "pricing_section",
-        "selling_price",
         "bnpl_section",
         "allow_installment",
         "min_down_payment_percent",
@@ -131,17 +129,6 @@
             "fieldname": "image",
             "fieldtype": "Attach Image",
             "label": "Изображение"
-        },
-        {
-            "fieldname": "pricing_section",
-            "fieldtype": "Section Break",
-            "label": "Цены"
-        },
-        {
-            "fieldname": "selling_price",
-            "fieldtype": "Currency",
-            "in_list_view": 1,
-            "label": "Цена продажи"
         },
         {
             "fieldname": "bnpl_section",

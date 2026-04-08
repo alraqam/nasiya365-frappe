@@ -110,6 +110,9 @@ doc_events = {
         "after_insert": "nasiya365.payment_doc_events.payment_transaction_after_insert",
         "on_update": "nasiya365.payment_doc_events.payment_transaction_on_update",
     },
+    "Product": {
+        "before_validate": "nasiya365.payment_doc_events.product_before_validate",
+    },
 }
 
 # Scheduled Tasks
