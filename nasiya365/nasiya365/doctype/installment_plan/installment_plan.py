@@ -21,7 +21,7 @@ def _installment_row_accepts_payment(row) -> bool:
 
 
 def _schedule_has_payment_activity(schedule) -> bool:
-    """If any installment was paid, never rebuild the child table in validate (would wipe allocations)."""
+    """If any installment (including row 0 down payment) was paid, never rebuild the child table."""
     for row in schedule or []:
         if flt(row.paid_amount) > 0:
             return True
@@ -79,11 +79,13 @@ class InstallmentPlan(Document):
 
         self.validate_customer_limit()
         self.validate_stock_entry_for_bnpl()
+        self._warn_structural_change_on_paid_plan()
         self.calculate_amounts()
         self.generate_schedule()
         if self.schedule:
             self.paid_amount = sum(flt(s.paid_amount) for s in self.schedule)
             self.remaining_balance = flt(self.total_amount) - flt(self.paid_amount)
+            self._validate_schedule_sum()
         self.update_progress()
         self.set_contract_fields_from_plan()
 
@@ -161,6 +163,13 @@ class InstallmentPlan(Document):
     
     def on_cancel(self):
         self.release_customer_limit()
+        self.add_comment(
+            "Info",
+            _("План отменён пользователем {0}. Остаток на момент отмены: {1} USD.").format(
+                frappe.session.user,
+                flt(self.remaining_balance, 2),
+            ),
+        )
     
     def validate_stock_entry_for_bnpl(self):
         if not getattr(self, "stock_entry", None):
@@ -170,9 +179,10 @@ class InstallmentPlan(Document):
         assert_stock_entry_available_for_installment_plan(self.stock_entry, self.name or "")
 
     def validate_customer_limit(self):
-        """Check customer status; optional cap when Merchant Settings + profile credit_limit apply."""
-        if not self.is_new():
-            return
+        """Check customer status; optional cap when Merchant Settings + profile credit_limit apply.
+
+        Accounts for other draft plans to prevent concurrent-draft bypass of the credit limit.
+        """
         customer = frappe.get_doc("Customer Profile", self.customer)
 
         if customer.status != "Активный":
@@ -184,78 +194,203 @@ class InstallmentPlan(Document):
         if flt(customer.credit_limit) <= 0:
             return
 
+        # Only enforce on new plans or when principal_amount changes on a still-draft plan.
+        is_draft = self.docstatus == 0
+        if not self.is_new() and not is_draft:
+            return
+        if not self.is_new() and is_draft and not self.has_value_changed("principal_amount"):
+            return
+
+        # Refresh debt from submitted plans
         customer.update_statistics()
-        if self.principal_amount > flt(customer.available_limit):
-            frappe.throw(
-                _("Запрашиваемая сумма {0} превышает доступный кредитный лимит {1}").format(
-                    frappe.format_value(self.principal_amount, {"fieldtype": "Currency"}),
-                    frappe.format_value(customer.available_limit, {"fieldtype": "Currency"}),
-                )
+
+        # Sum principal of OTHER draft plans for this customer (concurrent-draft protection)
+        other_draft_principal = flt(frappe.db.sql(
+            """
+            SELECT COALESCE(SUM(principal_amount), 0)
+            FROM `tabInstallment Plan`
+            WHERE customer = %s
+              AND docstatus = 0
+              AND name != %s
+            """,
+            (self.customer, self.name or "__new__"),
+        )[0][0])
+
+        effective_available = flt(customer.available_limit) - other_draft_principal
+
+        if flt(self.principal_amount) > effective_available:
+            msg = _("Запрашиваемая сумма {0} превышает доступный кредитный лимит {1}").format(
+                frappe.format_value(self.principal_amount, {"fieldtype": "Currency"}),
+                frappe.format_value(max(0.0, effective_available), {"fieldtype": "Currency"}),
             )
+            if other_draft_principal > 0:
+                msg += " " + _("(учтено {0} по незакрытым черновикам)").format(
+                    frappe.format_value(other_draft_principal, {"fieldtype": "Currency"})
+                )
+            frappe.throw(msg)
     
+    def _warn_structural_change_on_paid_plan(self):
+        """Warn when financial fields change on a plan that already has payment history."""
+        if self.is_new():
+            return
+        if not _schedule_has_payment_activity(self.schedule):
+            return
+        structural = ("principal_amount", "interest_rate", "down_payment")
+        changed = [f for f in structural if self.has_value_changed(f)]
+        if changed:
+            labels = {"principal_amount": "Сумма", "interest_rate": "Ставка", "down_payment": "Первоначальный взнос"}
+            changed_labels = ", ".join(labels.get(f, f) for f in changed)
+            frappe.msgprint(
+                _("Внимание: изменены поля ({0}) на плане с уже существующими оплатами. "
+                  "Суммы взносов в графике не будут пересчитаны автоматически.").format(changed_labels),
+                indicator="orange",
+                alert=True,
+            )
+
     def calculate_amounts(self):
-        """Calculate total interest 、, financed amount, and installment amount"""
+        """Calculate totals.
+        total_amount = down_payment + financed_amount + total_interest
+                     = principal + total_interest
+        installment_amount covers only the financed portion (not the down payment).
+        """
         principal = flt(self.principal_amount)
         down_payment = flt(self.down_payment)
-        interest_rate = flt(self.interest_rate) / 100  # Monthly rate
+        interest_rate = flt(self.interest_rate) / 100
         num_installments = int(self.number_of_installments)
-        
-        # Financed amount is principal minus down payment
+
         self.financed_amount = principal - down_payment
-        
-        # Calculate total interest (simple interest for now)
+
         self.total_interest = self.financed_amount * interest_rate * num_installments
-        
-        # Total amount including interest
-        self.total_amount = self.financed_amount + self.total_interest
-        
-        # Equal installment amount
+
+        financed_total = self.financed_amount + self.total_interest
+        # Include down payment in total_amount only when schedule has a row 0 (new-style plans).
+        has_dp_row = any(cint(s.installment_number) == 0 for s in (self.schedule or []))
+        self.total_amount = financed_total + (down_payment if has_dp_row else 0)
+
         if num_installments > 0:
-            self.installment_amount = self.total_amount / num_installments
+            self.installment_amount = financed_total / num_installments
         else:
-            self.installment_amount = self.total_amount
-        
-        # Calculate remaining balance
+            self.installment_amount = financed_total
+
         self.remaining_balance = self.total_amount - flt(self.paid_amount)
     
+    def _next_schedule_date(self, from_date):
+        """Return the next due date based on frequency."""
+        freq = (self.frequency or "")
+        if "Еженедельно" in freq:
+            return add_to_date(from_date, weeks=1)
+        elif "две недели" in freq:
+            return add_to_date(from_date, weeks=2)
+        else:
+            return add_months(from_date, 1)
+
     def generate_schedule(self):
-        """Generate installment schedule based on frequency"""
+        """Generate or extend installment schedule.
+
+        - No payment activity: full rebuild.
+        - Payment activity + regular_count < num: append new rows (plan extension).
+        - Payment activity + regular_count > num: throw — cannot shrink a paid plan.
+        - Payment activity + regular_count == num: no-op.
+        """
         num = cint(self.number_of_installments)
         if num <= 0:
             return
 
-        if _schedule_has_payment_activity(self.schedule):
-            return
+        regular_rows = [s for s in (self.schedule or []) if cint(s.installment_number) > 0]
+        regular_count = len(regular_rows)
+        has_activity = _schedule_has_payment_activity(self.schedule)
 
-        if not self.schedule or len(self.schedule) != num:
-            self.schedule = []
-            
-            current_date = getdate(self.start_date)
-            
-            for i in range(num):
-                if i > 0:
-                    freq = (self.frequency or "")
-                    if "Еженедельно" in freq:
-                        current_date = add_to_date(current_date, weeks=1)
-                    elif "две недели" in freq:
-                        current_date = add_to_date(current_date, weeks=2)
-                    else:
-                        current_date = add_months(current_date, 1)
-                
+        if has_activity:
+            if regular_count == num:
+                return  # nothing to do
+            if regular_count > num:
+                frappe.throw(
+                    _("Нельзя уменьшить количество взносов с {0} до {1}: "
+                      "по плану уже были произведены оплаты. "
+                      "Для изменения условий отмените план и создайте новый.").format(
+                        regular_count, num
+                    )
+                )
+            # regular_count < num → extend: append (num - regular_count) new rows
+            last_row = max(regular_rows, key=lambda s: cint(s.installment_number))
+            current_date = getdate(last_row.due_date)
+            new_row_amount = round(self.installment_amount, 2)
+            for i in range(regular_count, num):
+                current_date = self._next_schedule_date(current_date)
                 self.append("schedule", {
                     "installment_number": i + 1,
                     "due_date": current_date,
-                    "amount": self.installment_amount,
+                    "amount": new_row_amount,
                     "status": "Ожидает",
-                    "paid_amount": 0
+                    "paid_amount": 0,
                 })
-            
-            # Set end date
+            if self.schedule:
+                last_reg = max(
+                    (s for s in self.schedule if cint(s.installment_number) > 0),
+                    key=lambda s: cint(s.installment_number),
+                )
+                self.end_date = last_reg.due_date
+            return
+
+        # No payment activity — full rebuild
+        if not self.schedule or regular_count != num:
+            self.schedule = []
+
+            # Row 0 — down payment (unpaid, due on start_date)
+            down = flt(self.down_payment)
+            if down > 0:
+                self.append("schedule", {
+                    "installment_number": 0,
+                    "due_date": self.start_date,
+                    "amount": down,
+                    "status": "Ожидает",
+                    "paid_amount": 0,
+                })
+
+            current_date = getdate(self.start_date)
+            financed_total = flt(self.financed_amount) + flt(self.total_interest)
+            allocated = 0.0
+            for i in range(num):
+                if i > 0:
+                    current_date = self._next_schedule_date(current_date)
+
+                # Last row absorbs rounding remainder so sum(schedule) == total_amount exactly
+                if i == num - 1:
+                    row_amount = round(financed_total - allocated, 2)
+                else:
+                    row_amount = round(self.installment_amount, 2)
+                    allocated += row_amount
+
+                self.append("schedule", {
+                    "installment_number": i + 1,
+                    "due_date": current_date,
+                    "amount": row_amount,
+                    "status": "Ожидает",
+                    "paid_amount": 0,
+                })
+
             if self.schedule:
                 self.end_date = self.schedule[-1].due_date
     
+    def _validate_schedule_sum(self):
+        """Warn if schedule row amounts don't add up to total_amount (rounding drift on old plans)."""
+        if not self.schedule:
+            return
+        schedule_sum = round(sum(flt(s.amount) for s in self.schedule), 2)
+        total = round(flt(self.total_amount), 2)
+        diff = abs(schedule_sum - total)
+        if diff > 0.01:
+            frappe.msgprint(
+                _("График платежей: сумма строк ({0}) не совпадает с итоговой суммой ({1}). "
+                  "Разница: {2}. Пересохраните план для автоматического исправления.").format(
+                    schedule_sum, total, round(diff, 4)
+                ),
+                indicator="orange",
+                alert=True,
+            )
+
     def update_progress(self):
-        """Update progress counters"""
+        """Update progress counters."""
         if self.schedule:
             self.paid_installments = len([s for s in self.schedule if s.status == "Оплачен"])
             self.overdue_installments = len([s for s in self.schedule if s.status == "Просрочен"])
@@ -322,8 +457,8 @@ class InstallmentPlan(Document):
         self.paid_amount = sum(flt(s.paid_amount) for s in self.schedule)
         self.remaining_balance = self.total_amount - self.paid_amount
         self.update_progress()
-        
-        # Check if plan is completed
+
+        # Check if all rows (including down payment) are paid
         if all(s.status == "Оплачен" for s in self.schedule):
             self.status = "Завершен"
         
@@ -392,11 +527,22 @@ def _build_installment_preview(principal, down_payment, interest_rate, num_insta
 
     financed = principal - down_payment
     total_interest = financed * interest_rate * num_installments
-    total_amount = financed + total_interest
-    installment_amount = total_amount / num_installments if num_installments > 0 else total_amount
+    financed_total = financed + total_interest
+    total_amount = financed_total + down_payment  # includes down payment
+    installment_amount = financed_total / num_installments if num_installments > 0 else financed_total
 
     schedule = []
     current_date = getdate(start_date)
+
+    # Row 0 — down payment (unpaid, due on start_date)
+    if down_payment > 0:
+        schedule.append({
+            "installment_number": 0,
+            "due_date": str(current_date),
+            "amount": down_payment,
+            "status": "Ожидает",
+            "paid_amount": 0,
+        })
 
     for i in range(num_installments):
         if i > 0:
@@ -406,13 +552,13 @@ def _build_installment_preview(principal, down_payment, interest_rate, num_insta
                 current_date = add_to_date(current_date, weeks=2)
             else:
                 current_date = add_months(current_date, 1)
-        
+
         schedule.append({
             "installment_number": i + 1,
             "due_date": str(current_date),
-            "amount": installment_amount
+            "amount": installment_amount,
         })
-    
+
     return {
         "financed_amount": financed,
         "total_interest": total_interest,

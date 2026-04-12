@@ -8,8 +8,12 @@
         "color",
         "storage",
         "quantity",
+        "condition",
+        "battery_cycles",
+        "capacity",
         "rate",
-        "amount"
+        "amount",
+        "serial_no"
     ],
     "fields": [
         {
@@ -33,6 +37,12 @@
             "fieldtype": "Data",
             "in_list_view": 1,
             "label": "Память"
+        },
+        {
+            "fieldname": "capacity",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Емкость"
         },
         {
             "default": "1",

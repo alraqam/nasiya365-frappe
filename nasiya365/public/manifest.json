@@ -1,34 +1,26 @@
 {
 	"name": "Nasiya365",
 	"short_name": "Nasiya365",
-	"description": "BNPL SaaS Platform — Buy Now Pay Later with inventory and sales",
-	"start_url": "/app",
+	"description": "BNPL SaaS Platform — рассрочка, касса, инвентарь",
+	"start_url": "/app/nasiya365",
 	"scope": "/",
 	"display": "standalone",
 	"orientation": "any",
 	"background_color": "#ffffff",
 	"theme_color": "#0089FF",
+	"categories": ["finance", "business"],
 	"icons": [
 		{
-			"src": "/assets/frappe/images/frappe-framework-logo.png",
-			"sizes": "400x400",
-			"type": "image/png",
+			"src": "/assets/nasiya365/icons/icon-192.svg",
+			"sizes": "192x192",
+			"type": "image/svg+xml",
 			"purpose": "any"
-		}
-	],
-	"screenshots": [
-		{
-			"src": "/assets/nasiya365/pwa/screenshot-wide.png",
-			"sizes": "1280x720",
-			"type": "image/png",
-			"form_factor": "wide",
-			"label": "Nasiya365 на рабочем столе"
 		},
 		{
-			"src": "/assets/nasiya365/pwa/screenshot-mobile.png",
-			"sizes": "750x1334",
-			"type": "image/png",
-			"label": "Nasiya365 на телефоне"
+			"src": "/assets/nasiya365/icons/icon-512.svg",
+			"sizes": "512x512",
+			"type": "image/svg+xml",
+			"purpose": "any maskable"
 		}
 	]
 }

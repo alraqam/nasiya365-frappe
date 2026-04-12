@@ -2,7 +2,7 @@ frappe.provide("nasiya365");
 
 /** Safe currency for desk (avoids blank rows if global format_currency is missing). */
 nasiya365._fmt_money = function (v) {
-	const n = frappe.utils.flt(v);
+	const n = flt(v);
 	try {
 		if (typeof format_currency === "function") {
 			return format_currency(n);
@@ -97,20 +97,44 @@ nasiya365.OverdueCollector = class OverdueCollector {
 		}
 
 		rows.forEach((row) => {
+			const product = row.product_name ? `<span class="bnpl-row-product">${frappe.utils.escape_html(row.product_name)}</span>` : "";
+			const overdue_label = row.days_overdue ? ` · <span style="color:var(--red-500)">${row.days_overdue} дн. просрочки</span>` : "";
+			const total_debt = flt(row.total_debt_today);
+			const debt_label = total_debt > 0
+				? `<span class="bnpl-row-debt">Долг на сегодня: <b>${nasiya365._fmt_money(total_debt)}</b></span>`
+				: "";
+
+			const last_call_label = row.last_call_outcome
+				? `<div class="bnpl-row-sub" style="margin-top:2px;color:var(--text-muted);font-size:11px;">
+					${__("Звонок")}: <b>${frappe.utils.escape_html(row.last_call_outcome)}</b>
+					${row.last_call_date ? "· " + frappe.format(row.last_call_date, {fieldtype: "Datetime"}) : ""}
+					${row.last_promised_date ? " · " + __("Обещал") + ": " + frappe.format(row.last_promised_date, {fieldtype: "Date"}) : ""}
+				</div>`
+				: "";
+
 			const node = $(`
-				<div class="bnpl-list-row">
-					<div>
-						<div class="bnpl-row-title">${frappe.utils.escape_html(row.customer_name || row.customer)}</div>
-						<div class="bnpl-row-sub">${frappe.utils.escape_html(nasiya365._fmt_money(row.amount_due))}${row.days_overdue ? ` · ${row.days_overdue} дней просрочки` : ""}</div>
+				<div class="bnpl-list-row bnpl-list-row--clickable">
+					<div class="bnpl-row-info" style="cursor:pointer;flex:1;min-width:0;">
+						<div class="bnpl-row-title">${frappe.utils.escape_html(row.customer_name || row.customer)}${product}</div>
+						<div class="bnpl-row-sub">
+							${__("Взнос")}: ${nasiya365._fmt_money(row.amount_due)}${overdue_label}
+						</div>
+						${debt_label ? `<div class="bnpl-row-sub" style="margin-top:2px;">${debt_label}</div>` : ""}
+						${last_call_label}
 					</div>
 					<div class="bnpl-row-actions">
 						<button class="btn btn-default btn-sm btn-call">Позвонить</button>
+						<button class="btn btn-default btn-sm btn-log">Записать</button>
 						<button class="btn btn-primary btn-sm btn-pay">Принять платеж</button>
 					</div>
 				</div>
 			`).appendTo(list);
 
-			node.find(".btn-call").on("click", () => {
+			// Clicking the info area opens the detail dialog
+			node.find(".bnpl-row-info").on("click", () => this.openDetail(row));
+
+			node.find(".btn-call").on("click", (e) => {
+				e.stopPropagation();
 				if (!row.phone) {
 					frappe.msgprint(__("У клиента не указан основной номер"));
 					return;
@@ -118,7 +142,13 @@ nasiya365.OverdueCollector = class OverdueCollector {
 				window.open(`tel:${row.phone}`, "_self");
 			});
 
-			node.find(".btn-pay").on("click", () => {
+			node.find(".btn-log").on("click", (e) => {
+				e.stopPropagation();
+				this.openLogDialog(row);
+			});
+
+			node.find(".btn-pay").on("click", (e) => {
+				e.stopPropagation();
 				frappe.route_options = {
 					customer: row.customer,
 					reference_doctype: "Installment Plan",
@@ -127,5 +157,121 @@ nasiya365.OverdueCollector = class OverdueCollector {
 				frappe.new_doc("Payment Transaction");
 			});
 		});
+	}
+
+	openDetail(row) {
+		const fmt = nasiya365._fmt_money;
+		const phone_link = row.phone
+			? `<a href="tel:${frappe.utils.escape_html(row.phone)}">${frappe.utils.escape_html(row.phone)}</a>`
+			: `<span class="text-muted">${__("Не указан")}</span>`;
+		const product_row = row.product_name
+			? `<tr><td>${__("Товар")}</td><td>${frappe.utils.escape_html(row.product_name)}</td></tr>`
+			: "";
+		const overdue_row = row.days_overdue
+			? `<tr><td>${__("Просрочка")}</td><td style="color:var(--red-500)">${row.days_overdue} ${__("дн.")}</td></tr>`
+			: "";
+		const total_debt = flt(row.total_debt_today);
+
+		const d = new frappe.ui.Dialog({
+			title: frappe.utils.escape_html(row.customer_name || row.customer),
+			fields: [{
+				fieldtype: "HTML",
+				fieldname: "detail_html",
+				options: `
+					<table class="table table-bordered" style="margin-bottom:0;font-size:13px;">
+						<tbody>
+							<tr><td style="width:40%;color:var(--text-muted)">${__("Клиент")}</td>
+							    <td><b>${frappe.utils.escape_html(row.customer_name || row.customer)}</b></td></tr>
+							${product_row}
+							<tr><td>${__("Телефон")}</td><td>${phone_link}</td></tr>
+							<tr><td>${__("План рассрочки")}</td>
+							    <td><a href="/app/installment-plan/${encodeURIComponent(row.installment_plan)}" target="_blank">
+							        ${frappe.utils.escape_html(row.installment_plan)}</a></td></tr>
+							<tr><td>${__("Дата платежа")}</td>
+							    <td>${frappe.format(row.due_date, {fieldtype: "Date"})}</td></tr>
+							${overdue_row}
+							<tr><td>${__("Сумма взноса")}</td>
+							    <td><b>${fmt(row.amount_due)}</b></td></tr>
+							${total_debt > 0 ? `<tr><td>${__("Долг на сегодня")}</td>
+							    <td><b style="color:var(--red-500)">${fmt(total_debt)}</b></td></tr>` : ""}
+						</tbody>
+					</table>`,
+			}],
+			primary_action_label: __("Принять платеж"),
+			primary_action() {
+				frappe.route_options = {
+					customer: row.customer,
+					reference_doctype: "Installment Plan",
+					reference_name: row.installment_plan,
+				};
+				frappe.new_doc("Payment Transaction");
+				d.hide();
+			},
+			secondary_action_label: __("Открыть план"),
+			secondary_action() {
+				frappe.set_route("Form", "Installment Plan", row.installment_plan);
+				d.hide();
+			},
+		});
+
+		if (row.phone) {
+			d.add_custom_action(__("Позвонить"), () => {
+				window.open(`tel:${row.phone}`, "_self");
+			});
+		}
+
+		d.show();
+	}
+
+	openLogDialog(row) {
+		const d = new frappe.ui.Dialog({
+			title: __("Записать звонок — {0}", [frappe.utils.escape_html(row.customer_name || row.customer)]),
+			fields: [
+				{
+					fieldtype: "Select",
+					fieldname: "outcome",
+					label: __("Результат"),
+					options: "\nОтвечено\nНе отвечено\nОбещал оплатить\nОтказался платить\nДругое",
+					reqd: 1,
+				},
+				{
+					fieldtype: "Date",
+					fieldname: "promised_date",
+					label: __("Обещанная дата оплаты"),
+					depends_on: "eval:doc.outcome == 'Обещал оплатить'",
+				},
+				{
+					fieldtype: "Date",
+					fieldname: "next_call_date",
+					label: __("Следующий звонок"),
+				},
+				{
+					fieldtype: "Small Text",
+					fieldname: "notes",
+					label: __("Комментарий"),
+				},
+			],
+			primary_action_label: __("Сохранить"),
+			primary_action: (vals) => {
+				d.hide();
+				frappe.call({
+					method: "nasiya365.api.bnpl_dashboard.log_collection_call",
+					args: {
+						installment_plan: row.installment_plan,
+						outcome: vals.outcome,
+						notes: vals.notes || "",
+						promised_date: vals.promised_date || null,
+						next_call_date: vals.next_call_date || null,
+					},
+					callback: (r) => {
+						if (r.exc) return;
+						frappe.show_alert({ message: __("Звонок записан"), indicator: "green" }, 4);
+						// Refresh list to show updated last-call info
+						this.fetch();
+					},
+				});
+			},
+		});
+		d.show();
 	}
 };

@@ -8,6 +8,9 @@ class StockEntry(Document):
 		self.set_items_summary()
 		self.set_business_status()
 
+	def _has_business_status_field(self):
+		return bool(self.meta.get_field("business_status"))
+
 	def set_items_summary(self):
 		"""Human-readable line summary for list views and Link field titles (name + attributes)."""
 		summary_items = []
@@ -29,6 +32,9 @@ class StockEntry(Document):
 			storage = (getattr(item, "storage", None) or "").strip()
 			if storage:
 				parts.append(storage)
+			capacity = (getattr(item, "capacity", None) or "").strip()
+			if capacity:
+				parts.append(capacity)
 
 			item_desc = " · ".join(parts) if parts else (item.product or "")
 
@@ -60,26 +66,35 @@ class StockEntry(Document):
 	
 	def on_submit(self):
 		"""Update stock ledger when submitted"""
-		self.business_status = self._resolve_sale_source_status()
-		self.db_update()
+		if self._has_business_status_field():
+			self.business_status = self._resolve_sale_source_status()
+			self.db_update()
 		self.update_stock_ledger()
 	
 	def on_cancel(self):
 		"""Reverse stock ledger entries when cancelled"""
-		self.business_status = "Возврат"
-		self.db_update()
+		if self._has_business_status_field():
+			self.business_status = "Возврат"
+			self.db_update()
 		self.update_stock_ledger(cancel=True)
 
 	def set_business_status(self):
-		if self.docstatus == 0:
+		if not self._has_business_status_field():
+			return
+		# Keep operator-selected value; only apply defaults when field is empty.
+		if self.docstatus == 0 and not (getattr(self, "business_status", None) or "").strip():
 			self.business_status = "Черновик"
-		elif self.docstatus == 1 and not self.business_status:
+		elif self.docstatus == 1 and not (getattr(self, "business_status", None) or "").strip():
 			self.business_status = "Проведен"
 
 	def _resolve_sale_source_status(self):
-		if "Рассрочка" in (self.remarks or ""):
+		manual = (getattr(self, "business_status", None) or "").strip()
+		if manual in ("Naqd savdo", "Rassrochka savdo", "Проведен"):
+			return manual
+		remarks_lower = (self.remarks or "").lower()
+		if "рассрочка" in remarks_lower or "rassrochka" in remarks_lower:
 			return "Rassrochka savdo"
-		if "Наличные" in (self.remarks or "") or "Naqd" in (self.remarks or ""):
+		if "наличные" in remarks_lower or "naqd" in remarks_lower:
 			return "Naqd savdo"
 		return "Проведен"
 	

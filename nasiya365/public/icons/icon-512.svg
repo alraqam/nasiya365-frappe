@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#0089FF"/>
+  <text x="256" y="200" font-family="Arial,sans-serif" font-size="140" font-weight="bold"
+        fill="white" text-anchor="middle" dominant-baseline="middle">N</text>
+  <text x="256" y="360" font-family="Arial,sans-serif" font-size="80" font-weight="bold"
+        fill="white" text-anchor="middle" dominant-baseline="middle">365</text>
+</svg>

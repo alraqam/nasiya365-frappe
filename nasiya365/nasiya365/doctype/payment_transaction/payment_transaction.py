@@ -125,18 +125,200 @@ def allocate_payment_transaction_to_installment_plan(doc):
     _merge_payment_allocation_fields_from_db(doc)
     rd = (doc.reference_doctype or "").strip()
     rn = (doc.reference_name or "").strip()
-    if rd != "Installment Plan" or not rn:
+
+    plan_name = None
+    if rd == "Installment Plan" and rn:
+        plan_name = rn
+    elif rd == "Sales Order" and rn:
+        # Legacy/import/payment-from-SO flows: map SO -> linked installment plan.
+        plan_name = frappe.db.get_value("Installment Plan", {"sales_order": rn}, "name")
+    if not plan_name:
         return
+
     amt = flt(doc.amount)
     if amt <= 0:
         return
-    plan = _get_installment_plan_for_payment(rn)
+
+    # Hard idempotency: never apply the same payment twice across separate saves/hooks.
+    if doc.name and frappe.db.exists(
+        "Installment Schedule",
+        {"parent": plan_name, "payment_transaction": doc.name},
+    ):
+        doc._nasiya_installment_plan_allocated = True
+        return
+
+    plan = _get_installment_plan_for_payment(plan_name)
     try:
-        plan.apply_payment(amt, payment_transaction=doc.name)
+        excess = plan.apply_payment(amt, payment_transaction=doc.name)
     except Exception:
         frappe.log_error(frappe.get_traceback(), "Payment Transaction: allocate to Installment Plan")
         raise
+
+    if flt(excess) > 0.001:
+        frappe.db.set_value(
+            "Payment Transaction", doc.name, "overpayment_amount", flt(excess),
+            update_modified=False,
+        )
+        doc.overpayment_amount = flt(excess)
+        frappe.log_error(
+            f"Payment {doc.name} has excess of {excess:.4f} USD over plan {plan_name}. "
+            f"Payment amount: {amt}, plan remaining_balance was: {flt(amt) - flt(excess):.4f}",
+            "Payment Transaction: Overpayment",
+        )
+
     doc._nasiya_installment_plan_allocated = True
+
+
+def _get_open_cashbox_for_payment(doc):
+    """Pick an open cashbox for the receiver (fallback: any latest open)."""
+    receiver = (getattr(doc, "received_by", None) or frappe.session.user or "").strip()
+    if receiver:
+        preferred = frappe.db.get_value(
+            "Cashbox",
+            {"status": "Открыта", "responsible_user": receiver},
+            "name",
+            order_by="opening_date desc, modified desc",
+        )
+        if preferred:
+            return preferred
+    return frappe.db.get_value(
+        "Cashbox",
+        {"status": "Открыта"},
+        "name",
+        order_by="opening_date desc, modified desc",
+    )
+
+
+def _is_down_payment_capture(doc) -> bool:
+    """
+    Treat first payments on Installment Plan as down payment capture when plan has down_payment.
+    Works even if client pays the initial contribution later.
+    """
+    if (doc.reference_doctype or "").strip() != "Installment Plan":
+        return False
+    plan_name = (doc.reference_name or "").strip()
+    if not plan_name:
+        return False
+    down_payment = flt(frappe.db.get_value("Installment Plan", plan_name, "down_payment"))
+    if down_payment <= 0:
+        return False
+    prior_total = frappe.db.sql(
+        """
+        SELECT COALESCE(SUM(amount), 0)
+        FROM `tabPayment Transaction`
+        WHERE docstatus < 2
+          AND status = 'Завершен'
+          AND reference_doctype = 'Installment Plan'
+          AND reference_name = %s
+          AND name != %s
+          AND creation <= %s
+        """,
+        (plan_name, doc.name, doc.creation),
+    )[0][0]
+    return flt(prior_total) < down_payment
+
+
+def _sync_payment_to_cashbox(doc):
+    """Write payment lines to cashbox by payment type (idempotent, concurrent-safe)."""
+    if getattr(doc, "_nasiya_cashbox_synced", False):
+        return
+    if (doc.status or "").strip() != "Завершен":
+        return
+    if not doc.payment_lines:
+        return
+
+    cashbox_name = _get_open_cashbox_for_payment(doc)
+    if not cashbox_name:
+        frappe.log_error("Open cashbox not found", f"Payment Transaction cashbox sync: {doc.name}")
+        return
+
+    # Hard DB-level idempotency check — rows are saved atomically so partial states don't occur.
+    # This catches concurrent workers that both passed the in-request flag check.
+    already_synced = frappe.db.sql(
+        """SELECT 1 FROM `tabCashbox Transaction`
+           WHERE parent = %s
+             AND reference_doctype = 'Payment Transaction'
+             AND reference_name = %s
+           LIMIT 1""",
+        (cashbox_name, doc.name),
+    )
+    if already_synced:
+        doc._nasiya_cashbox_synced = True
+        return
+
+    # Build the rows to append before touching the cashbox doc
+    is_initial = _is_down_payment_capture(doc)
+    rows_to_add = []
+    for row in doc.payment_lines:
+        line_amount = flt(row.amount)
+        if line_amount <= 0:
+            continue
+        line_method = (row.payment_method or "").strip() or "Наличные USD"
+        line_currency = (row.currency or "USD").strip().upper()
+        line_rate = flt(getattr(row, "exchange_rate", 0))
+        marker = f"[PT:{doc.name}|ROW:{row.idx}]"
+        purpose = "Первоначальный взнос" if is_initial else "Платеж по рассрочке"
+        rows_to_add.append({
+            "transaction_type": "Приход",
+            "payment_method": line_method,
+            "currency": line_currency,
+            "exchange_rate": line_rate,
+            "amount": line_amount,
+            "category": "Оплата получена",
+            "reference_doctype": "Payment Transaction",
+            "reference_name": doc.name,
+            "notes": f"{purpose} · {line_method} · {line_currency} {marker}",
+        })
+
+    if not rows_to_add:
+        doc._nasiya_cashbox_synced = True
+        return
+
+    # Reload cashbox fresh right before appending to minimise the stale-data window.
+    # Then do a second in-memory check on the reloaded version before writing.
+    cashbox = frappe.get_doc("Cashbox", cashbox_name)
+    already_in_reload = any(
+        t.reference_doctype == "Payment Transaction" and t.reference_name == doc.name
+        for t in (cashbox.transactions or [])
+    )
+    if already_in_reload:
+        doc._nasiya_cashbox_synced = True
+        return
+
+    for row_data in rows_to_add:
+        cashbox.append("transactions", row_data)
+    cashbox.save(ignore_permissions=True)
+    doc._nasiya_cashbox_synced = True
+
+
+def _remove_payment_from_cashbox(doc):
+    """Remove all cashbox rows created for this payment."""
+    if not getattr(doc, "name", None):
+        return
+    cashboxes = frappe.get_all(
+        "Cashbox",
+        filters={"status": ["in", ["Открыта", "Закрыта"]]},
+        pluck="name",
+    )
+    if not cashboxes:
+        return
+    changed = False
+    for cashbox_name in cashboxes:
+        cashbox = frappe.get_doc("Cashbox", cashbox_name)
+        before = len(cashbox.transactions or [])
+        cashbox.transactions = [
+            t
+            for t in (cashbox.transactions or [])
+            if not (
+                (t.reference_doctype == "Payment Transaction")
+                and (t.reference_name == doc.name)
+            )
+        ]
+        if len(cashbox.transactions or []) != before:
+            cashbox.save(ignore_permissions=True)
+            changed = True
+    if changed:
+        doc._nasiya_cashbox_synced = False
 
 
 class PaymentTransaction(Document):
@@ -151,18 +333,41 @@ class PaymentTransaction(Document):
     def after_insert(self):
         """Allocate to plan (also registered in hooks.py doc_events; idempotent flag prevents double apply)."""
         allocate_payment_transaction_to_installment_plan(self)
+        _sync_payment_to_cashbox(self)
         if self.get("send_payment_sms"):
             try:
                 _send_payment_receipt_sms(self)
             except Exception:
                 frappe.log_error(frappe.get_traceback(), "Payment Transaction SMS")
+                frappe.msgprint(
+                    _("SMS-уведомление не отправлено. Платёж сохранён, но клиент не получил сообщение."),
+                    indicator="orange",
+                    alert=True,
+                )
 
     def on_update(self):
         if (self.reference_doctype or "").strip() != "Installment Plan":
+            if self.has_value_changed("status") and (self.status or "").strip() == "Отменен":
+                _remove_payment_from_cashbox(self)
             return
-        if not (self.has_value_changed("reference_name") or self.has_value_changed("reference_doctype")):
+        if self.has_value_changed("status") and (self.status or "").strip() == "Отменен":
+            _remove_payment_from_cashbox(self)
             return
-        allocate_payment_transaction_to_installment_plan(self)
+        if self.has_value_changed("status") and (self.status or "").strip() == "Завершен":
+            _sync_payment_to_cashbox(self)
+        if self.has_value_changed("reference_name") or self.has_value_changed("reference_doctype"):
+            allocate_payment_transaction_to_installment_plan(self)
+
+    def on_cancel(self):
+        _remove_payment_from_cashbox(self)
+        self.add_comment(
+            "Info",
+            _("Платёж отменён пользователем {0}. Сумма: {1} USD, метод: {2}.").format(
+                frappe.session.user,
+                flt(self.amount, 2),
+                self.payment_method or "-",
+            ),
+        )
 
     def autolink_single_open_installment_plan(self):
         """Set Installment Plan reference when both ref fields are empty and the client has only one open plan with debt."""
@@ -214,6 +419,22 @@ class PaymentTransaction(Document):
         if total <= 0:
             frappe.throw(_("Сумма по строкам оплаты должна быть больше нуля"))
 
+        # Warn if UZS rows use different exchange rates (would silently book different rates to cashbox)
+        uzs_rates = set()
+        for row in self.payment_lines:
+            if (row.currency or "USD").strip().upper() == "UZS" and flt(row.amount) > 0:
+                rate = flt(row.exchange_rate or default_rate)
+                if rate > 0:
+                    uzs_rates.add(round(rate, 0))
+        if len(uzs_rates) > 1:
+            frappe.msgprint(
+                _("Строки UZS имеют разные курсы: {0}. Убедитесь, что это корректно.").format(
+                    ", ".join(str(int(r)) for r in sorted(uzs_rates))
+                ),
+                indicator="orange",
+                alert=True,
+            )
+
         self.amount = total
         if len(methods) > 1:
             self.payment_method = "Комбинированный"
@@ -228,11 +449,11 @@ def _send_payment_receipt_sms(doc):
     if not phone:
         return
 
-    from frappe.utils import fmt_money
-
     from nasiya365.utils.sms_manager import SMSManager
 
-    message = _("Оплата {0} принята. Документ {1}.").format(fmt_money(doc.amount), doc.name)
+    amount_str = f"{flt(doc.amount):.2f} USD"
+    ref = doc.reference_name or doc.name
+    message = f"Nasiya365: Оплата {amount_str} принята. Договор {ref}. Спасибо!"
     SMSManager().send_sms(phone, message)
 
 

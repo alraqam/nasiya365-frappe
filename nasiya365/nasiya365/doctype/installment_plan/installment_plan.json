@@ -503,7 +503,8 @@
             "role": "System Manager",
             "share": 1,
             "submit": 1,
-            "write": 1
+            "write": 1,
+            "cancel": 1
         },
         {
             "create": 1,
@@ -516,7 +517,8 @@
             "role": "Nasiya365 Admin",
             "share": 1,
             "submit": 1,
-            "write": 1
+            "write": 1,
+            "cancel": 1
         },
         {
             "create": 1,
@@ -527,7 +529,7 @@
             "report": 1,
             "role": "Salesperson",
             "share": 1,
-            "write": 1
+            "write": 0
         },
         {
             "email": 1,

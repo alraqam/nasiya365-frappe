@@ -14,6 +14,7 @@
         "details_section",
         "currency",
         "amount",
+        "exchange_rate",
         "cashbox",
         "column_break_2",
         "status",
@@ -38,11 +39,11 @@
         },
         {
             "fieldname": "expense_category",
-            "fieldtype": "Select",
+            "fieldtype": "Link",
             "in_list_view": 1,
             "in_standard_filter": 1,
             "label": "Категория",
-            "options": "Аренда\nЗарплата\nКоммунальные услуги\nРеклама\nТранспорт\nОборудование\nПрочее",
+            "options": "Expense Category",
             "reqd": 1
         },
         {
@@ -86,6 +87,15 @@
             "label": "Сумма",
             "options": "currency",
             "reqd": 1
+        },
+        {
+            "depends_on": "eval:doc.currency && doc.currency != 'USD'",
+            "description": "UZS за 1 USD — для пересчёта в кассе",
+            "fieldname": "exchange_rate",
+            "fieldtype": "Float",
+            "label": "Курс (UZS/USD)",
+            "non_negative": 1,
+            "precision": "2"
         },
         {
             "fieldname": "cashbox",
@@ -164,7 +174,8 @@
             "role": "Nasiya365 Admin",
             "share": 1,
             "submit": 1,
-            "write": 1
+            "write": 1,
+            "cancel": 1
         },
         {
             "create": 1,
@@ -172,7 +183,9 @@
             "read": 1,
             "report": 1,
             "role": "Salesperson",
-            "write": 1
+            "write": 1,
+            "submit": 1,
+            "cancel": 0
         }
     ],
     "search_fields": "title,expense_category,branch",

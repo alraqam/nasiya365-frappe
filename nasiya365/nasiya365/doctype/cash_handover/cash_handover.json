@@ -1,0 +1,200 @@
+{
+    "actions": [],
+    "autoname": "format:HAND-{YYYY}{MM}-{#####}",
+    "creation": "2026-04-09 13:00:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "is_submittable": 1,
+    "field_order": [
+        "from_cashbox",
+        "branch",
+        "transferred_by",
+        "transfer_date",
+        "column_break_1",
+        "to_cashbox",
+        "confirmed_by",
+        "lines_section",
+        "lines",
+        "totals_section",
+        "total_usd",
+        "total_uzs",
+        "column_break_totals",
+        "confirmed_usd",
+        "confirmed_uzs",
+        "total_discrepancy"
+    ],
+    "fields": [
+        {
+            "fieldname": "from_cashbox",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Касса (сотрудник)",
+            "options": "Cashbox",
+            "reqd": 1
+        },
+        {
+            "fetch_from": "from_cashbox.branch",
+            "fieldname": "branch",
+            "fieldtype": "Link",
+            "label": "Филиал",
+            "options": "Branch",
+            "read_only": 1
+        },
+        {
+            "default": "__user",
+            "fieldname": "transferred_by",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Сдал",
+            "options": "User",
+            "reqd": 1
+        },
+        {
+            "default": "Today",
+            "fieldname": "transfer_date",
+            "fieldtype": "Date",
+            "in_list_view": 1,
+            "label": "Дата сдачи",
+            "reqd": 1
+        },
+        {
+            "fieldname": "column_break_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "to_cashbox",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Главная касса (менеджер)",
+            "options": "Cashbox",
+            "reqd": 1
+        },
+        {
+            "fieldname": "confirmed_by",
+            "fieldtype": "Link",
+            "label": "Принял",
+            "options": "User",
+            "read_only": 1
+        },
+        {
+            "fieldname": "lines_section",
+            "fieldtype": "Section Break",
+            "label": "Разбивка по методу оплаты"
+        },
+        {
+            "fieldname": "lines",
+            "fieldtype": "Table",
+            "label": "Строки",
+            "options": "Cash Handover Line",
+            "reqd": 1
+        },
+        {
+            "fieldname": "totals_section",
+            "fieldtype": "Section Break",
+            "label": "Итого"
+        },
+        {
+            "default": "0",
+            "fieldname": "total_usd",
+            "fieldtype": "Float",
+            "label": "Итого USD",
+            "precision": "2",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "total_uzs",
+            "fieldtype": "Float",
+            "label": "Заявлено UZS (сум)",
+            "precision": "0",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_totals",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "0",
+            "fieldname": "confirmed_usd",
+            "fieldtype": "Float",
+            "label": "Подтверждено USD",
+            "precision": "2",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "confirmed_uzs",
+            "fieldtype": "Float",
+            "label": "Подтверждено UZS (сум)",
+            "precision": "0",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "total_discrepancy",
+            "fieldtype": "Float",
+            "label": "Расхождение (USD)",
+            "precision": "2",
+            "read_only": 1,
+            "description": "Сумма расхождений между заявленными и подтверждёнными суммами (в USD)"
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2026-04-09 13:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Cash Handover",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "submit": 1,
+            "cancel": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Nasiya365 Admin",
+            "share": 1,
+            "submit": 1,
+            "cancel": 1,
+            "write": 1
+        },
+        {
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Branch Manager",
+            "share": 1,
+            "submit": 1,
+            "cancel": 1,
+            "write": 1
+        },
+        {
+            "create": 0,
+            "read": 1,
+            "role": "Cashier"
+        }
+    ],
+    "sort_field": "transfer_date",
+    "sort_order": "DESC",
+    "title_field": "from_cashbox",
+    "track_changes": 1
+}

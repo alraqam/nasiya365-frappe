@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #222; margin: 0; padding: 0; }
+  .contract { width: 100%; max-width: 190mm; margin: 0 auto; padding: 0 4mm; box-sizing: border-box; }
+
+  /* Header */
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 14px; }
+  .header-brand h2 { margin: 0 0 2px; font-size: 16px; }
+  .header-brand p { margin: 0; font-size: 10px; color: #666; }
+  .header-meta { text-align: right; font-size: 11px; }
+  .header-meta .contract-num { font-size: 13px; font-weight: bold; }
+
+  /* Section title */
+  .section-title { font-size: 11px; font-weight: bold; text-transform: uppercase; color: #555; border-bottom: 1px solid #ddd; padding-bottom: 3px; margin: 12px 0 6px; letter-spacing: .5px; }
+
+  /* Info grid */
+  table.info { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+  table.info td { padding: 3px 8px 3px 0; vertical-align: top; }
+  table.info td.lbl { color: #666; width: 35%; white-space: nowrap; }
+  table.info td.val { font-weight: 600; }
+
+  /* Financial summary box */
+  .fin-grid { display: flex; gap: 6px; margin-bottom: 10px; }
+  .fin-cell { flex: 1; border: 1px solid #ccc; border-radius: 4px; padding: 6px 8px; text-align: center; }
+  .fin-cell .lbl { font-size: 9px; color: #888; margin-bottom: 2px; }
+  .fin-cell .val { font-size: 13px; font-weight: bold; }
+
+  /* Schedule table */
+  table.schedule { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 10px; }
+  table.schedule th { background: #333; color: #fff; padding: 5px 6px; text-align: center; }
+  table.schedule td { border: 1px solid #ddd; padding: 4px 6px; text-align: center; }
+  table.schedule tr:nth-child(even) td { background: #f9f9f9; }
+  table.schedule td.due { font-weight: 600; }
+
+  /* Terms */
+  .terms { font-size: 10px; color: #555; line-height: 1.5; border: 1px solid #ddd; padding: 8px; border-radius: 3px; margin-bottom: 14px; }
+
+  /* Signatures */
+  .sig-section { display: flex; gap: 20px; margin-top: 20px; }
+  .sig-block { flex: 1; }
+  .sig-block .title { font-size: 10px; font-weight: bold; margin-bottom: 24px; }
+  .sig-block .line { border-top: 1px solid #333; padding-top: 3px; font-size: 10px; color: #666; }
+
+  /* Page break helper */
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+<div class="contract">
+
+  <!-- ===== HEADER ===== -->
+  <div class="header">
+    <div class="header-brand">
+      <h2>NASIYA365</h2>
+      <p>Платформа рассрочки · nasiya365.uz</p>
+    </div>
+    <div class="header-meta">
+      <div class="contract-num">Договор № {{ doc.contract_number or doc.name }}</div>
+      <div>от {{ frappe.utils.formatdate(doc.start_date) }}</div>
+      {%- if doc.branch %}
+      <div>Филиал: {{ doc.branch }}</div>
+      {%- endif %}
+    </div>
+  </div>
+
+  <!-- ===== PARTIES ===== -->
+  <div class="section-title">Стороны договора</div>
+  {%- set cust = frappe.get_doc("Customer Profile", doc.customer) if doc.customer else none %}
+  <table class="info">
+    <tr>
+      <td class="lbl">Клиент:</td>
+      <td class="val">{{ cust.full_name if cust else doc.customer }}</td>
+      <td class="lbl">Паспорт / ID:</td>
+      <td class="val">{{ cust.passport_number if cust else "—" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Телефон:</td>
+      <td class="val">{{ cust.phone if cust else "—" }}</td>
+      <td class="lbl">Адрес:</td>
+      <td class="val">{{ cust.address if cust else "—" }}</td>
+    </tr>
+  </table>
+
+  <!-- ===== PRODUCT ===== -->
+  <div class="section-title">Предмет договора</div>
+  <table class="info">
+    <tr>
+      <td class="lbl">Товар:</td>
+      <td class="val">{{ doc.product_name or "—" }}</td>
+      <td class="lbl">IMEI / серийный №:</td>
+      <td class="val">{{ doc.imei or "—" }}</td>
+    </tr>
+    {%- if doc.sales_order %}
+    <tr>
+      <td class="lbl">Заказ на продажу:</td>
+      <td class="val">{{ doc.sales_order }}</td>
+      <td></td><td></td>
+    </tr>
+    {%- endif %}
+  </table>
+
+  <!-- ===== FINANCIAL SUMMARY ===== -->
+  <div class="section-title">Финансовые условия</div>
+  <div class="fin-grid">
+    <div class="fin-cell">
+      <div class="lbl">Стоимость товара</div>
+      <div class="val">{{ "%.2f" | format((doc.principal_amount | float) + (doc.down_payment | float)) }} USD</div>
+    </div>
+    <div class="fin-cell">
+      <div class="lbl">Первоначальный взнос</div>
+      <div class="val">{{ "%.2f" | format(doc.down_payment | float) }} USD</div>
+    </div>
+    <div class="fin-cell">
+      <div class="lbl">Сумма рассрочки</div>
+      <div class="val">{{ "%.2f" | format(doc.principal_amount | float) }} USD</div>
+    </div>
+    <div class="fin-cell">
+      <div class="lbl">Ставка (%)</div>
+      <div class="val">{{ "%.1f" | format(doc.interest_rate | float) }}%</div>
+    </div>
+    <div class="fin-cell">
+      <div class="lbl">Итого к возврату</div>
+      <div class="val">{{ "%.2f" | format(doc.total_amount | float) }} USD</div>
+    </div>
+    <div class="fin-cell">
+      <div class="lbl">Ежемесячный платёж</div>
+      <div class="val">{{ "%.2f" | format(doc.installment_amount | float) }} USD</div>
+    </div>
+  </div>
+
+  <!-- ===== SCHEDULE ===== -->
+  <div class="section-title">График платежей</div>
+  {%- if doc.schedule %}
+  <table class="schedule">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Дата</th>
+        <th>Сумма (USD)</th>
+        <th>Статус</th>
+      </tr>
+    </thead>
+    <tbody>
+    {%- for row in doc.schedule %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td class="due">{{ frappe.utils.formatdate(row.due_date) if row.due_date else "—" }}</td>
+        <td>{{ "%.2f" | format(row.amount | float) }}</td>
+        <td>{{ row.status or "Ожидает" }}</td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p style="color:#999;font-size:11px">График платежей не сформирован.</p>
+  {%- endif %}
+
+  <!-- ===== TERMS ===== -->
+  <div class="section-title">Условия договора</div>
+  <div class="terms">
+    1. Покупатель обязуется вносить ежемесячные платежи согласно графику не позднее указанной даты.<br>
+    2. В случае просрочки платежа более чем на 3 (три) календарных дня начисляется штраф в размере 0.1% от просроченной суммы за каждый день просрочки.<br>
+    3. Товар остаётся в залоге у Продавца до полного погашения задолженности.<br>
+    4. Досрочное погашение допускается без штрафных санкций при условии уведомления Продавца не менее чем за 3 дня.<br>
+    5. Настоящий договор составлен в двух экземплярах, имеющих равную юридическую силу — по одному для каждой из сторон.
+  </div>
+
+  <!-- ===== SIGNATURES ===== -->
+  <div class="sig-section">
+    <div class="sig-block">
+      <div class="title">Продавец (Nasiya365)</div>
+      <div class="line">Подпись: ______________________</div>
+      <div class="line" style="margin-top:6px">Ф.И.О.: ______________________</div>
+      <div class="line" style="margin-top:6px">Дата: ______________________</div>
+    </div>
+    <div class="sig-block">
+      <div class="title">Покупатель</div>
+      <div class="line">Подпись: ______________________</div>
+      <div class="line" style="margin-top:6px">Ф.И.О.: {{ cust.full_name if cust else "______________________" }}</div>
+      <div class="line" style="margin-top:6px">Дата: ______________________</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

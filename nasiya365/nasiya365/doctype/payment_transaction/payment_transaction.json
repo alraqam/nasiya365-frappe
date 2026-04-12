@@ -21,6 +21,7 @@
         "payment_lines",
         "summary_section",
         "amount",
+        "overpayment_amount",
         "send_payment_sms",
         "payment_method",
         "collected_by",
@@ -133,6 +134,15 @@
         },
         {
             "default": "0",
+            "fieldname": "overpayment_amount",
+            "fieldtype": "Currency",
+            "label": "Переплата",
+            "read_only": 1,
+            "hidden": 1,
+            "description": "Сумма, превышающая остаток по плану. Заполняется автоматически при переплате."
+        },
+        {
+            "default": "0",
             "fieldname": "send_payment_sms",
             "fieldtype": "Check",
             "label": "Отправить SMS"
@@ -200,7 +210,8 @@
             "report": 1,
             "role": "System Manager",
             "share": 1,
-            "write": 1
+            "write": 1,
+            "cancel": 1
         },
         {
             "create": 1,
@@ -212,6 +223,33 @@
             "role": "Cashier",
             "share": 1,
             "write": 1
+        },
+        {
+            "role": "Nasiya365 Admin",
+            "read": 1,
+            "write": 1,
+            "create": 1,
+            "delete": 1,
+            "cancel": 1,
+            "email": 1,
+            "print": 1,
+            "report": 1,
+            "export": 1,
+            "share": 1
+        },
+        {
+            "role": "Branch Manager",
+            "read": 1,
+            "email": 1,
+            "print": 1,
+            "report": 1,
+            "export": 1
+        },
+        {
+            "role": "Salesperson",
+            "read": 1,
+            "report": 1,
+            "export": 1
         }
     ],
     "quick_entry": 0,

@@ -228,8 +228,10 @@ class NasiyaSalesWizard {
 					},
 					callback: (r) => {
 						d.hide();
-						if (r.message && r.message.name) {
-							frappe.set_route("Form", "Sales Order", r.message.name);
+						if (r.message && r.message.plan) {
+							frappe.set_route("Form", "Installment Plan", r.message.plan);
+						} else if (r.message && r.message.so) {
+							frappe.set_route("Form", "Sales Order", r.message.so);
 						}
 					},
 				});

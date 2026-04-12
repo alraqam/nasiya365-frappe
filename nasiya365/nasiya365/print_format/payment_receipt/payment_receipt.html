@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #222; margin: 0; padding: 0; }
+  .receipt { width: 100%; max-width: 148mm; margin: 0 auto; padding: 8mm; box-sizing: border-box; }
+  .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 6px; margin-bottom: 10px; }
+  .header h2 { margin: 4px 0; font-size: 15px; }
+  .header p { margin: 2px 0; font-size: 11px; color: #555; }
+  .doc-num { text-align: center; font-size: 11px; color: #777; margin-bottom: 10px; }
+  table.info { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  table.info td { padding: 3px 6px; vertical-align: top; }
+  table.info td:first-child { color: #555; width: 40%; }
+  table.info td:last-child { font-weight: bold; }
+  .amount-box { border: 2px solid #333; border-radius: 4px; padding: 8px 12px; text-align: center; margin: 10px 0; }
+  .amount-box .label { font-size: 11px; color: #555; }
+  .amount-box .value { font-size: 20px; font-weight: bold; }
+  .lines-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  .lines-table th { background: #f0f0f0; border: 1px solid #ccc; padding: 4px 6px; font-size: 11px; }
+  .lines-table td { border: 1px solid #ccc; padding: 4px 6px; font-size: 11px; }
+  .lines-table td:last-child { text-align: right; }
+  .footer { margin-top: 12px; border-top: 1px dashed #aaa; padding-top: 8px; font-size: 10px; color: #777; text-align: center; }
+  .sig-line { margin-top: 16px; border-top: 1px solid #333; padding-top: 4px; font-size: 10px; color: #555; }
+</style>
+</head>
+<body>
+<div class="receipt">
+  <div class="header">
+    <h2>NASIYA365</h2>
+    <p>Квитанция об оплате</p>
+  </div>
+
+  <div class="doc-num">
+    № {{ doc.name }} &nbsp;|&nbsp; {{ frappe.utils.formatdate(doc.posting_date or frappe.utils.today()) }}
+  </div>
+
+  <table class="info">
+    <tr>
+      <td>Клиент:</td>
+      <td>{{ doc.customer_name or doc.customer or "—" }}</td>
+    </tr>
+    {%- if doc.customer_phone %}
+    <tr>
+      <td>Телефон:</td>
+      <td>{{ doc.customer_phone }}</td>
+    </tr>
+    {%- endif %}
+    {%- if doc.reference_name %}
+    <tr>
+      <td>Договор:</td>
+      <td>{{ doc.reference_name }}</td>
+    </tr>
+    {%- endif %}
+    <tr>
+      <td>Метод:</td>
+      <td>{{ doc.payment_method or "—" }}</td>
+    </tr>
+    <tr>
+      <td>Принял:</td>
+      <td>{{ frappe.db.get_value("User", doc.received_by, "full_name") or doc.received_by or "—" }}</td>
+    </tr>
+  </table>
+
+  <div class="amount-box">
+    <div class="label">Принято</div>
+    <div class="value">{{ "%.2f" | format(doc.amount | float) }} USD</div>
+  </div>
+
+  {%- if doc.payment_lines %}
+  <table class="lines-table">
+    <thead>
+      <tr>
+        <th>Метод</th>
+        <th>Валюта</th>
+        <th>Сумма</th>
+      </tr>
+    </thead>
+    <tbody>
+    {%- for line in doc.payment_lines %}
+      <tr>
+        <td>{{ line.payment_method or "—" }}</td>
+        <td>{{ line.currency or "USD" }}</td>
+        <td>{{ "%.2f" | format(line.amount | float) }}</td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+
+  {%- if doc.notes %}
+  <p style="font-size:11px;color:#555">Примечание: {{ doc.notes }}</p>
+  {%- endif %}
+
+  <div class="sig-line">Подпись кассира: ______________________</div>
+
+  <div class="footer">
+    Сохраните квитанцию. Насия365 — ваш надёжный партнёр.
+  </div>
+</div>
+</body>
+</html>

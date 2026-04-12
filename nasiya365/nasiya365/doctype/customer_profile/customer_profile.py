@@ -106,47 +106,67 @@ class CustomerProfile(Document):
             self.available_limit = limit - debt
         
     def update_statistics(self):
-        """Update active contracts count and total debt from Installment Plans"""
-        from frappe.utils import flt
-        
-        plans = frappe.get_all(
-            "Installment Plan",
-            filters={
-                "customer": self.name,
-                "docstatus": 1,
-                "status": ["!=", "Завершен"]
-            },
-            fields=["remaining_balance"]
-        )
-        
-        self.active_contracts_count = len(plans)
-        self.total_debt = sum(flt(p.remaining_balance) for p in plans)
-        self.update_available_limit()
-        self.calculate_risk_profile()
-        self.db_update()
-
-    def calculate_risk_profile(self):
-        """Simple score based on overdue behavior and debt load."""
+        """Update customer stats from Installment Plans — single SQL, no N+1."""
         from frappe.utils import flt
 
-        overdue_rows = frappe.db.sql(
+        row = frappe.db.sql(
             """
-            SELECT IFNULL(MAX(DATEDIFF(CURDATE(), due_date)), 0) AS max_delay,
-                   COUNT(*) AS overdue_count
-            FROM `tabInstallment Schedule`
-            WHERE parent IN (
-                SELECT name FROM `tabInstallment Plan`
-                WHERE customer = %s AND docstatus = 1
-            )
-            AND status = 'Просрочен'
-        """,
+            SELECT
+                COUNT(DISTINCT ip.name)                                               AS active_contracts_count,
+                COALESCE(SUM(ip.remaining_balance), 0)                                AS total_debt,
+                COALESCE(MAX(
+                    CASE WHEN isc.status = 'Просрочен'
+                         THEN DATEDIFF(CURDATE(), isc.due_date)
+                         ELSE 0 END
+                ), 0)                                                                  AS max_delay,
+                COALESCE(SUM(
+                    CASE WHEN isc.status = 'Просрочен' THEN 1 ELSE 0 END
+                ), 0)                                                                  AS overdue_count
+            FROM `tabInstallment Plan` ip
+            LEFT JOIN `tabInstallment Schedule` isc ON isc.parent = ip.name
+            WHERE ip.customer = %s
+              AND ip.docstatus = 1
+              AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан')
+            """,
             (self.name,),
             as_dict=True,
         )
-        max_delay = int((overdue_rows[0].max_delay if overdue_rows else 0) or 0)
-        overdue_count = int((overdue_rows[0].overdue_count if overdue_rows else 0) or 0)
+        stats = row[0] if row else {}
 
-        utilization = 0
+        self.active_contracts_count = int(stats.get("active_contracts_count") or 0)
+        self.total_debt = flt(stats.get("total_debt") or 0)
+        self.update_available_limit()
+        self.calculate_risk_profile(
+            max_delay=int(stats.get("max_delay") or 0),
+            overdue_count=int(stats.get("overdue_count") or 0),
+        )
+        self.db_update()
+
+    def calculate_risk_profile(self, max_delay=None, overdue_count=None):
+        """Compute risk score. Pass pre-computed values to skip the DB query (used by update_statistics)."""
+        from frappe.utils import flt
+
+        if max_delay is None or overdue_count is None:
+            # Called from validate() — fetch from DB
+            overdue_rows = frappe.db.sql(
+                """
+                SELECT
+                    COALESCE(MAX(DATEDIFF(CURDATE(), isc.due_date)), 0) AS max_delay,
+                    COUNT(*) AS overdue_count
+                FROM `tabInstallment Schedule` isc
+                INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
+                WHERE ip.customer = %s
+                  AND ip.docstatus = 1
+                  AND isc.status = 'Просрочен'
+                """,
+                (self.name,),
+                as_dict=True,
+            )
+            r = overdue_rows[0] if overdue_rows else {}
+            max_delay = int(r.get("max_delay") or 0)
+            overdue_count = int(r.get("overdue_count") or 0)
+
+        utilization = 0.0
         if flt(self.credit_limit) > 0:
             utilization = (flt(self.total_debt) / flt(self.credit_limit)) * 100
 
@@ -156,16 +176,9 @@ class CustomerProfile(Document):
         score -= min(int(utilization // 10) * 2, 20)
         score = max(0, min(100, score))
 
-        if score >= 70:
-            level = "Низкий"
-        elif score >= 40:
-            level = "Средний"
-        else:
-            level = "Высокий"
-
         self.last_payment_delay_days = max_delay
         self.risk_score = score
-        self.risk_level = level
+        self.risk_level = "Низкий" if score >= 70 else ("Средний" if score >= 40 else "Высокий")
 
 
 @frappe.whitelist()

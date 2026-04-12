@@ -17,9 +17,9 @@ _COLLECTION_PLAN_WHERE = (
 
 
 def _collection_customer_select():
-    """Prefer Customer Profile name; fall back to denormalized plan fields if link is missing."""
+    """Prefer Customer Profile name; fall back to customer id."""
     return (
-        "COALESCE(NULLIF(TRIM(cp.full_name), ''), NULLIF(TRIM(ip.customer_name), ''), ip.customer) "
+        "COALESCE(NULLIF(TRIM(cp.full_name), ''), ip.customer) "
         "AS customer_name"
     )
 
@@ -51,7 +51,7 @@ def _risk_level_from_score(score):
     return "Высокий"
 
 
-def _trend_payload(current, previous):
+def _trend(current, previous):
     """Return {pct, direction} for KPI deltas; None if not meaningful."""
     current = _to_float(current)
     previous = _to_float(previous)
@@ -185,13 +185,47 @@ def get_bnpl_kpis(date=None, branch=None):
 
 
 @frappe.whitelist()
+def log_collection_call(installment_plan, outcome, notes="", promised_date=None, next_call_date=None):
+    """Save a Collection Log entry for a collector call outcome."""
+    if not installment_plan:
+        frappe.throw("installment_plan is required")
+    customer = frappe.db.get_value("Installment Plan", installment_plan, "customer")
+    if not customer:
+        frappe.throw("Installment Plan not found")
+
+    doc = frappe.new_doc("Collection Log")
+    doc.customer = customer
+    doc.installment_plan = installment_plan
+    doc.outcome = outcome
+    doc.notes = notes or ""
+    doc.promised_date = promised_date or None
+    doc.next_call_date = next_call_date or None
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+    return doc.name
+
+
+def _last_call_subquery():
+    """SQL fragment to LEFT JOIN the most recent Collection Log per installment plan."""
+    return """
+        LEFT JOIN `tabCollection Log` cl
+            ON cl.name = (
+                SELECT name FROM `tabCollection Log`
+                WHERE installment_plan = ip.name
+                ORDER BY call_datetime DESC
+                LIMIT 1
+            )
+    """
+
+
+@frappe.whitelist()
 def get_overdue_list(limit=20, branch=None, collector=None):
     query_limit = _safe_limit(limit, default_value=20, max_value=200)
     base_date = getdate(today())
     in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
     open_pred = _schedule_open_predicate(in_open)
-    # DATEDIFF, then due_date < for "still open but job didn't mark Просрочен"
-    args = [base_date, base_date, *_OPEN_SCHEDULE_STATUSES]
+    # DATEDIFF (1st), subquery due_date <= (2nd), overdue due_date < (3rd), open statuses
+    args = [base_date, base_date, base_date, *_OPEN_SCHEDULE_STATUSES]
     collector_clause = ""
     if collector:
         collector_clause = """
@@ -210,13 +244,26 @@ def get_overdue_list(limit=20, branch=None, collector=None):
             ip.name AS installment_plan,
             ip.customer,
             {_collection_customer_select()},
+            COALESCE(NULLIF(TRIM(ip.product_name), ''), '') AS product_name,
             isc.name AS schedule_name,
             isc.due_date,
             (isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due,
-            DATEDIFF(%s, isc.due_date) AS days_overdue
+            DATEDIFF(%s, isc.due_date) AS days_overdue,
+            (
+                SELECT COALESCE(SUM(s.amount - COALESCE(s.paid_amount, 0)), 0)
+                FROM `tabInstallment Schedule` s
+                WHERE s.parent = ip.name
+                  AND s.due_date <= %s
+                  AND (s.amount - COALESCE(s.paid_amount, 0)) > 0
+            ) AS total_debt_today,
+            cl.outcome AS last_call_outcome,
+            cl.call_datetime AS last_call_date,
+            cl.promised_date AS last_promised_date,
+            cl.notes AS last_call_notes
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
         LEFT JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
+        {_last_call_subquery()}
         WHERE {_COLLECTION_PLAN_WHERE}
           AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
           AND (
@@ -233,6 +280,7 @@ def get_overdue_list(limit=20, branch=None, collector=None):
 
     for row in rows:
         row["amount_due"] = _to_float(row["amount_due"])
+        row["total_debt_today"] = _to_float(row["total_debt_today"])
         row["days_overdue"] = cint(row["days_overdue"])
         row["phone"] = frappe.db.get_value(
             "Customer Phone Number",
@@ -249,7 +297,7 @@ def get_due_today_list(limit=20, branch=None):
     in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
     open_pred = _schedule_open_predicate(in_open)
     base_date = getdate(today())
-    args = [*_OPEN_SCHEDULE_STATUSES, base_date]
+    args = [*_OPEN_SCHEDULE_STATUSES, base_date, base_date]
 
     rows = frappe.db.sql(
         f"""
@@ -257,13 +305,26 @@ def get_due_today_list(limit=20, branch=None):
             ip.name AS installment_plan,
             ip.customer,
             {_collection_customer_select()},
+            COALESCE(NULLIF(TRIM(ip.product_name), ''), '') AS product_name,
             isc.name AS schedule_name,
             isc.due_date,
             isc.status AS schedule_status,
-            (isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due
+            (isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due,
+            cl.outcome AS last_call_outcome,
+            cl.call_datetime AS last_call_date,
+            cl.promised_date AS last_promised_date,
+            cl.notes AS last_call_notes,
+            (
+                SELECT COALESCE(SUM(s.amount - COALESCE(s.paid_amount, 0)), 0)
+                FROM `tabInstallment Schedule` s
+                WHERE s.parent = ip.name
+                  AND s.due_date <= %s
+                  AND (s.amount - COALESCE(s.paid_amount, 0)) > 0
+            ) AS total_debt_today
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
         LEFT JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
+        {_last_call_subquery()}
         WHERE {_COLLECTION_PLAN_WHERE}
           AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
           AND {open_pred}
@@ -279,6 +340,7 @@ def get_due_today_list(limit=20, branch=None):
     )
     for row in rows:
         row["amount_due"] = _to_float(row["amount_due"])
+        row["total_debt_today"] = _to_float(row["total_debt_today"])
         row["urgency"] = "high" if row.get("schedule_status") == "Частично" else "normal"
         row["phone"] = frappe.db.get_value(
             "Customer Phone Number",
@@ -757,23 +819,45 @@ def create_sales_order_from_wizard(payload):
     price = _to_float(data.get("price") or frappe.db.get_value("Product", data["product"], "selling_price"))
     qty = cint(data.get("qty") or 1)
     down_payment = _to_float(data.get("down_payment") or 0)
-    total_amount = price * qty
+    interest_rate = _to_float(data.get("interest_rate") or 5)
+    months = cint(data.get("months") or 6)
+    principal_amount = round(price * qty - down_payment, 2)
 
-    so = frappe.new_doc("Sales Order")
-    so.customer = data["customer"]
-    so.branch = data["branch"]
-    so.paid_amount = down_payment if down_payment > 0 else 0
-    so.append(
-        "items",
-        {
-            "product": data["product"],
-            "quantity": qty,
-            "unit_price": price,
-            "discount_percent": _to_float(data.get("discount_percent")),
-        },
-    )
-    so.insert(ignore_permissions=True)
-    return {"name": so.name, "docstatus": so.docstatus}
+    # Use a savepoint so that if Installment Plan creation fails,
+    # the Sales Order is also rolled back (no orphaned SO).
+    frappe.db.savepoint("wizard_create")
+    try:
+        so = frappe.new_doc("Sales Order")
+        so.customer = data["customer"]
+        so.branch = data["branch"]
+        so.paid_amount = down_payment if down_payment > 0 else 0
+        so.append(
+            "items",
+            {
+                "product": data["product"],
+                "quantity": qty,
+                "unit_price": price,
+                "discount_percent": _to_float(data.get("discount_percent")),
+            },
+        )
+        so.insert(ignore_permissions=True)
+
+        plan = frappe.new_doc("Installment Plan")
+        plan.customer = data["customer"]
+        plan.branch = data["branch"]
+        plan.sales_order = so.name
+        plan.principal_amount = principal_amount
+        plan.down_payment = down_payment
+        plan.number_of_installments = months
+        plan.frequency = "Ежемесячно"
+        plan.interest_rate = interest_rate
+        plan.start_date = today()
+        plan.insert(ignore_permissions=True)
+    except Exception:
+        frappe.db.rollback(save_point="wizard_create")
+        raise
+
+    return {"so": so.name, "plan": plan.name}
 
 
 def _purchase_serial_tracks_consumed(serial_raw, exclude_installment_plan_name=""):
@@ -1038,3 +1122,92 @@ def get_stock_entry_details_for_installment_plan(stock_entry, installment_plan=N
             )
         result["imei"] = first.serial_no
     return result
+
+
+@frappe.whitelist()
+def get_cashbox_reconciliation(cashbox, date=None):
+    """
+    End-of-day reconciliation: compare cashbox transaction rows (ledger)
+    against Payment Transactions posted for the same cashbox on the given date.
+
+    Returns:
+      - ledger_totals: per payment_method totals from Cashbox Transactions
+      - payment_totals: per payment_method totals from Payment Transaction Lines
+      - discrepancies: methods where the two differ by > 0.01
+    """
+    report_date = getdate(date) if date else getdate(today())
+
+    # --- Ledger side: cashbox transaction rows for this date ---
+    ledger_rows = frappe.db.sql(
+        """
+        SELECT
+            ct.payment_method,
+            ct.currency,
+            SUM(CASE WHEN ct.transaction_type = 'Приход' THEN ct.amount ELSE -ct.amount END) AS net_amount,
+            COALESCE(MAX(ct.exchange_rate), 0) AS exchange_rate
+        FROM `tabCashbox Transaction` ct
+        WHERE ct.parent = %s
+          AND DATE(ct.creation) = %s
+        GROUP BY ct.payment_method, ct.currency
+        """,
+        (cashbox, report_date),
+        as_dict=True,
+    )
+
+    # --- Payment side: payment transaction lines that reference this cashbox ---
+    payment_rows = frappe.db.sql(
+        """
+        SELECT
+            ptl.payment_method,
+            COALESCE(ptl.currency, 'USD') AS currency,
+            SUM(ptl.amount) AS net_amount,
+            COALESCE(MAX(ptl.exchange_rate), 0) AS exchange_rate
+        FROM `tabPayment Transaction Line` ptl
+        INNER JOIN `tabPayment Transaction` pt ON pt.name = ptl.parent
+        WHERE pt.cashbox = %s
+          AND DATE(pt.creation) = %s
+          AND (pt.status IS NULL OR pt.status != 'Отменен')
+        GROUP BY ptl.payment_method, COALESCE(ptl.currency, 'USD')
+        """,
+        (cashbox, report_date),
+        as_dict=True,
+    )
+
+    def _to_usd(rows):
+        """Collapse to a {method: usd_amount} dict."""
+        result = {}
+        for r in rows:
+            method = r.payment_method or "Другое"
+            currency = (r.currency or "USD").upper()
+            amount = flt(r.net_amount)
+            if currency == "UZS":
+                rate = flt(r.exchange_rate) or 12200
+                amount = amount / rate
+            result[method] = round(result.get(method, 0.0) + amount, 2)
+        return result
+
+    ledger_by_method = _to_usd(ledger_rows)
+    payment_by_method = _to_usd(payment_rows)
+
+    all_methods = set(ledger_by_method) | set(payment_by_method)
+    discrepancies = []
+    for method in sorted(all_methods):
+        ledger_amt = ledger_by_method.get(method, 0.0)
+        payment_amt = payment_by_method.get(method, 0.0)
+        diff = round(ledger_amt - payment_amt, 2)
+        if abs(diff) > 0.01:
+            discrepancies.append({
+                "method": method,
+                "ledger": ledger_amt,
+                "payments": payment_amt,
+                "diff": diff,
+            })
+
+    return {
+        "date": str(report_date),
+        "cashbox": cashbox,
+        "ledger_totals": ledger_by_method,
+        "payment_totals": payment_by_method,
+        "discrepancies": discrepancies,
+        "is_balanced": len(discrepancies) == 0,
+    }

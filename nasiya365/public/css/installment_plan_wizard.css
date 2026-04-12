@@ -69,3 +69,5 @@
 	color: #fca5a5;
 	font-weight: 700;
 }
+
+.bnpl-row-disputed td { background: var(--yellow-highlight, #fff9e6) !important; }

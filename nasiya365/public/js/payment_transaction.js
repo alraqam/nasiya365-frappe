@@ -117,6 +117,22 @@ function recalc_payment_table_total(frm) {
 	} else if (methods.size === 1) {
 		frm.set_value("payment_method", Array.from(methods)[0]);
 	}
+
+	// Warn cashier if payment exceeds plan remaining balance
+	const rd = (frm.doc.reference_doctype || "").trim();
+	const rn = (frm.doc.reference_name || "").trim();
+	if (rd === "Installment Plan" && rn && total > 0) {
+		frappe.db.get_value("Installment Plan", rn, "remaining_balance", (r) => {
+			const remaining = flt(r && r.remaining_balance);
+			if (remaining > 0 && total > remaining + 0.001) {
+				const excess = (total - remaining).toFixed(2);
+				frappe.show_alert({
+					message: __("Переплата: {0} USD сверх остатка по плану ({1} USD)", [excess, remaining.toFixed(2)]),
+					indicator: "orange",
+				}, 8);
+			}
+		});
+	}
 }
 
 function open_change_calculator(frm) {

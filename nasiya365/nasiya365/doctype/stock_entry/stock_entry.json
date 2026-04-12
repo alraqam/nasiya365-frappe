@@ -39,7 +39,7 @@
             "in_list_view": 1,
             "label": "Бизнес статус",
             "options": "Черновик\nПроведен\nNaqd savdo\nRassrochka savdo\nВозврат",
-            "read_only": 1
+            "read_only_depends_on": "eval:doc.docstatus!==0"
         },
         {
             "default": "Today",

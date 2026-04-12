@@ -169,7 +169,8 @@ function nasiya_recalc_interest_rate_from_schedule(frm) {
 	const n = cint(frm.doc.number_of_installments) || sched.length;
 	if (financed <= 0 || n <= 0) return;
 
-	const schedule_sum = sched.reduce((acc, r) => acc + flt(r.amount), 0);
+	// Exclude row 0 (down payment) — it is not part of total_amount / financed amount.
+	const schedule_sum = sched.reduce((acc, r) => cint(r.installment_number) === 0 ? acc : acc + flt(r.amount), 0);
 	const total_interest_impl = schedule_sum - financed;
 	let rate_pct = (100 * total_interest_impl) / (financed * n);
 	if (!Number.isFinite(rate_pct) || rate_pct < 0) rate_pct = 0;
@@ -194,6 +195,8 @@ function nasiya_recalc_interest_rate_from_schedule(frm) {
 frappe.model.on(NASIYA_SCHEDULE_CHILD, "due_date", function (fieldname, value, doc) {
 	if (fieldname !== "due_date" || !doc) return;
 	if (doc.parenttype !== "Installment Plan" || doc.parentfield !== "schedule") return;
+	// Row 0 is the down payment — editing its date should not cascade to regular installments.
+	if (cint(doc.installment_number) === 0) return;
 	const frm = cur_frm;
 	if (!frm || frm.doctype !== "Installment Plan" || frm.docname !== doc.parent) return;
 	if (frm._nasiya_cascade_schedule) return;
@@ -397,48 +400,56 @@ function maybe_generate_schedule(frm, force_regenerate) {
 		render_payment_preview(frm, null);
 		return;
 	}
+	const is_new_plan = !!frm.is_new();
+
+	// Sequence counter: ignore any callback from an older call that arrives late.
+	if (!frm._nasiya_preview_seq) frm._nasiya_preview_seq = 0;
+	const seq = ++frm._nasiya_preview_seq;
+
 	frappe.call({
 		method:
 			"nasiya365.nasiya365.doctype.installment_plan.installment_plan.calculate_installment_preview",
 		args: {
 			principal: d.principal_amount,
-			down_payment: d.down_payment || 0,
+			down_payment: flt(d.down_payment),
 			interest_rate: d.interest_rate || 0,
 			num_installments: d.number_of_installments,
 			frequency: d.frequency || "Ежемесячно",
 			start_date: d.start_date,
 		},
 		callback(r) {
+			// Stale response from a superseded call — discard.
+			if (seq !== frm._nasiya_preview_seq) return;
 			if (!r.message) return;
 			const preview = r.message;
 			render_payment_preview(frm, preview);
 
-			// Never overwrite an existing график that already has payment allocations.
-			// All header values (remaining_balance, paid_amount, etc.) are authoritative
-			// from the server-saved document; rewriting them here makes the form dirty
-			// and can mask the real post-payment state.
-			if (has_schedule_payment_activity(d.schedule)) return;
+			// Always read frm.doc directly — `d` may be stale if Frappe replaced
+			// frm.doc during the async round-trip (e.g. after a save/reload).
+			const cur = frm.doc;
+
+			// Never overwrite a график that already has payment allocations.
+			if (has_schedule_payment_activity(cur.schedule)) return;
 
 			frm.set_value("financed_amount", preview.financed_amount);
 			frm.set_value("total_interest", preview.total_interest);
 			frm.set_value("total_amount", preview.total_amount);
 			frm.set_value("installment_amount", preview.installment_amount);
 			frm.set_value("end_date", preview.end_date);
-			frm.set_value("remaining_balance", preview.total_amount - flt(d.paid_amount || 0));
+			frm.set_value("remaining_balance", preview.total_amount - flt(cur.paid_amount || 0));
 
-			// On existing plans, do not rebuild schedule on every refresh;
-			// only fill when schedule is empty, unless caller explicitly forces regeneration.
-			const has_existing_schedule = (d.schedule || []).length > 0;
-			if (!force_regenerate && !frm.is_new() && has_existing_schedule) return;
+			// For saved plans: keep the existing schedule unless empty or forced.
+			const has_existing_schedule = (cur.schedule || []).length > 0;
+			if (!force_regenerate && !is_new_plan && has_existing_schedule) return;
 
 			frm.clear_table("schedule");
-			(preview.schedule || ([])).forEach((row) => {
+			(preview.schedule || []).forEach((row) => {
 				const child = frm.add_child("schedule");
 				child.installment_number = row.installment_number;
 				child.due_date = row.due_date;
 				child.amount = row.amount;
-				child.status = "Ожидает";
-				child.paid_amount = 0;
+				child.status = row.status || "Ожидает";
+				child.paid_amount = row.paid_amount || 0;
 			});
 			frm.refresh_field("schedule");
 		},

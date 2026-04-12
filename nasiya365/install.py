@@ -17,6 +17,7 @@ def after_install():
     sync_workspace_sidebar()
     set_default_desk_home()
     create_default_print_templates()
+    create_default_cashboxes()
     frappe.db.commit()
     frappe.clear_cache()
     print("Nasiya365 installed successfully!")
@@ -284,7 +285,7 @@ def _nasiya365_workspace_sidebar_items():
 
     link("Дашборд", "Page", "bnpl-control-center", child=0)
     section("💰 Основное")
-    link("Импорт данных", "DocType", "Data Import Tool", child=1)
+    link("Наличные продажи", "DocType", "Sales Order", child=1)
     link("Рассрочка", "DocType", "Installment Plan", child=1)
     section("👥 Клиенты")
     link("Клиенты", "DocType", "Customer Profile", child=1)
@@ -354,6 +355,32 @@ def create_default_print_templates():
     """Create default print templates"""
     # Templates will be created when Print Template DocType is ready
     pass
+
+
+def create_default_cashboxes():
+    """Create default cashboxes on first install (idempotent)."""
+    defaults = [
+        {
+            "cashbox_name": "Главная касса",
+            "is_master": 1,
+            "opening_balance": 0,
+            "status": "Открыта",
+        },
+        {
+            "cashbox_name": "Касса кассира",
+            "is_master": 0,
+            "opening_balance": 0,
+            "status": "Открыта",
+        },
+    ]
+    for data in defaults:
+        if frappe.db.exists("Cashbox", {"cashbox_name": data["cashbox_name"]}):
+            continue
+        doc = frappe.new_doc("Cashbox")
+        doc.update(data)
+        doc.opening_date = today()
+        doc.insert(ignore_permissions=True)
+        print(f"Created cashbox: {data['cashbox_name']}")
 
 
 # ---------------------------------------------------------------------------

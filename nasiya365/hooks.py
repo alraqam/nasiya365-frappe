@@ -25,6 +25,7 @@ required_apps = ["frappe"]
 app_include_js = [
     "/assets/nasiya365/js/installment_calculator.js",
     "/assets/nasiya365/js/pwa_register.js",
+    "/assets/nasiya365/js/list_column_picker.js",
 ]
 
 # Include CSS in all pages
@@ -44,6 +45,8 @@ doctype_js = {
     "Sales Order": "public/js/sales_order.js",
     "Payment Transaction": "public/js/payment_transaction.js",
     "Installment Plan": "public/js/installment_plan.js",
+    "Cashbox": "public/js/cashbox.js",
+    "Cash Handover": "public/js/cash_handover.js",
 }
 
 doctype_list_js = {
@@ -167,6 +170,10 @@ fixtures = [
     {
         "doctype": "Property Setter",
         "filters": [["module", "=", "Nasiya365"]]
+    },
+    {
+        "doctype": "Print Format",
+        "filters": [["module", "=", "nasiya365"]]
     },
 ]
 

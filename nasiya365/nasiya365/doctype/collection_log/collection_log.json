@@ -1,0 +1,140 @@
+{
+    "actions": [],
+    "autoname": "format:CALL-{YYYY}{MM}-{#####}",
+    "creation": "2026-04-09 16:00:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "customer",
+        "installment_plan",
+        "call_datetime",
+        "logged_by",
+        "column_break_1",
+        "outcome",
+        "promised_date",
+        "next_call_date",
+        "notes_section",
+        "notes"
+    ],
+    "fields": [
+        {
+            "fieldname": "customer",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Клиент",
+            "options": "Customer Profile",
+            "reqd": 1
+        },
+        {
+            "fieldname": "installment_plan",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "План рассрочки",
+            "options": "Installment Plan",
+            "reqd": 1
+        },
+        {
+            "default": "Now",
+            "fieldname": "call_datetime",
+            "fieldtype": "Datetime",
+            "in_list_view": 1,
+            "label": "Дата и время звонка",
+            "reqd": 1
+        },
+        {
+            "default": "__user",
+            "fieldname": "logged_by",
+            "fieldtype": "Link",
+            "label": "Записал",
+            "options": "User",
+            "read_only": 1
+        },
+        {
+            "fieldname": "column_break_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "outcome",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Результат",
+            "options": "\nОтвечено\nНе отвечено\nОбещал оплатить\nОтказался платить\nДругое",
+            "reqd": 1
+        },
+        {
+            "depends_on": "eval:doc.outcome == 'Обещал оплатить'",
+            "fieldname": "promised_date",
+            "fieldtype": "Date",
+            "label": "Обещанная дата оплаты"
+        },
+        {
+            "fieldname": "next_call_date",
+            "fieldtype": "Date",
+            "label": "Следующий звонок"
+        },
+        {
+            "fieldname": "notes_section",
+            "fieldtype": "Section Break",
+            "label": "Примечания"
+        },
+        {
+            "fieldname": "notes",
+            "fieldtype": "Small Text",
+            "label": "Комментарий"
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2026-04-09 16:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Collection Log",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Nasiya365 Admin",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Collector",
+            "write": 1
+        },
+        {
+            "create": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Branch Manager",
+            "write": 1
+        }
+    ],
+    "search_fields": "customer,installment_plan,outcome",
+    "sort_field": "call_datetime",
+    "sort_order": "DESC",
+    "title_field": "customer",
+    "track_changes": 1
+}

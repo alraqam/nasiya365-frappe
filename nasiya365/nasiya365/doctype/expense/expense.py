@@ -18,6 +18,17 @@ class Expense(Document):
         if flt(self.amount) <= 0:
             frappe.throw(_("Сумма расхода должна быть больше нуля"))
 
+        if self.cashbox:
+            status = frappe.db.get_value("Cashbox", self.cashbox, "status")
+            if not status:
+                frappe.throw(_("Касса {0} не найдена").format(self.cashbox))
+            if status == "Закрыта":
+                frappe.throw(
+                    _("Касса {0} уже закрыта. Выберите открытую кассу или снимите привязку.").format(
+                        self.cashbox
+                    )
+                )
+
     def on_submit(self):
         self.status = "Оплачен"
         self.db_update()
@@ -33,23 +44,46 @@ class Expense(Document):
             self._restore_cashbox()
 
     def _deduct_from_cashbox(self):
-        """Append an expense transaction to the linked Cashbox"""
+        """Append an expense transaction to the linked Cashbox."""
+        status = frappe.db.get_value("Cashbox", self.cashbox, "status")
+        if not status:
+            frappe.log_error(
+                f"Expense {self.name}: cashbox {self.cashbox} not found during deduct",
+                "Expense: cashbox missing",
+            )
+            return
+        if status == "Закрыта":
+            frappe.throw(
+                _("Невозможно списать расход: касса {0} уже закрыта.").format(self.cashbox)
+            )
+
+        currency = (self.currency or "USD").strip().upper()
+        payment_method = "Наличные UZS" if currency == "UZS" else "Наличные USD"
+        exchange_rate = flt(getattr(self, "exchange_rate", 0))
+
         cashbox = frappe.get_doc("Cashbox", self.cashbox)
         cashbox.append("transactions", {
             "transaction_type": "Расход",
-            "amount": self.amount,
+            "payment_method": payment_method,
+            "currency": currency,
+            "exchange_rate": exchange_rate,
+            "amount": flt(self.amount),
             "category": "Расход",
             "reference_doctype": "Expense",
             "reference_name": self.name,
-            "notes": self.title
+            "notes": self.title,
         })
         cashbox.save(ignore_permissions=True)
 
     def _restore_cashbox(self):
-        """Remove the expense transaction from the linked Cashbox on cancel"""
+        """Remove the expense transaction from the linked Cashbox on cancel."""
+        if not frappe.db.exists("Cashbox", self.cashbox):
+            return
         cashbox = frappe.get_doc("Cashbox", self.cashbox)
+        before = len(cashbox.transactions or [])
         cashbox.transactions = [
-            t for t in cashbox.transactions
+            t for t in (cashbox.transactions or [])
             if not (t.reference_doctype == "Expense" and t.reference_name == self.name)
         ]
-        cashbox.save(ignore_permissions=True)
+        if len(cashbox.transactions) != before:
+            cashbox.save(ignore_permissions=True)

@@ -1,84 +1,102 @@
 """
-Notification Tasks for Nasiya365
+Scheduled SMS notification tasks for Nasiya365.
+
+Runs via hooks.py scheduler_events:
+  - 9 AM  → send_due_today_reminders
+  - 6 PM  → send_overdue_warnings
 """
 
 import frappe
 from frappe.utils import today
+
 from nasiya365.utils.sms_manager import SMSManager
 
 
 def send_due_today_reminders():
-    """
-    Send reminders for payments due today.
-    Runs at 9 AM daily.
-    """
-    frappe.logger().info("Running: send_due_today_reminders")
-    
-    # Get installments due today
-    due_today = frappe.db.sql("""
-        SELECT 
+    """Send one SMS per customer for payments due today (9 AM cron)."""
+    frappe.logger().info("send_due_today_reminders: starting")
+
+    # One row per customer — aggregate amount across all due-today rows
+    rows = frappe.db.sql(
+        """
+        SELECT
             ip.customer,
-            ip.name as installment_plan,
-            isc.due_date,
-            isc.amount,
-            cp.full_name as customer_name
+            cp.full_name AS customer_name,
+            SUM(isc.amount) AS total_due,
+            COUNT(isc.name) AS installments_count
         FROM `tabInstallment Plan` ip
         INNER JOIN `tabInstallment Schedule` isc ON isc.parent = ip.name
         INNER JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
-        WHERE isc.status IN ('Ожидает', 'Частично', 'Pending')
-        AND isc.due_date = %s
-    """, (today(),), as_dict=True)
+        WHERE ip.docstatus = 1
+          AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан')
+          AND isc.status IN ('Ожидает', 'Частично', 'Pending')
+          AND isc.due_date = %s
+        GROUP BY ip.customer, cp.full_name
+        """,
+        (today(),),
+        as_dict=True,
+    )
 
     sms = SMSManager()
-    for payment in due_today:
+    sent = 0
+    for row in rows:
         phone = frappe.db.get_value(
             "Customer Phone Number",
-            {"parent": payment.customer, "is_primary": 1},
+            {"parent": row.customer, "is_primary": 1},
             "phone_number",
         )
         if not phone:
             continue
-        message = f"Сегодня дата платежа: {payment.amount:,.0f} сум. Nasiya365"
-        sms.send_sms(phone, message)
-        frappe.logger().info(f"Due today reminder sent to {payment.customer_name}")
-    
-    frappe.logger().info(f"Sent {len(due_today)} due today reminders")
+        amount = f"{row.total_due:.2f}"
+        message = f"Nasiya365: Сегодня срок оплаты {amount} USD. Просим оплатить своевременно."
+        if sms.send_sms(phone, message):
+            sent += 1
+
+    frappe.logger().info(f"send_due_today_reminders: sent {sent}/{len(rows)}")
 
 
 def send_overdue_warnings():
-    """
-    Send warnings for overdue payments.
-    Runs at 6 PM daily.
-    """
-    frappe.logger().info("Running: send_overdue_warnings")
-    
-    # Get overdue installments
-    overdue = frappe.db.sql("""
-        SELECT 
+    """Send one SMS per customer summarising all overdue debt (6 PM cron)."""
+    frappe.logger().info("send_overdue_warnings: starting")
+
+    # Deduplicated by customer: total overdue amount + max days overdue
+    rows = frappe.db.sql(
+        """
+        SELECT
             ip.customer,
-            ip.name as installment_plan,
-            isc.due_date,
-            isc.amount,
-            cp.full_name as customer_name,
-            DATEDIFF(%s, isc.due_date) as days_overdue
+            cp.full_name AS customer_name,
+            SUM(isc.amount - COALESCE(isc.paid_amount, 0)) AS total_overdue,
+            MAX(DATEDIFF(%s, isc.due_date)) AS max_days
         FROM `tabInstallment Plan` ip
         INNER JOIN `tabInstallment Schedule` isc ON isc.parent = ip.name
         INNER JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
-        WHERE isc.status = 'Просрочен'
-        ORDER BY days_overdue DESC
-    """, (today(),), as_dict=True)
+        WHERE ip.docstatus = 1
+          AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан')
+          AND isc.status = 'Просрочен'
+        GROUP BY ip.customer, cp.full_name
+        HAVING total_overdue > 0.001
+        """,
+        (today(),),
+        as_dict=True,
+    )
 
     sms = SMSManager()
-    for payment in overdue:
+    sent = 0
+    for row in rows:
         phone = frappe.db.get_value(
             "Customer Phone Number",
-            {"parent": payment.customer, "is_primary": 1},
+            {"parent": row.customer, "is_primary": 1},
             "phone_number",
         )
         if not phone:
             continue
-        message = f"Просрочка {payment.days_overdue} дн. Сумма {payment.amount:,.0f} сум. Nasiya365"
-        sms.send_sms(phone, message)
-        frappe.logger().info(f"Overdue warning sent to {payment.customer_name} ({payment.days_overdue} days)")
-    
-    frappe.logger().info(f"Sent {len(overdue)} overdue warnings")
+        amount = f"{row.total_overdue:.2f}"
+        days = int(row.max_days or 0)
+        message = (
+            f"Nasiya365: Просрочка {days} дн., долг {amount} USD. "
+            f"Просим погасить задолженность."
+        )
+        if sms.send_sms(phone, message):
+            sent += 1
+
+    frappe.logger().info(f"send_overdue_warnings: sent {sent}/{len(rows)}")
