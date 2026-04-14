@@ -109,7 +109,9 @@ nasiya365.OverdueCollector = class OverdueCollector {
 					${__("Звонок")}: <b>${frappe.utils.escape_html(row.last_call_outcome)}</b>
 					${row.last_call_date ? "· " + frappe.format(row.last_call_date, {fieldtype: "Datetime"}) : ""}
 					${row.last_promised_date ? " · " + __("Обещал") + ": " + frappe.format(row.last_promised_date, {fieldtype: "Date"}) : ""}
-				</div>`
+					${row.next_call_date ? " · <span style='color:var(--blue-500)'>" + __("Следующий звонок") + ": " + frappe.format(row.next_call_date, {fieldtype: "Date"}) + "</span>" : ""}
+				</div>
+				${row.last_call_notes ? `<div class="bnpl-row-sub" style="margin-top:2px;font-size:11px;color:var(--text-muted);white-space:pre-wrap;">${frappe.utils.escape_html(row.last_call_notes)}</div>` : ""}`
 				: "";
 
 			const node = $(`
@@ -194,6 +196,15 @@ nasiya365.OverdueCollector = class OverdueCollector {
 							    <td><b>${fmt(row.amount_due)}</b></td></tr>
 							${total_debt > 0 ? `<tr><td>${__("Долг на сегодня")}</td>
 							    <td><b style="color:var(--red-500)">${fmt(total_debt)}</b></td></tr>` : ""}
+							${row.last_call_outcome ? `<tr><td>${__("Последний звонок")}</td>
+							    <td><b>${frappe.utils.escape_html(row.last_call_outcome)}</b>
+							    ${row.last_call_date ? "· " + frappe.format(row.last_call_date, {fieldtype: "Datetime"}) : ""}</td></tr>` : ""}
+							${row.last_promised_date ? `<tr><td>${__("Обещал оплатить")}</td>
+							    <td>${frappe.format(row.last_promised_date, {fieldtype: "Date"})}</td></tr>` : ""}
+							${row.next_call_date ? `<tr><td>${__("Следующий звонок")}</td>
+							    <td style="color:var(--blue-500)">${frappe.format(row.next_call_date, {fieldtype: "Date"})}</td></tr>` : ""}
+							${row.last_call_notes ? `<tr><td>${__("Комментарий")}</td>
+							    <td style="white-space:pre-wrap">${frappe.utils.escape_html(row.last_call_notes)}</td></tr>` : ""}
 						</tbody>
 					</table>`,
 			}],

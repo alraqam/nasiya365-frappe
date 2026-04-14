@@ -259,6 +259,7 @@ def get_overdue_list(limit=20, branch=None, collector=None):
             cl.outcome AS last_call_outcome,
             cl.call_datetime AS last_call_date,
             cl.promised_date AS last_promised_date,
+            cl.next_call_date AS next_call_date,
             cl.notes AS last_call_notes
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
@@ -313,6 +314,7 @@ def get_due_today_list(limit=20, branch=None):
             cl.outcome AS last_call_outcome,
             cl.call_datetime AS last_call_date,
             cl.promised_date AS last_promised_date,
+            cl.next_call_date AS next_call_date,
             cl.notes AS last_call_notes,
             (
                 SELECT COALESCE(SUM(s.amount - COALESCE(s.paid_amount, 0)), 0)
