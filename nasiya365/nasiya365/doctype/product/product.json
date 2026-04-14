@@ -17,6 +17,10 @@
         "storage",
         "condition",
         "is_active",
+        "pricing_section",
+        "selling_price",
+        "column_break_2",
+        "cost_price",
         "attributes_section",
         "attributes",
         "details_section",
@@ -103,6 +107,26 @@
             "label": "Активен"
         },
         {
+            "fieldname": "pricing_section",
+            "fieldtype": "Section Break",
+            "label": "Цены"
+        },
+        {
+            "fieldname": "selling_price",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Цена продажи (USD)"
+        },
+        {
+            "fieldname": "column_break_2",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "cost_price",
+            "fieldtype": "Currency",
+            "label": "Себестоимость (USD)"
+        },
+        {
             "depends_on": "category",
             "fieldname": "attributes_section",
             "fieldtype": "Section Break",
@@ -174,7 +198,7 @@
     "image_field": "image",
     "index_web_pages_for_search": 1,
     "links": [],
-    "modified": "2026-01-18 10:56:00.000000",
+    "modified": "2026-04-14 12:00:00.000000",
     "modified_by": "Administrator",
     "module": "nasiya365",
     "name": "Product",
