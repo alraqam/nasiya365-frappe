@@ -355,7 +355,10 @@ class PaymentTransaction(Document):
             return
         if self.has_value_changed("status") and (self.status or "").strip() == "Завершен":
             _sync_payment_to_cashbox(self)
-        if self.has_value_changed("reference_name") or self.has_value_changed("reference_doctype"):
+            # Re-run allocation in case payment was initially saved as "Ожидает"
+            # (DB idempotency check prevents double-allocation if already applied).
+            allocate_payment_transaction_to_installment_plan(self)
+        elif self.has_value_changed("reference_name") or self.has_value_changed("reference_doctype"):
             allocate_payment_transaction_to_installment_plan(self)
 
     def on_cancel(self):

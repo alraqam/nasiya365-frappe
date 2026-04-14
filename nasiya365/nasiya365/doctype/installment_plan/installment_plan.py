@@ -430,18 +430,24 @@ class InstallmentPlan(Document):
             key=lambda x: getdate(x.due_date) if x.due_date else getdate("1900-01-01"),
         )
         
+        # 1-cent tolerance — handles rounding artifacts when the last schedule row's
+        # amount is up to 1 cent higher than remaining_balance (from round(x, 2) in
+        # generate_schedule). Without this, remaining_payment = 100.00 vs due_amount = 100.01
+        # ends up as "Частично" with 0.01 residual and the plan never reaches "Завершен".
+        _TOLERANCE = 0.01
+
         for installment in sorted_schedule:
             if _installment_row_accepts_payment(installment):
                 due_amount = flt(installment.amount) - flt(installment.paid_amount)
-                
-                if remaining_payment >= due_amount:
-                    # Full payment for this installment
+
+                if remaining_payment >= due_amount - _TOLERANCE:
+                    # Full (or within-tolerance) payment for this installment
                     installment.paid_amount = installment.amount
                     installment.status = "Оплачен"
                     installment.paid_date = today()
                     if payment_transaction and hasattr(installment, "payment_transaction"):
                         installment.payment_transaction = payment_transaction
-                    remaining_payment -= due_amount
+                    remaining_payment = max(0.0, flt(remaining_payment) - flt(due_amount))
                 elif remaining_payment > 0:
                     # Partial payment
                     installment.paid_amount = flt(installment.paid_amount) + remaining_payment
@@ -449,14 +455,24 @@ class InstallmentPlan(Document):
                     if payment_transaction and hasattr(installment, "payment_transaction"):
                         installment.payment_transaction = payment_transaction
                     remaining_payment = 0
-                
+
                 if remaining_payment <= 0:
                     break
-        
+
         # Update totals
         self.paid_amount = sum(flt(s.paid_amount) for s in self.schedule)
-        self.remaining_balance = self.total_amount - self.paid_amount
+        self.remaining_balance = flt(self.total_amount) - flt(self.paid_amount)
         self.update_progress()
+
+        # Close out any micro-residual "Частично" rows (≤ 1 cent) left by rounding,
+        # so they don't appear as "0.00 to pay" in collections.
+        if flt(self.remaining_balance) <= _TOLERANCE:
+            for s in self.schedule:
+                if s.status == "Частично" and (flt(s.amount) - flt(s.paid_amount)) <= _TOLERANCE:
+                    s.paid_amount = s.amount
+                    s.status = "Оплачен"
+            self.paid_amount = sum(flt(s.paid_amount) for s in self.schedule)
+            self.remaining_balance = flt(self.total_amount) - flt(self.paid_amount)
 
         # Check if all rows (including down payment) are paid
         if all(s.status == "Оплачен" for s in self.schedule):
