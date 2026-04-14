@@ -291,6 +291,63 @@ def get_overdue_list(limit=20, branch=None, collector=None):
     return rows
 
 
+def _get_top_overdue_plans(limit=5, base_date=None):
+    """Return top N overdue plans grouped at plan level (not per schedule row).
+
+    Aggregates all overdue schedule rows per plan so a single plan with many
+    overdue months doesn't consume multiple slots in 'Топ-5 просрочек'.
+    """
+    if base_date is None:
+        base_date = getdate(today())
+    n = _safe_limit(limit, default_value=5, max_value=20)
+    in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
+    open_pred = _schedule_open_predicate(in_open)
+
+    rows = frappe.db.sql(
+        f"""
+        SELECT
+            ip.name AS installment_plan,
+            ip.customer,
+            {_collection_customer_select()},
+            COALESCE(NULLIF(TRIM(ip.product_name), ''), '') AS product_name,
+            MAX(DATEDIFF(%s, isc.due_date)) AS days_overdue,
+            SUM(isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due,
+            cl.outcome AS last_call_outcome,
+            cl.call_datetime AS last_call_date,
+            cl.promised_date AS last_promised_date,
+            cl.next_call_date AS next_call_date,
+            cl.notes AS last_call_notes
+        FROM `tabInstallment Schedule` isc
+        INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
+        LEFT JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
+        {_last_call_subquery()}
+        WHERE {_COLLECTION_PLAN_WHERE}
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (
+            isc.status = 'Просрочен'
+            OR (isc.due_date < %s AND {open_pred})
+          )
+        GROUP BY ip.name, ip.customer, customer_name, ip.product_name,
+                 cl.outcome, cl.call_datetime, cl.promised_date,
+                 cl.next_call_date, cl.notes
+        ORDER BY amount_due DESC, days_overdue DESC
+        LIMIT {n}
+        """,
+        (base_date, base_date, *_OPEN_SCHEDULE_STATUSES),
+        as_dict=True,
+    )
+
+    for row in rows:
+        row["amount_due"] = _to_float(row["amount_due"])
+        row["days_overdue"] = cint(row["days_overdue"])
+        row["phone"] = frappe.db.get_value(
+            "Customer Phone Number",
+            {"parent": row["customer"], "is_primary": 1},
+            "phone_number",
+        )
+    return rows
+
+
 @frappe.whitelist()
 def get_due_today_list(limit=20, branch=None):
     query_limit = _safe_limit(limit, default_value=20, max_value=200)
@@ -673,7 +730,7 @@ def get_control_center_snapshot(date=None):
     else:
         collection_progress_pct = 100.0 if collected > 0 else 0.0
 
-    top_overdue = get_overdue_list(limit=5)
+    top_overdue = _get_top_overdue_plans(limit=5, base_date=base_date)
 
     kpi_cards = [
         {
