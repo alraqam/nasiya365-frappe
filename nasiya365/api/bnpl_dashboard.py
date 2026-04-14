@@ -410,6 +410,24 @@ def get_due_today_list(limit=20, branch=None):
 
 
 @frappe.whitelist()
+def get_payment_methods():
+    """Return the list of valid payment methods from the Payment Transaction Line DocType field.
+
+    Single source of truth for all JS dialogs — avoids hardcoding in pages/reports.
+    Excludes 'Комбинированный' (computed, not selectable by the user).
+    """
+    try:
+        options = frappe.get_meta("Payment Transaction Line").get_field("payment_method").options or ""
+        methods = [m.strip() for m in options.split("\n") if m.strip() and m.strip() != "Комбинированный"]
+        if methods:
+            return methods
+    except Exception:
+        pass
+    return ["Наличные", "Наличные USD", "Акксессуар касса", "Наличные UZS",
+            "Карта", "Click", "Payme", "Перевод", "Терминал"]
+
+
+@frappe.whitelist()
 def get_recent_activity(limit=8):
     query_limit = _safe_limit(limit, default_value=8, max_value=50)
 

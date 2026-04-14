@@ -7,25 +7,25 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
 
-# Child table "Payment Transaction Line" Select options (must match doctype JSON)
-_PAYMENT_LINE_METHODS = frozenset(
-    (
-        "Наличные",
-        "Наличные USD",
-        "Акксессуар касса",
-        "Наличные UZS",
-        "Карта",
-        "Click",
-        "Payme",
-        "Перевод",
-        "Терминал",
-    )
-)
+def _get_payment_line_methods() -> frozenset:
+    """Return valid payment methods from the DocType field definition (single source of truth)."""
+    try:
+        options = frappe.get_meta("Payment Transaction Line").get_field("payment_method").options or ""
+        methods = frozenset(m.strip() for m in options.split("\n") if m.strip() and m.strip() != "Комбинированный")
+        if methods:
+            return methods
+    except Exception:
+        pass
+    # Fallback if meta is not yet available (e.g. during migration)
+    return frozenset((
+        "Наличные", "Наличные USD", "Акксессуар касса", "Наличные UZS",
+        "Карта", "Click", "Payme", "Перевод", "Терминал",
+    ))
 
 
 def _normalize_payment_line_method(mode):
     m = (mode or "").strip()
-    return m if m in _PAYMENT_LINE_METHODS else "Наличные USD"
+    return m if m in _get_payment_line_methods() else "Наличные USD"
 
 
 def _installment_plan_has_outstanding_payment(plan_name: str) -> bool:

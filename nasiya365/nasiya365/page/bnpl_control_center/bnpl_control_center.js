@@ -601,37 +601,50 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 			frappe.new_doc("Payment Transaction");
 		};
 
-		const dialog = new frappe.ui.Dialog({
-			title: __("Принять платеж"),
-			fields: [
-				{ fieldname: "amount", fieldtype: "Currency", label: __("Сумма"), reqd: 1, default: row.amount_due },
-				{
-					fieldname: "mode",
-					fieldtype: "Select",
-					label: __("Метод оплаты"),
-					options: "Наличные\nКарта\nClick\nPayme\nПеревод",
-					default: "Наличные",
-				},
-			],
-			primary_action_label: __("Сохранить"),
-			primary_action: (values) => {
-				frappe.call({
-					method: "nasiya365.api.bnpl_dashboard.accept_overdue_payment",
-					args: { customer_or_plan: row.installment_plan, amount: values.amount, mode: values.mode },
-					callback: () => {
-						dialog.hide();
-						frappe.show_alert({ message: __("Платеж принят"), indicator: "green" });
-						this.refreshAll();
+		const showDialog = (methodOptions, defaultMethod) => {
+			const dialog = new frappe.ui.Dialog({
+				title: __("Принять платеж"),
+				fields: [
+					{ fieldname: "amount", fieldtype: "Currency", label: __("Сумма"), reqd: 1, default: row.amount_due },
+					{
+						fieldname: "mode",
+						fieldtype: "Select",
+						label: __("Метод оплаты"),
+						options: methodOptions,
+						default: defaultMethod,
 					},
-				});
-			},
-			secondary_action_label: __("Расширенная форма"),
-			secondary_action: () => {
-				dialog.hide();
-				goToFullForm();
-			},
+				],
+				primary_action_label: __("Сохранить"),
+				primary_action: (values) => {
+					frappe.call({
+						method: "nasiya365.api.bnpl_dashboard.accept_overdue_payment",
+						args: { customer_or_plan: row.installment_plan, amount: values.amount, mode: values.mode },
+						callback: () => {
+							dialog.hide();
+							frappe.show_alert({ message: __("Платеж принят"), indicator: "green" });
+							this.refreshAll();
+						},
+					});
+				},
+				secondary_action_label: __("Расширенная форма"),
+				secondary_action: () => {
+					dialog.hide();
+					goToFullForm();
+				},
+			});
+			dialog.show();
+		};
+
+		// Read options from the DocType meta (single source of truth — no hardcoding).
+		// Exclude "Комбинированный" since quick modal only accepts one method.
+		frappe.model.with_doctype("Payment Transaction Line", () => {
+			const meta = frappe.get_meta("Payment Transaction Line");
+			const field = meta && meta.fields.find(f => f.fieldname === "payment_method");
+			const raw = field ? (field.options || "") : "Наличные\nНаличные USD\nКарта\nClick\nPayme\nПеревод\nТерминал";
+			const methods = raw.split("\n").map(s => s.trim()).filter(s => s && s !== "Комбинированный");
+			const defaultMethod = methods.includes("Наличные USD") ? "Наличные USD" : methods[0] || "Наличные";
+			showDialog(methods.join("\n"), defaultMethod);
 		});
-		dialog.show();
 	}
 
 	emptyState(text) {
