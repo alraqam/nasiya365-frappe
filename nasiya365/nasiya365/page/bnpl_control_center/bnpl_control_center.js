@@ -592,6 +592,15 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 	}
 
 	openPaymentDialog(row) {
+		const goToFullForm = () => {
+			frappe.route_options = {
+				customer: row.customer,
+				reference_doctype: "Installment Plan",
+				reference_name: row.installment_plan,
+			};
+			frappe.new_doc("Payment Transaction");
+		};
+
 		const dialog = new frappe.ui.Dialog({
 			title: __("Принять платеж"),
 			fields: [
@@ -615,6 +624,11 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 						this.refreshAll();
 					},
 				});
+			},
+			secondary_action_label: __("Расширенная форма"),
+			secondary_action: () => {
+				dialog.hide();
+				goToFullForm();
 			},
 		});
 		dialog.show();
