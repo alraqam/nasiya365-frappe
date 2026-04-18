@@ -639,7 +639,8 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 		frappe.call({
 			method: "nasiya365.api.bnpl_dashboard.get_payment_methods",
 			callback(r) {
-				const methods = r.message && r.message.length ? r.message : ["Наличные USD", "Наличные", "Карта"];
+				const raw = r.message && r.message.length ? r.message : ["Наличные USD", "Наличные UZS", "Карта"];
+				const methods = raw.filter(m => m !== "Наличные");
 				const defaultMethod = methods.includes("Наличные USD") ? "Наличные USD" : methods[0];
 				showDialog(methods.join("\n"), defaultMethod);
 			},

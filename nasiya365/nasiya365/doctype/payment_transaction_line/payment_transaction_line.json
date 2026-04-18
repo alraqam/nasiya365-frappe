@@ -12,11 +12,12 @@
     ],
     "fields": [
         {
+            "default": "Наличные USD",
             "fieldname": "payment_method",
             "fieldtype": "Select",
             "in_list_view": 1,
             "label": "Метод оплаты",
-            "options": "Наличные\nНаличные USD\nАкксессуар касса\nНаличные UZS\nКарта\nClick\nPayme\nПеревод\nТерминал",
+            "options": "Наличные USD\nАкксессуар касса\nНаличные UZS\nКарта\nClick\nPayme\nПеревод\nТерминал",
             "reqd": 1
         },
         {

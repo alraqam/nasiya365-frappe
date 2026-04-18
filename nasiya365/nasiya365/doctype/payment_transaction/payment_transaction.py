@@ -8,9 +8,17 @@ from frappe.model.document import Document
 from frappe.utils import flt
 
 _FALLBACK_METHODS = frozenset((
-    "Наличные", "Наличные USD", "Акксессуар касса", "Наличные UZS",
+    "Наличные USD", "Акксессуар касса", "Наличные UZS",
     "Карта", "Click", "Payme", "Перевод", "Терминал",
 ))
+
+# Legacy method names that must be mapped to a canonical value before storing.
+_METHOD_ALIASES = {
+    "Наличные": "Наличные USD",
+}
+
+# Methods that are never valid to store (removed from options but may exist in old data).
+_EXCLUDED_METHODS = frozenset(("Наличные",))
 
 
 def _get_payment_line_methods() -> frozenset:
@@ -18,7 +26,10 @@ def _get_payment_line_methods() -> frozenset:
     # 1. Merchant Settings (admin-editable, no migration needed)
     try:
         raw = frappe.db.get_single_value("Merchant Settings", "payment_methods") or ""
-        methods = frozenset(m.strip() for m in raw.splitlines() if m.strip() and m.strip() != "Комбинированный")
+        methods = frozenset(
+            m.strip() for m in raw.splitlines()
+            if m.strip() and m.strip() not in ("Комбинированный",) | _EXCLUDED_METHODS
+        )
         if methods:
             return methods
     except Exception:
@@ -26,7 +37,10 @@ def _get_payment_line_methods() -> frozenset:
     # 2. DocType meta
     try:
         options = frappe.get_meta("Payment Transaction Line").get_field("payment_method").options or ""
-        methods = frozenset(m.strip() for m in options.split("\n") if m.strip() and m.strip() != "Комбинированный")
+        methods = frozenset(
+            m.strip() for m in options.split("\n")
+            if m.strip() and m.strip() not in ("Комбинированный",) | _EXCLUDED_METHODS
+        )
         if methods:
             return methods
     except Exception:
@@ -36,6 +50,7 @@ def _get_payment_line_methods() -> frozenset:
 
 def _normalize_payment_line_method(mode):
     m = (mode or "").strip()
+    m = _METHOD_ALIASES.get(m, m)  # resolve legacy aliases first
     return m if m in _get_payment_line_methods() else "Наличные USD"
 
 
@@ -295,6 +310,9 @@ def _sync_payment_to_cashbox(doc):
     if already_in_reload:
         doc._nasiya_cashbox_synced = True
         return
+
+    for t in (cashbox.transactions or []):
+        t.payment_method = _normalize_payment_line_method(t.payment_method)
 
     for row_data in rows_to_add:
         cashbox.append("transactions", row_data)

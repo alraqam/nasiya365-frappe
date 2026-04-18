@@ -189,14 +189,14 @@ class SalesOrder(Document):
         """Create payment transaction for full cash payment"""
         receipt = frappe.new_doc("Payment Transaction")
         receipt.customer = self.customer
-        receipt.payment_method = "Наличные"
+        receipt.payment_method = "Наличные USD"
         receipt.reference_doctype = "Sales Order"
         receipt.reference_name = self.name
         receipt.received_by = frappe.session.user
         receipt.append(
             "payment_lines",
             {
-                "payment_method": "Наличные",
+                "payment_method": "Наличные USD",
                 "currency": "USD",
                 "amount": flt(self.paid_amount),
             },

@@ -117,7 +117,7 @@ def _kpi_metrics(base_date, branch=None):
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
         WHERE {_COLLECTION_PLAN_WHERE}
-          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0.001
           AND {open_pred}
           AND isc.due_date = %s
     """,
@@ -130,7 +130,7 @@ def _kpi_metrics(base_date, branch=None):
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
         WHERE {_COLLECTION_PLAN_WHERE}
-          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0.001
           AND (
             isc.status = 'Просрочен'
             OR (isc.due_date < %s AND {open_pred})
@@ -254,7 +254,7 @@ def get_overdue_list(limit=20, branch=None, collector=None):
                 FROM `tabInstallment Schedule` s
                 WHERE s.parent = ip.name
                   AND s.due_date <= %s
-                  AND (s.amount - COALESCE(s.paid_amount, 0)) > 0
+                  AND (s.amount - COALESCE(s.paid_amount, 0)) > 0.001
             ) AS total_debt_today,
             cl.outcome AS last_call_outcome,
             cl.call_datetime AS last_call_date,
@@ -266,7 +266,7 @@ def get_overdue_list(limit=20, branch=None, collector=None):
         LEFT JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
         {_last_call_subquery()}
         WHERE {_COLLECTION_PLAN_WHERE}
-          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0.001
           AND (
             isc.status = 'Просрочен'
             OR (isc.due_date < %s AND {open_pred})
@@ -322,7 +322,7 @@ def _get_top_overdue_plans(limit=5, base_date=None):
         LEFT JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
         {_last_call_subquery()}
         WHERE {_COLLECTION_PLAN_WHERE}
-          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0.001
           AND (
             isc.status = 'Просрочен'
             OR (isc.due_date < %s AND {open_pred})
@@ -378,14 +378,14 @@ def get_due_today_list(limit=20, branch=None):
                 FROM `tabInstallment Schedule` s
                 WHERE s.parent = ip.name
                   AND s.due_date <= %s
-                  AND (s.amount - COALESCE(s.paid_amount, 0)) > 0
+                  AND (s.amount - COALESCE(s.paid_amount, 0)) > 0.001
             ) AS total_debt_today
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
         LEFT JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
         {_last_call_subquery()}
         WHERE {_COLLECTION_PLAN_WHERE}
-          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0.001
           AND {open_pred}
           AND isc.due_date = %s
           {filters}
@@ -410,7 +410,7 @@ def get_due_today_list(limit=20, branch=None):
 
 
 _DEFAULT_PAYMENT_METHODS = [
-    "Наличные", "Наличные USD", "Акксессуар касса", "Наличные UZS",
+    "Наличные USD", "Акксессуар касса", "Наличные UZS",
     "Карта", "Click", "Payme", "Перевод", "Терминал",
 ]
 
@@ -423,10 +423,11 @@ def get_payment_methods():
     Priority: Merchant Settings.payment_methods → DocType meta → hardcoded fallback.
     Excludes 'Комбинированный' (computed, not selectable by the user).
     """
+    _excluded = {"Комбинированный", "Наличные"}
     # 1. Merchant Settings (admin-editable, no migration needed)
     try:
         raw = frappe.db.get_single_value("Merchant Settings", "payment_methods") or ""
-        methods = [m.strip() for m in raw.splitlines() if m.strip() and m.strip() != "Комбинированный"]
+        methods = [m.strip() for m in raw.splitlines() if m.strip() and m.strip() not in _excluded]
         if methods:
             return methods
     except Exception:
@@ -434,7 +435,7 @@ def get_payment_methods():
     # 2. DocType meta fallback
     try:
         options = frappe.get_meta("Payment Transaction Line").get_field("payment_method").options or ""
-        methods = [m.strip() for m in options.split("\n") if m.strip() and m.strip() != "Комбинированный"]
+        methods = [m.strip() for m in options.split("\n") if m.strip() and m.strip() not in _excluded]
         if methods:
             return methods
     except Exception:
@@ -587,7 +588,7 @@ def _merge_timeline_events(limit=24):
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
         LEFT JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
         WHERE {_COLLECTION_PLAN_WHERE}
-          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0.001
           AND (
             isc.status = 'Просрочен'
             OR (isc.due_date < %s AND {open_pred})
@@ -731,7 +732,7 @@ def get_control_center_snapshot(date=None):
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
         WHERE {_COLLECTION_PLAN_WHERE}
-          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0.001
           AND (
             isc.status = 'Просрочен'
             OR (isc.due_date < %s AND {open_pred})
@@ -746,7 +747,7 @@ def get_control_center_snapshot(date=None):
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
         WHERE {_COLLECTION_PLAN_WHERE}
-          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0
+          AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0.001
           AND (
             isc.status = 'Просрочен'
             OR (isc.due_date < %s AND {open_pred})
@@ -854,7 +855,7 @@ def get_control_center_snapshot(date=None):
 
 
 @frappe.whitelist()
-def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Наличные"):
+def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Наличные USD"):
     if not customer_or_plan:
         frappe.throw(_("Укажите клиента или план"))
     amount = _to_float(amount)
@@ -879,7 +880,7 @@ def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Налич�
     payment = frappe.new_doc("Payment Transaction")
     payment.customer = customer
     payment.status = "Завершен"
-    payment.payment_method = mode
+    payment.payment_method = _normalize_payment_line_method(mode)
     payment.payment_date = nowdate()
     payment.reference_doctype = "Installment Plan"
     payment.reference_name = plan_name
