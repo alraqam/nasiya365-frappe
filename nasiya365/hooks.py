@@ -128,6 +128,9 @@ doc_events = {
         "on_submit": "nasiya365.payment_doc_events.sales_order_refresh_stock_entries",
         "on_cancel": "nasiya365.payment_doc_events.sales_order_refresh_stock_entries",
     },
+    "Branch": {
+        "on_update": "nasiya365.permissions.clear_branch_user_cache",
+    },
 }
 
 # Scheduled Tasks

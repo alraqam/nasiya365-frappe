@@ -1,265 +1,289 @@
 {
-    "actions": [],
-    "autoname": "format:PAY-{YYYY}-{#####}",
-    "creation": "2026-01-03 00:55:00.000000",
-    "doctype": "DocType",
-    "engine": "InnoDB",
-    "field_order": [
-        "section_client_plans",
-        "customer",
-        "customer_name",
-        "installment_plans_info",
-        "section_payment",
-        "payment_date",
-        "payment_top_break",
-        "status",
-        "payment_meta_section",
-        "transaction_id",
-        "payment_meta_break",
-        "exchange_rate",
-        "payment_lines_section",
-        "payment_lines",
-        "summary_section",
-        "amount",
-        "overpayment_amount",
-        "send_payment_sms",
-        "payment_method",
-        "collected_by",
-        "reference_section",
-        "reference_doctype",
-        "reference_name",
-        "received_by",
-        "notes"
-    ],
-    "fields": [
-        {
-            "fieldname": "section_client_plans",
-            "fieldtype": "Section Break",
-            "label": "Клиент и планы"
-        },
-        {
-            "fieldname": "customer",
-            "fieldtype": "Link",
-            "in_standard_filter": 1,
-            "label": "Клиент",
-            "options": "Customer Profile",
-            "reqd": 1
-        },
-        {
-            "fetch_from": "customer.full_name",
-            "fieldname": "customer_name",
-            "fieldtype": "Data",
-            "hidden": 1,
-            "in_list_view": 1,
-            "label": "Клиент",
-            "read_only": 1
-        },
-        {
-            "fieldname": "installment_plans_info",
-            "fieldtype": "HTML",
-            "label": "Планы рассрочки клиента"
-        },
-        {
-            "fieldname": "section_payment",
-            "fieldtype": "Section Break",
-            "label": "Параметры платежа"
-        },
-        {
-            "default": "Today",
-            "fieldname": "payment_date",
-            "fieldtype": "Date",
-            "in_list_view": 1,
-            "label": "Дата платежа",
-            "reqd": 1
-        },
-        {
-            "fieldname": "payment_top_break",
-            "fieldtype": "Column Break"
-        },
-        {
-            "default": "Завершен",
-            "fieldname": "status",
-            "fieldtype": "Select",
-            "in_list_view": 1,
-            "label": "Статус",
-            "options": "Ожидает\nЗавершен\nОтменен"
-        },
-        {
-            "fieldname": "payment_meta_section",
-            "fieldtype": "Section Break"
-        },
-        {
-            "fieldname": "transaction_id",
-            "fieldtype": "Data",
-            "hidden": 1,
-            "label": "ID транзакции"
-        },
-        {
-            "fieldname": "payment_meta_break",
-            "fieldtype": "Column Break"
-        },
-        {
-            "default": "12200",
-            "description": "Используется как курс по умолчанию для строк в UZS",
-            "fieldname": "exchange_rate",
-            "fieldtype": "Float",
-            "label": "Курс USD/UZS",
-            "non_negative": 1,
-            "precision": "2"
-        },
-        {
-            "fieldname": "payment_lines_section",
-            "fieldtype": "Section Break",
-            "label": "Детали оплаты"
-        },
-        {
-            "description": "Добавьте один или несколько способов оплаты",
-            "fieldname": "payment_lines",
-            "fieldtype": "Table",
-            "in_place_edit": 1,
-            "label": "Способы оплаты",
-            "options": "Payment Transaction Line"
-        },
-        {
-            "fieldname": "summary_section",
-            "fieldtype": "Section Break",
-            "label": "Итог"
-        },
-        {
-            "description": "Суммируется автоматически из каналов выше; при пустых каналах можно ввести вручную",
-            "fieldname": "amount",
-            "fieldtype": "Currency",
-            "in_list_view": 1,
-            "label": "Общая сумма платежа",
-            "reqd": 1
-        },
-        {
-            "default": "0",
-            "fieldname": "overpayment_amount",
-            "fieldtype": "Currency",
-            "label": "Переплата",
-            "read_only": 1,
-            "hidden": 1,
-            "description": "Сумма, превышающая остаток по плану. Заполняется автоматически при переплате."
-        },
-        {
-            "default": "0",
-            "fieldname": "send_payment_sms",
-            "fieldtype": "Check",
-            "label": "Отправить SMS"
-        },
-        {
-            "default": "Наличные",
-            "fieldname": "payment_method",
-            "fieldtype": "Select",
-            "hidden": 1,
-            "label": "Метод оплаты",
-            "options": "Наличные\nНаличные USD\nАкксессуар касса\nНаличные UZS\nКарта\nClick\nPayme\nПеревод\nТерминал\nКомбинированный"
-        },
-        {
-            "fieldname": "collected_by",
-            "fieldtype": "Link",
-            "label": "Сборщик",
-            "options": "Collector"
-        },
-        {
-            "fieldname": "reference_section",
-            "fieldtype": "Section Break",
-            "label": "Связанный документ"
-        },
-        {
-            "fieldname": "reference_doctype",
-            "fieldtype": "Link",
-            "hidden": 1,
-            "label": "Тип документа",
-            "options": "DocType"
-        },
-        {
-            "fieldname": "reference_name",
-            "fieldtype": "Dynamic Link",
-            "hidden": 1,
-            "label": "Документ",
-            "options": "reference_doctype"
-        },
-        {
-            "fieldname": "received_by",
-            "fieldtype": "Link",
-            "label": "Принял",
-            "options": "User",
-            "read_only": 1
-        },
-        {
-            "fieldname": "notes",
-            "fieldtype": "Small Text",
-            "label": "Примечания"
-        }
-    ],
-    "index_web_pages_for_search": 1,
-    "links": [],
-    "modified": "2026-04-06 12:00:00.000000",
-    "modified_by": "Administrator",
-    "module": "nasiya365",
-    "name": "Payment Transaction",
-    "naming_rule": "Expression",
-    "owner": "Administrator",
-    "permissions": [
-        {
-            "create": 1,
-            "delete": 1,
-            "email": 1,
-            "export": 1,
-            "print": 1,
-            "read": 1,
-            "report": 1,
-            "role": "System Manager",
-            "share": 1,
-            "write": 1,
-            "cancel": 1
-        },
-        {
-            "create": 1,
-            "email": 1,
-            "export": 1,
-            "print": 1,
-            "read": 1,
-            "report": 1,
-            "role": "Cashier",
-            "share": 1,
-            "write": 1
-        },
-        {
-            "role": "Nasiya365 Admin",
-            "read": 1,
-            "write": 1,
-            "create": 1,
-            "delete": 1,
-            "cancel": 1,
-            "email": 1,
-            "print": 1,
-            "report": 1,
-            "export": 1,
-            "share": 1
-        },
-        {
-            "role": "Branch Manager",
-            "read": 1,
-            "email": 1,
-            "print": 1,
-            "report": 1,
-            "export": 1
-        },
-        {
-            "role": "Salesperson",
-            "read": 1,
-            "report": 1,
-            "export": 1
-        }
-    ],
-    "quick_entry": 0,
-    "search_fields": "customer,customer_name",
-    "sort_field": "payment_date",
-    "sort_order": "DESC",
-    "title_field": "customer_name",
-    "show_title_field_in_link": 1,
-    "track_changes": 1
+ "actions": [],
+ "autoname": "format:PAY-{YYYY}-{#####}",
+ "creation": "2026-01-03 00:55:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_client_plans",
+  "customer",
+  "customer_name",
+  "installment_plans_info",
+  "section_payment",
+  "payment_date",
+  "payment_top_break",
+  "status",
+  "payment_meta_section",
+  "transaction_id",
+  "payment_meta_break",
+  "exchange_rate",
+  "payment_lines_section",
+  "payment_lines",
+  "summary_section",
+  "amount",
+  "overpayment_amount",
+  "send_payment_sms",
+  "payment_method",
+  "collected_by",
+  "reference_section",
+  "reference_doctype",
+  "reference_name",
+  "received_by",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_client_plans",
+   "fieldtype": "Section Break",
+   "label": "Клиент и планы"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Клиент",
+   "options": "Customer Profile",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "customer.full_name",
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Клиент",
+   "read_only": 1
+  },
+  {
+   "fieldname": "installment_plans_info",
+   "fieldtype": "HTML",
+   "label": "Планы рассрочки клиента"
+  },
+  {
+   "fieldname": "section_payment",
+   "fieldtype": "Section Break",
+   "label": "Параметры платежа"
+  },
+  {
+   "default": "Today",
+   "fieldname": "payment_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Дата платежа",
+   "reqd": 1
+  },
+  {
+   "fieldname": "payment_top_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Завершен",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Статус",
+   "options": "Ожидает\nЗавершен\nОтменен"
+  },
+  {
+   "fieldname": "payment_meta_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "transaction_id",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "ID транзакции"
+  },
+  {
+   "fieldname": "payment_meta_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "12200",
+   "description": "Используется как курс по умолчанию для строк в UZS",
+   "fieldname": "exchange_rate",
+   "fieldtype": "Float",
+   "label": "Курс USD/UZS",
+   "non_negative": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "payment_lines_section",
+   "fieldtype": "Section Break",
+   "label": "Детали оплаты"
+  },
+  {
+   "description": "Добавьте один или несколько способов оплаты",
+   "fieldname": "payment_lines",
+   "fieldtype": "Table",
+   "in_place_edit": 1,
+   "label": "Способы оплаты",
+   "options": "Payment Transaction Line"
+  },
+  {
+   "fieldname": "summary_section",
+   "fieldtype": "Section Break",
+   "label": "Итог"
+  },
+  {
+   "description": "Суммируется автоматически из каналов выше; при пустых каналах можно ввести вручную",
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Общая сумма платежа",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "overpayment_amount",
+   "fieldtype": "Currency",
+   "label": "Переплата",
+   "read_only": 1,
+   "hidden": 1,
+   "description": "Сумма, превышающая остаток по плану. Заполняется автоматически при переплате."
+  },
+  {
+   "default": "0",
+   "fieldname": "send_payment_sms",
+   "fieldtype": "Check",
+   "label": "Отправить SMS"
+  },
+  {
+   "default": "Наличные",
+   "fieldname": "payment_method",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Метод оплаты",
+   "options": "Наличные\nНаличные USD\nАкксессуар касса\nНаличные UZS\nКарта\nClick\nPayme\nПеревод\nТерминал\nКомбинированный"
+  },
+  {
+   "fieldname": "collected_by",
+   "fieldtype": "Link",
+   "label": "Сборщик",
+   "options": "Collector"
+  },
+  {
+   "fieldname": "reference_section",
+   "fieldtype": "Section Break",
+   "label": "Связанный документ"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Тип документа",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "hidden": 1,
+   "label": "Документ",
+   "options": "reference_doctype"
+  },
+  {
+   "fieldname": "received_by",
+   "fieldtype": "Link",
+   "label": "Принял",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Примечания"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-04-06 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "nasiya365",
+ "name": "Payment Transaction",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "cancel": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Cashier",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "role": "Nasiya365 Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "cancel": 1,
+   "email": 1,
+   "print": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "Branch Manager",
+   "read": 1,
+   "email": 1,
+   "print": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "Salesperson",
+   "read": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Collector",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Credit Officer",
+   "share": 1,
+   "write": 0
+  }
+ ],
+ "quick_entry": 0,
+ "search_fields": "customer,customer_name",
+ "sort_field": "payment_date",
+ "sort_order": "DESC",
+ "title_field": "customer_name",
+ "show_title_field_in_link": 1,
+ "track_changes": 1
 }

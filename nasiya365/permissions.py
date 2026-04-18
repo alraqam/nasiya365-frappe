@@ -3,18 +3,31 @@ import frappe
 _UNRESTRICTED_ROLES = {"System Manager", "Nasiya365 Admin"}
 
 
+def clear_branch_user_cache(doc, method=None):
+    """Bust per-user branch cache when a Branch's user list changes."""
+    for row in doc.get("branch_users") or []:
+        if row.user:
+            frappe.cache().delete_value(f"nasiya365:user_branches:{row.user}")
+
+
 def _is_unrestricted(user: str) -> bool:
     return bool(_UNRESTRICTED_ROLES & set(frappe.get_roles(user)))
 
 
 def _get_user_branches(user: str) -> list[str]:
+    cache_key = f"nasiya365:user_branches:{user}"
+    cached = frappe.cache().get_value(cache_key)
+    if cached is not None:
+        return cached
     rows = frappe.get_all(
         "Branch User",
         filters={"user": user, "is_active": 1},
         fields=["parent"],
         ignore_permissions=True,
     )
-    return [r.parent for r in rows]
+    branches = [r.parent for r in rows]
+    frappe.cache().set_value(cache_key, branches, expires_in_sec=300)
+    return branches
 
 
 def _branch_in(doctype: str, branches: list[str]) -> str:
