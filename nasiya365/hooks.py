@@ -193,13 +193,27 @@ fixtures = [
 # -----------
 
 # Permission query conditions
-# permission_query_conditions = {
-#     "Sales Order": "nasiya365.permissions.sales_order_permission_query",
-# }
+permission_query_conditions = {
+    "Sales Order": "nasiya365.permissions.sales_order_query",
+    "Installment Plan": "nasiya365.permissions.installment_plan_query",
+    "Collector": "nasiya365.permissions.collector_query",
+    "Cashbox": "nasiya365.permissions.cashbox_query",
+    "Cash Handover": "nasiya365.permissions.cash_handover_query",
+    "Expense": "nasiya365.permissions.expense_query",
+    "Warehouse": "nasiya365.permissions.warehouse_query",
+    "Payment Transaction": "nasiya365.permissions.payment_transaction_query",
+}
 
-# has_permission = {
-#     "Sales Order": "nasiya365.permissions.has_sales_order_permission",
-# }
+has_permission = {
+    "Sales Order": "nasiya365.permissions.has_sales_order_permission",
+    "Installment Plan": "nasiya365.permissions.has_installment_plan_permission",
+    "Collector": "nasiya365.permissions.has_collector_permission",
+    "Cashbox": "nasiya365.permissions.has_cashbox_permission",
+    "Cash Handover": "nasiya365.permissions.has_cash_handover_permission",
+    "Expense": "nasiya365.permissions.has_expense_permission",
+    "Warehouse": "nasiya365.permissions.has_warehouse_permission",
+    "Payment Transaction": "nasiya365.permissions.has_payment_transaction_permission",
+}
 
 # DocType User Permissions
 # ------------------------
