@@ -116,6 +116,18 @@ doc_events = {
     "Product": {
         "before_validate": "nasiya365.payment_doc_events.product_before_validate",
     },
+    "Merchant Settings": {
+        "on_update": "nasiya365.payment_doc_events.merchant_settings_on_update",
+    },
+    "Installment Plan": {
+        "after_insert": "nasiya365.payment_doc_events.installment_plan_refresh_stock_entry",
+        "on_update": "nasiya365.payment_doc_events.installment_plan_refresh_stock_entry",
+        "on_cancel": "nasiya365.payment_doc_events.installment_plan_refresh_stock_entry",
+    },
+    "Sales Order": {
+        "on_submit": "nasiya365.payment_doc_events.sales_order_refresh_stock_entries",
+        "on_cancel": "nasiya365.payment_doc_events.sales_order_refresh_stock_entries",
+    },
 }
 
 # Scheduled Tasks

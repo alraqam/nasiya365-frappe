@@ -5,7 +5,7 @@ from frappe import _
 from frappe.utils import add_days, cint, flt, get_first_day, get_last_day, getdate, nowdate, today
 
 # Поступление already consumed (cash/BNPL issue) or returned — hide from new installment plans.
-_STOCK_ENTRY_UNAVAILABLE_BUSINESS = ("Naqd savdo", "Rassrochka savdo", "Возврат")
+_STOCK_ENTRY_UNAVAILABLE_BUSINESS = ("Наличные", "Рассрочка", "Возврат")
 
 # Installment Schedule child default was "Pending" while valid options are Russian — include both in SQL.
 _OPEN_SCHEDULE_STATUSES = ("Ожидает", "Частично", "Pending")
@@ -409,13 +409,29 @@ def get_due_today_list(limit=20, branch=None):
     return rows
 
 
+_DEFAULT_PAYMENT_METHODS = [
+    "Наличные", "Наличные USD", "Акксессуар касса", "Наличные UZS",
+    "Карта", "Click", "Payme", "Перевод", "Терминал",
+]
+
+
 @frappe.whitelist()
 def get_payment_methods():
-    """Return the list of valid payment methods from the Payment Transaction Line DocType field.
+    """Return the list of valid payment methods.
 
-    Single source of truth for all JS dialogs — avoids hardcoding in pages/reports.
+    Single source of truth for all JS dialogs.
+    Priority: Merchant Settings.payment_methods → DocType meta → hardcoded fallback.
     Excludes 'Комбинированный' (computed, not selectable by the user).
     """
+    # 1. Merchant Settings (admin-editable, no migration needed)
+    try:
+        raw = frappe.db.get_single_value("Merchant Settings", "payment_methods") or ""
+        methods = [m.strip() for m in raw.splitlines() if m.strip() and m.strip() != "Комбинированный"]
+        if methods:
+            return methods
+    except Exception:
+        pass
+    # 2. DocType meta fallback
     try:
         options = frappe.get_meta("Payment Transaction Line").get_field("payment_method").options or ""
         methods = [m.strip() for m in options.split("\n") if m.strip() and m.strip() != "Комбинированный"]
@@ -423,8 +439,7 @@ def get_payment_methods():
             return methods
     except Exception:
         pass
-    return ["Наличные", "Наличные USD", "Акксессуар касса", "Наличные UZS",
-            "Карта", "Click", "Payme", "Перевод", "Терминал"]
+    return _DEFAULT_PAYMENT_METHODS
 
 
 @frappe.whitelist()
@@ -951,10 +966,10 @@ def _purchase_serial_tracks_consumed(serial_raw, exclude_installment_plan_name="
         SELECT 1 FROM `tabStock Entry Item` oxi
         INNER JOIN `tabStock Entry` ox ON ox.name = oxi.parent
         WHERE ox.docstatus = 1 AND ox.entry_type = 'Отпуск'
-          AND NULLIF(TRIM(oxi.serial_no), '') IS NOT NULL
+          AND NULLIF(TRIM(oxi.imei), '') IS NOT NULL
           AND (
-            REPLACE(UPPER(TRIM(oxi.serial_no)), ' ', '') = %s
-            OR RIGHT(REPLACE(UPPER(TRIM(oxi.serial_no)), ' ', ''), 6) = %s
+            REPLACE(UPPER(TRIM(oxi.imei)), ' ', '') = %s
+            OR RIGHT(REPLACE(UPPER(TRIM(oxi.imei)), ' ', ''), 6) = %s
           )
         LIMIT 1
         """,
@@ -1025,26 +1040,10 @@ def assert_stock_entry_available_for_installment_plan(stock_entry, current_plan_
         frappe.throw(
             _("Это поступление уже отражено как продажа или возврат. Выберите другой документ.")
         )
-    plan = current_plan_name or ""
-    conflict = frappe.db.sql(
-        """
-        SELECT name FROM `tabInstallment Plan`
-        WHERE stock_entry = %s
-          AND docstatus < 2
-          AND name != %s
-        LIMIT 1
-        """,
-        (stock_entry, plan),
-    )
-    if conflict:
-        frappe.throw(
-            _("Этот документ поступления уже привязан к плану {0}.").format(conflict[0][0])
-        )
-
     sei = frappe.db.get_value(
         "Stock Entry Item",
         {"parent": stock_entry, "idx": 1},
-        ["product", "serial_no"],
+        ["product", "imei"],
         as_dict=True,
     )
     if sei and sei.product and row.warehouse:
@@ -1060,8 +1059,8 @@ def assert_stock_entry_available_for_installment_plan(stock_entry, current_plan_
                 _("По этому складу для товара нет остатка — единица уже списана (продажа или отпуск).")
             )
 
-    if sei and sei.serial_no and str(sei.serial_no).strip():
-        if _purchase_serial_tracks_consumed(sei.serial_no, plan):
+    if sei and sei.imei and str(sei.imei).strip():
+        if _purchase_serial_tracks_consumed(sei.imei, current_plan_name or ""):
             frappe.throw(
                 _(
                     "Этот серийный номер уже в продаже (заказ), отпуске или другом плане рассрочки. Выберите другое поступление."
@@ -1092,64 +1091,62 @@ def installment_plan_stock_entry_query(
     conditions = [
         "se.docstatus = 1",
         "se.entry_type = %s",
-        """IFNULL(NULLIF(TRIM(se.business_status), ''), 'Проведен') NOT IN (
-            'Naqd savdo', 'Rassrochka savdo', 'Возврат'
+        """IFNULL(NULLIF(TRIM(se.business_status), ''), 'В наличии') NOT IN (
+            'Наличные', 'Рассрочка', 'Возврат'
         )""",
-        """NOT EXISTS (
-            SELECT 1 FROM `tabInstallment Plan` ip
-            WHERE ip.stock_entry = se.name
-              AND IFNULL(ip.docstatus, 0) < 2
-              AND (%s = '' OR ip.name != %s)
-        )""",
-        """IFNULL((
-            SELECT SUM(sl.quantity_change) FROM `tabStock Ledger` sl
-            WHERE sl.product = sei.product AND sl.warehouse = se.warehouse
-        ), 0) > 0""",
-        """NOT (
-            NULLIF(TRIM(sei.serial_no), '') IS NOT NULL
-            AND (
-                EXISTS (
-                    SELECT 1 FROM `tabStock Entry Item` oxi
-                    INNER JOIN `tabStock Entry` ox ON ox.name = oxi.parent
-                    WHERE ox.docstatus = 1 AND ox.entry_type = 'Отпуск'
-                      AND NULLIF(TRIM(oxi.serial_no), '') IS NOT NULL
-                      AND (
-                        REPLACE(UPPER(TRIM(oxi.serial_no)), ' ', '') = REPLACE(UPPER(TRIM(sei.serial_no)), ' ', '')
-                        OR RIGHT(REPLACE(UPPER(TRIM(oxi.serial_no)), ' ', ''), 6)
-                         = RIGHT(REPLACE(UPPER(TRIM(sei.serial_no)), ' ', ''), 6)
+        # Entry is available if at least one item has not yet been sold or linked to another plan.
+        """EXISTS (
+            SELECT 1 FROM `tabStock Entry Item` sei
+            WHERE sei.parent = se.name
+              AND IFNULL((
+                  SELECT SUM(sl.quantity_change) FROM `tabStock Ledger` sl
+                  WHERE sl.product = sei.product AND sl.warehouse = se.warehouse
+              ), 0) > 0
+              AND NOT (
+                  NULLIF(TRIM(sei.imei), '') IS NOT NULL
+                  AND (
+                      EXISTS (
+                          SELECT 1 FROM `tabStock Entry Item` oxi
+                          INNER JOIN `tabStock Entry` ox ON ox.name = oxi.parent
+                          WHERE ox.docstatus = 1 AND ox.entry_type = 'Отпуск'
+                            AND NULLIF(TRIM(oxi.imei), '') IS NOT NULL
+                            AND (
+                              REPLACE(UPPER(TRIM(oxi.imei)), ' ', '') = REPLACE(UPPER(TRIM(sei.imei)), ' ', '')
+                              OR RIGHT(REPLACE(UPPER(TRIM(oxi.imei)), ' ', ''), 6)
+                               = RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6)
+                            )
                       )
-                )
-                OR EXISTS (
-                    SELECT 1 FROM `tabSales Order Item` soi
-                    INNER JOIN `tabSales Order` so_order ON so_order.name = soi.parent
-                    WHERE so_order.docstatus = 1
-                      AND NULLIF(TRIM(soi.imei), '') IS NOT NULL
-                      AND (
-                        REPLACE(UPPER(TRIM(soi.imei)), ' ', '') = REPLACE(UPPER(TRIM(sei.serial_no)), ' ', '')
-                        OR REPLACE(UPPER(TRIM(soi.imei)), ' ', '')
-                         = RIGHT(REPLACE(UPPER(TRIM(sei.serial_no)), ' ', ''), 6)
-                        OR RIGHT(REPLACE(UPPER(TRIM(soi.imei)), ' ', ''), 6)
-                         = RIGHT(REPLACE(UPPER(TRIM(sei.serial_no)), ' ', ''), 6)
+                      OR EXISTS (
+                          SELECT 1 FROM `tabSales Order Item` soi
+                          INNER JOIN `tabSales Order` so_order ON so_order.name = soi.parent
+                          WHERE so_order.docstatus = 1
+                            AND NULLIF(TRIM(soi.imei), '') IS NOT NULL
+                            AND (
+                              REPLACE(UPPER(TRIM(soi.imei)), ' ', '') = REPLACE(UPPER(TRIM(sei.imei)), ' ', '')
+                              OR REPLACE(UPPER(TRIM(soi.imei)), ' ', '')
+                               = RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6)
+                              OR RIGHT(REPLACE(UPPER(TRIM(soi.imei)), ' ', ''), 6)
+                               = RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6)
+                            )
                       )
-                )
-                OR EXISTS (
-                    SELECT 1 FROM `tabInstallment Plan` ip2
-                    WHERE IFNULL(ip2.docstatus, 0) < 2
-                      AND (%s = '' OR ip2.name != %s)
-                      AND NULLIF(TRIM(ip2.imei), '') IS NOT NULL
-                      AND IFNULL(TRIM(ip2.stock_entry), '') = ''
-                      AND (
-                        REPLACE(UPPER(TRIM(ip2.imei)), ' ', '') = REPLACE(UPPER(TRIM(sei.serial_no)), ' ', '')
-                        OR REPLACE(UPPER(TRIM(ip2.imei)), ' ', '')
-                         = RIGHT(REPLACE(UPPER(TRIM(sei.serial_no)), ' ', ''), 6)
-                        OR RIGHT(REPLACE(UPPER(TRIM(ip2.imei)), ' ', ''), 6)
-                         = RIGHT(REPLACE(UPPER(TRIM(sei.serial_no)), ' ', ''), 6)
+                      OR EXISTS (
+                          SELECT 1 FROM `tabInstallment Plan` ip2
+                          WHERE IFNULL(ip2.docstatus, 0) < 2
+                            AND (%s = '' OR ip2.name != %s)
+                            AND NULLIF(TRIM(ip2.imei), '') IS NOT NULL
+                            AND (
+                              REPLACE(UPPER(TRIM(ip2.imei)), ' ', '') = REPLACE(UPPER(TRIM(sei.imei)), ' ', '')
+                              OR REPLACE(UPPER(TRIM(ip2.imei)), ' ', '')
+                               = RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6)
+                              OR RIGHT(REPLACE(UPPER(TRIM(ip2.imei)), ' ', ''), 6)
+                               = RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6)
+                            )
                       )
-                )
-            )
+                  )
+              )
         )""",
     ]
-    args = ["Поступление", plan_name, plan_name, plan_name, plan_name]
+    args = ["Поступление", plan_name, plan_name]
 
     if txt:
         conditions.append("(se.name LIKE %s OR se.items_summary LIKE %s)")
@@ -1162,7 +1159,6 @@ def installment_plan_stock_entry_query(
         f"""
         SELECT se.name, IFNULL(NULLIF(TRIM(se.items_summary), ''), se.name)
         FROM `tabStock Entry` se
-        INNER JOIN `tabStock Entry Item` sei ON sei.parent = se.name AND sei.idx = 1
         WHERE {where_sql}
         ORDER BY se.modified DESC
         LIMIT %s OFFSET %s
@@ -1180,24 +1176,49 @@ def get_stock_entry_details_for_installment_plan(stock_entry, installment_plan=N
     """
     if not stock_entry:
         return {}
-    assert_stock_entry_available_for_installment_plan(stock_entry, installment_plan or "")
+    current_plan = installment_plan or ""
+    assert_stock_entry_available_for_installment_plan(stock_entry, current_plan)
     ste = frappe.get_doc("Stock Entry", stock_entry)
-    total = flt(ste.total_value)
-    if not total and ste.items:
-        total = sum(flt(i.amount) for i in ste.items)
+
+    # Collect serials already linked to other active plans for this entry
+    taken_rows = frappe.db.sql(
+        """SELECT ip.imei FROM `tabInstallment Plan` ip
+           WHERE ip.stock_entry = %s
+             AND IFNULL(ip.docstatus, 0) < 2
+             AND (%s = '' OR ip.name != %s)
+             AND NULLIF(TRIM(ip.imei), '') IS NOT NULL""",
+        (stock_entry, current_plan, current_plan),
+        as_dict=True,
+    )
+    taken = {(r.imei or "").strip().upper().replace(" ", "")[-6:] for r in taken_rows if r.imei}
+
+    # Collect all free items (not yet taken by another plan)
+    free_items = []
+    for item in ste.items:
+        serial = (item.imei or "").strip()
+        if serial and serial.upper().replace(" ", "")[-6:] in taken:
+            continue  # already linked to another plan
+        product_name = (
+            frappe.db.get_value("Product", item.product, "product_name") if item.product else None
+        )
+        free_items.append({
+            "product": item.product,
+            "product_name": product_name,
+            "imei": serial,
+            "amount": flt(item.amount),
+            "color": (item.color or "").strip(),
+            "storage": (item.storage or "").strip(),
+        })
+
+    first = free_items[0] if free_items else None
+    total = flt(ste.total_value) or sum(flt(i.amount) for i in ste.items)
     result = {
-        "total_amount": total,
+        "total_amount": first["amount"] if first else total,
+        "product_name": first["product_name"] if first else None,
+        "imei": first["imei"] if first else None,
         "customer": None,
-        "product_name": None,
-        "imei": None,
+        "free_items": free_items,
     }
-    if ste.items:
-        first = ste.items[0]
-        if first.product:
-            result["product_name"] = frappe.db.get_value(
-                "Product", first.product, "product_name"
-            )
-        result["imei"] = first.serial_no
     return result
 
 

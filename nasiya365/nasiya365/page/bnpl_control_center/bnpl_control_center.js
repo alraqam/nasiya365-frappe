@@ -635,15 +635,14 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 			dialog.show();
 		};
 
-		// Read options from the DocType meta (single source of truth — no hardcoding).
-		// Exclude "Комбинированный" since quick modal only accepts one method.
-		frappe.model.with_doctype("Payment Transaction Line", () => {
-			const meta = frappe.get_meta("Payment Transaction Line");
-			const field = meta && meta.fields.find(f => f.fieldname === "payment_method");
-			const raw = field ? (field.options || "") : "Наличные\nНаличные USD\nКарта\nClick\nPayme\nПеревод\nТерминал";
-			const methods = raw.split("\n").map(s => s.trim()).filter(s => s && s !== "Комбинированный");
-			const defaultMethod = methods.includes("Наличные USD") ? "Наличные USD" : methods[0] || "Наличные";
-			showDialog(methods.join("\n"), defaultMethod);
+		// Read options from Merchant Settings (admin-editable, single source of truth).
+		frappe.call({
+			method: "nasiya365.api.bnpl_dashboard.get_payment_methods",
+			callback(r) {
+				const methods = r.message && r.message.length ? r.message : ["Наличные USD", "Наличные", "Карта"];
+				const defaultMethod = methods.includes("Наличные USD") ? "Наличные USD" : methods[0];
+				showDialog(methods.join("\n"), defaultMethod);
+			},
 		});
 	}
 

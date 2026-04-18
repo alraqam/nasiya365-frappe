@@ -5,6 +5,7 @@
     "engine": "InnoDB",
     "field_order": [
         "product",
+        "imei",
         "color",
         "storage",
         "quantity",
@@ -13,7 +14,7 @@
         "capacity",
         "rate",
         "amount",
-        "serial_no"
+        "expense"
     ],
     "fields": [
         {
@@ -79,9 +80,17 @@
             "read_only": 1
         },
         {
-            "fieldname": "serial_no",
+            "fieldname": "imei",
             "fieldtype": "Data",
-            "label": "Серийный номер"
+            "in_list_view": 1,
+            "label": "IMEI"
+        },
+        {
+            "default": "0",
+            "fieldname": "expense",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Расход"
         }
     ],
     "index_web_pages_for_search": 1,

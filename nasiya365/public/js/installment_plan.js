@@ -44,15 +44,12 @@ frappe.ui.form.on("Installment Plan", {
 			callback(r) {
 				if (!r.message) return;
 				const d = r.message;
-				if (flt(d.total_amount) > 0) {
-					frm.set_value("principal_amount", d.total_amount);
+				const items = d.free_items || [];
+				if (items.length > 1) {
+					pick_stock_entry_item(frm, items);
+				} else {
+					apply_stock_entry_item(frm, d);
 				}
-				if (d.product_name) frm.set_value("product_name", d.product_name);
-				if (d.imei) {
-					const full = (d.imei || "").trim();
-					frm.set_value("imei", full.length >= 6 ? full.slice(-6) : full);
-				}
-				schedule_preview_refresh(frm, 0);
 			},
 		});
 	},
@@ -282,6 +279,60 @@ function nasiya_add_months_iso(date_str, months_add) {
 function schedule_preview_change(frm) {
 	if (frm._nasiya_skip_schedule_preview) return;
 	schedule_preview_refresh(frm, PREVIEW_DEBOUNCE_MS);
+}
+
+function apply_stock_entry_item(frm, item) {
+	if (flt(item.total_amount || item.amount) > 0) {
+		frm.set_value("principal_amount", flt(item.total_amount || item.amount));
+	}
+	if (item.product_name) frm.set_value("product_name", item.product_name);
+	if (item.imei) {
+		const full = (item.imei || "").trim();
+		frm.set_value("imei", full.length >= 6 ? full.slice(-6) : full);
+	}
+	schedule_preview_refresh(frm, 0);
+}
+
+function pick_stock_entry_item(frm, items) {
+	const rows = items.map((item, idx) => {
+		const name = frappe.utils.escape_html(item.product_name || item.product || "—");
+		const color = frappe.utils.escape_html(item.color || "—");
+		const storage = frappe.utils.escape_html(item.storage || "—");
+		const imei = frappe.utils.escape_html(item.imei || "—");
+		return `<tr>
+			<td>${name}</td>
+			<td>${color}</td>
+			<td>${storage}</td>
+			<td><code>${imei}</code></td>
+			<td><button class="btn btn-primary btn-sm pick-item" data-idx="${idx}">${__("Выбрать")}</button></td>
+		</tr>`;
+	}).join("");
+
+	const d = new frappe.ui.Dialog({
+		title: __("Выберите товар"),
+		fields: [{
+			fieldtype: "HTML",
+			fieldname: "items_table",
+			options: `<table class="table table-bordered table-sm" style="margin-bottom:0">
+				<thead><tr>
+					<th>${__("Товар")}</th>
+					<th>${__("Цвет")}</th>
+					<th>${__("Память")}</th>
+					<th>${__("IMEI")}</th>
+					<th></th>
+				</tr></thead>
+				<tbody>${rows}</tbody>
+			</table>`,
+		}],
+	});
+
+	d.$wrapper.find(".pick-item").on("click", function () {
+		const idx = parseInt($(this).data("idx"));
+		d.hide();
+		apply_stock_entry_item(frm, items[idx]);
+	});
+
+	d.show();
 }
 
 function set_stock_entry_filter(frm) {

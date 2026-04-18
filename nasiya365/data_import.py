@@ -433,7 +433,7 @@ def process_row(row, default_branch, summary, skip_validation=False):
             SELECT se.name, sei.rate as cost_price
             FROM `tabStock Entry` se
             INNER JOIN `tabStock Entry Item` sei ON sei.parent = se.name
-            WHERE sei.serial_no = %s
+            WHERE sei.imei = %s
             AND se.entry_type = 'Поступление'
             AND se.docstatus = 1
             ORDER BY se.posting_date DESC
@@ -941,7 +941,7 @@ def process_purchase_row(row, default_branch, summary, skip_validation=False):
         "quantity": 1,
         "rate": rate,
         "amount": rate,
-        "serial_no": imei,
+        "imei": imei,
     }
     if color:
         item_data["color"] = color
@@ -961,7 +961,7 @@ def process_stock_entry_csv(row, default_branch, summary, skip_validation=False)
     """Stock Entry Import → entry_type = 'Корректировка' (inventory snapshot)."""
     code = row.get("Код товара", "").strip()
     name = row.get("Наименование товара", "").strip()
-    serial_no = row.get("Серийный номер", "").strip()
+    imei = row.get("Серийный номер", "").strip()
 
     if not code and not name:
         raise SkipRow
@@ -971,13 +971,13 @@ def process_stock_entry_csv(row, default_branch, summary, skip_validation=False)
     brand = row.get("Бренд", "").strip()
 
     # Skip if an inventory-adjustment entry already exists for this serial
-    if serial_no:
+    if imei:
         dup = frappe.db.sql("""
             SELECT sei.parent FROM `tabStock Entry` se
             INNER JOIN `tabStock Entry Item` sei ON sei.parent = se.name
-            WHERE se.entry_type = 'Корректировка' AND sei.serial_no = %s
+            WHERE se.entry_type = 'Корректировка' AND sei.imei = %s
             AND se.docstatus = 1 LIMIT 1
-        """, (serial_no,))
+        """, (imei,))
         if dup:
             summary["duplicates"] += 1
             return
@@ -1033,13 +1033,13 @@ def process_stock_entry_csv(row, default_branch, summary, skip_validation=False)
 
     # Inherit purchase cost for the item row
     rate = 0.0
-    if serial_no:
+    if imei:
         pr = frappe.db.sql("""
             SELECT sei.rate FROM `tabStock Entry` se
             INNER JOIN `tabStock Entry Item` sei ON sei.parent = se.name
-            WHERE se.entry_type = 'Поступление' AND sei.serial_no = %s
+            WHERE se.entry_type = 'Поступление' AND sei.imei = %s
             AND se.docstatus = 1 ORDER BY se.posting_date DESC LIMIT 1
-        """, (serial_no,))
+        """, (imei,))
         if pr:
             rate = flt(pr[0][0])
 
@@ -1054,12 +1054,12 @@ def process_stock_entry_csv(row, default_branch, summary, skip_validation=False)
     if not se.warehouse:
         se.warehouse = frappe.db.get_value("Warehouse", {}, "name")
 
-    se.remarks = f"Текущий остаток: {name} ({serial_no})"
+    se.remarks = f"Текущий остаток: {name} ({imei})"
 
     item_data = {
         "product": product.name,
         "quantity": 1,
-        "serial_no": serial_no,
+        "imei": imei,
         "rate": rate,
         "amount": rate,
     }

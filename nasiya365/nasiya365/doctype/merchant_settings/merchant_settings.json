@@ -30,6 +30,8 @@
         "enable_telegram_notifications",
         "telegram_bot_token",
         "telegram_chat_id",
+        "payment_methods_section",
+        "payment_methods",
         "payment_section",
         "enable_click",
         "click_merchant_id",
@@ -186,6 +188,18 @@
             "fieldname": "telegram_chat_id",
             "fieldtype": "Data",
             "label": "Telegram Chat ID"
+        },
+        {
+            "fieldname": "payment_methods_section",
+            "fieldtype": "Section Break",
+            "label": "Методы оплаты"
+        },
+        {
+            "default": "Наличные\nНаличные USD\nАкксессуар касса\nНаличные UZS\nКарта\nClick\nPayme\nПеревод\nТерминал",
+            "description": "Список методов оплаты — по одному на строке. Изменения применяются сразу без миграции.",
+            "fieldname": "payment_methods",
+            "fieldtype": "Small Text",
+            "label": "Методы оплаты"
         },
         {
             "fieldname": "payment_section",

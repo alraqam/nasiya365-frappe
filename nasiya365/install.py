@@ -18,9 +18,26 @@ def after_install():
     set_default_desk_home()
     create_default_print_templates()
     create_default_cashboxes()
+    seed_default_payment_methods()
+    sync_payment_method_options_from_settings()
     frappe.db.commit()
     frappe.clear_cache()
     print("Nasiya365 installed successfully!")
+
+
+def seed_default_payment_methods():
+    """Initialize Merchant Settings.payment_methods if empty (fresh install)."""
+    try:
+        current = frappe.db.get_single_value("Merchant Settings", "payment_methods") or ""
+    except Exception:
+        return
+    if current.strip():
+        return
+    frappe.db.set_single_value(
+        "Merchant Settings",
+        "payment_methods",
+        "Наличные\nНаличные USD\nАкксессуар касса\nНаличные UZS\nКарта\nClick\nPayme\nПеревод\nТерминал",
+    )
 
 
 def after_migrate():
@@ -31,8 +48,34 @@ def after_migrate():
     backfill_customer_profile_full_name()
     sync_customer_name_denormalized()
     backfill_stock_entry_supplier_from_remarks()
+    sync_payment_method_options_from_settings()
     frappe.db.commit()
     frappe.clear_cache()
+
+
+def sync_payment_method_options_from_settings():
+    """Re-sync payment_method Select options from Merchant Settings into tabDocField
+    after migrate (migrate overwrites DB meta from JSON, so we need to re-apply)."""
+    try:
+        raw = frappe.db.get_single_value("Merchant Settings", "payment_methods") or ""
+    except Exception:
+        return
+    methods = [m.strip() for m in raw.splitlines() if m.strip()]
+    if not methods:
+        return
+    base_opts = "\n".join(methods)
+    targets = [
+        ("Payment Transaction Line", "payment_method", ""),
+        ("Payment Transaction",      "payment_method", "\nКомбинированный"),
+        ("Cashbox Transaction",      "payment_method", ""),
+        ("Cash Handover Line",       "payment_method", "\nДругое"),
+    ]
+    for doctype, fieldname, suffix in targets:
+        opts = base_opts + suffix
+        frappe.db.sql(
+            "UPDATE `tabDocField` SET options=%s WHERE parent=%s AND fieldname=%s",
+            (opts, doctype, fieldname),
+        )
 
 
 def sync_desk_navigation():
@@ -657,7 +700,7 @@ def repair_import_stock_inventory():
     """
     Import stock_entry.csv items as Stock Entry with entry_type = 'Корректировка'
     (inventory adjustment) to mark items currently in stock.
-    Skips duplicates by checking serial_no already exists as 'Корректировка'.
+    Skips duplicates by checking imei already exists as 'Корректировка'.
     Also reads color/storage/condition from purchase.csv for the same items.
     """
     csv_path = os.path.join(_import_data_dir(), "stock_entry.csv")
@@ -673,7 +716,7 @@ def repair_import_stock_inventory():
         row = _norm(raw)
         code = row.get("Код товара", "").strip()
         name = row.get("Наименование товара", "").strip()
-        serial_no = row.get("Серийный номер", "").strip()
+        imei = row.get("Серийный номер", "").strip()
         if not code and not name:
             continue
 
@@ -681,15 +724,15 @@ def repair_import_stock_inventory():
         condition_raw = row.get("Состояние", "").strip()
         brand = row.get("Бренд", "").strip()
 
-        # Check for existing Корректировка entry with same serial_no
-        if serial_no:
+        # Check for existing Корректировка entry with same imei
+        if imei:
             exists = frappe.db.sql("""
                 SELECT sei.parent FROM `tabStock Entry` se
                 INNER JOIN `tabStock Entry Item` sei ON sei.parent = se.name
-                WHERE se.entry_type = 'Корректировка' AND sei.serial_no = %s
+                WHERE se.entry_type = 'Корректировка' AND sei.imei = %s
                 AND se.docstatus = 1
                 LIMIT 1
-            """, (serial_no,))
+            """, (imei,))
             if exists:
                 skipped += 1
                 continue
@@ -712,16 +755,16 @@ def repair_import_stock_inventory():
             product.flags.ignore_permissions = True
             product.insert()
 
-        # Look up cost from the purchase entry for this serial_no
+        # Look up cost from the purchase entry for this imei
         rate = 0.0
-        if serial_no:
+        if imei:
             purchase_rate = frappe.db.sql("""
                 SELECT sei.rate FROM `tabStock Entry` se
                 INNER JOIN `tabStock Entry Item` sei ON sei.parent = se.name
-                WHERE se.entry_type = 'Поступление' AND sei.serial_no = %s
+                WHERE se.entry_type = 'Поступление' AND sei.imei = %s
                 AND se.docstatus = 1
                 ORDER BY se.posting_date DESC LIMIT 1
-            """, (serial_no,))
+            """, (imei,))
             if purchase_rate:
                 rate = flt(purchase_rate[0][0])
 
@@ -731,7 +774,7 @@ def repair_import_stock_inventory():
         se.entry_type = "Корректировка"
         se.posting_date = today()
         se.warehouse = warehouse
-        se.remarks = f"Текущий остаток: {name} ({serial_no})"
+        se.remarks = f"Текущий остаток: {name} ({imei})"
 
         item_data = {
             "product": product.name,
@@ -739,7 +782,7 @@ def repair_import_stock_inventory():
             "quantity": 1,
             "rate": rate,
             "amount": rate,
-            "serial_no": serial_no,
+            "imei": imei,
         }
         if color:
             item_data["color"] = color

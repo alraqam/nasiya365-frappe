@@ -19,6 +19,7 @@
         "total_quantity",
         "column_break_2",
         "total_value",
+        "total_expense",
         "additional_info",
         "items_summary",
         "remarks"
@@ -38,7 +39,7 @@
             "fieldtype": "Select",
             "in_list_view": 1,
             "label": "Бизнес статус",
-            "options": "Черновик\nПроведен\nNaqd savdo\nRassrochka savdo\nВозврат",
+            "options": "Черновик\nВ наличии\nЧастично продан\nНаличные\nРассрочка\nВозврат",
             "read_only_depends_on": "eval:doc.docstatus!==0"
         },
         {
@@ -115,6 +116,13 @@
             "fieldname": "total_value",
             "fieldtype": "Currency",
             "label": "Общая стоимость",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "total_expense",
+            "fieldtype": "Currency",
+            "label": "Итого расходы",
             "read_only": 1
         },
         {

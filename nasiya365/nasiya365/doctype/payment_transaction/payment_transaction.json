@@ -91,6 +91,7 @@
         {
             "fieldname": "transaction_id",
             "fieldtype": "Data",
+            "hidden": 1,
             "label": "ID транзакции"
         },
         {
@@ -151,7 +152,7 @@
             "default": "Наличные",
             "fieldname": "payment_method",
             "fieldtype": "Select",
-            "in_list_view": 1,
+            "hidden": 1,
             "label": "Метод оплаты",
             "options": "Наличные\nНаличные USD\nАкксессуар касса\nНаличные UZS\nКарта\nClick\nPayme\nПеревод\nТерминал\nКомбинированный"
         },
@@ -169,12 +170,14 @@
         {
             "fieldname": "reference_doctype",
             "fieldtype": "Link",
+            "hidden": 1,
             "label": "Тип документа",
             "options": "DocType"
         },
         {
             "fieldname": "reference_name",
             "fieldtype": "Dynamic Link",
+            "hidden": 1,
             "label": "Документ",
             "options": "reference_doctype"
         },

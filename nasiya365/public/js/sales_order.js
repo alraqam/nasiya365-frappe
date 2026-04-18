@@ -108,12 +108,17 @@ class NasiyaSalesWizard {
 		const updatePrice = () => {
 			const product = d.get_value("product");
 			if (!product) return;
-			frappe.db.get_value("Product", product, "selling_price").then((res) => {
-				this.state.price = Number((res.message || {}).selling_price || 0);
-				const qty = Number(d.get_value("qty") || 1);
-				d.fields_dict.price_info.$wrapper.html(
-					`<div class="small text-muted">Цена: <b>${format_currency(this.state.price)}</b> · Итого: <b>${format_currency(this.state.price * qty)}</b></div>`
-				);
+			frappe.call({
+				method: "nasiya365.nasiya365.doctype.sales_order.sales_order.get_product_for_wizard",
+				args: { product },
+				callback: (res) => {
+					const data = res.message || {};
+					this.state.price = Number(data.selling_price || 0);
+					const qty = Number(d.get_value("qty") || 1);
+					d.fields_dict.price_info.$wrapper.html(
+						`<div class="small text-muted">Цена: <b>${format_currency(this.state.price)}</b> · Итого: <b>${format_currency(this.state.price * qty)}</b></div>`
+					);
+				},
 			});
 			frappe.call({
 				method: "nasiya365.nasiya365.doctype.sales_order.sales_order.get_product_stock_available",

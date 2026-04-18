@@ -7,6 +7,7 @@ frappe.ui.form.on("Payment Transaction", {
 		render_installment_plans(frm);
 		recalc_payment_table_total(frm);
 		frm.add_custom_button(__("Сдача"), () => open_change_calculator(frm), __("Касса"));
+		apply_payment_method_options(frm);
 	},
 	exchange_rate(frm) {
 		recalc_payment_table_total(frm);
@@ -84,6 +85,33 @@ frappe.ui.form.on("Payment Transaction Line", {
 		recalc_payment_table_total(frm);
 	},
 });
+
+function apply_payment_method_options(frm) {
+	frappe.call({
+		method: "nasiya365.api.bnpl_dashboard.get_payment_methods",
+		callback(r) {
+			if (!r.message || !r.message.length) return;
+			const opts = r.message.join("\n");
+			const optsWithCombo = opts + "\nКомбинированный";
+
+			// Update global meta cache so every new render uses fresh options
+			const ptField = frappe.meta.get_docfield("Payment Transaction", "payment_method");
+			if (ptField) ptField.options = optsWithCombo;
+			const lineField = frappe.meta.get_docfield("Payment Transaction Line", "payment_method");
+			if (lineField) lineField.options = opts;
+
+			// Re-render parent field
+			frm.set_df_property("payment_method", "options", optsWithCombo);
+			frm.refresh_field("payment_method");
+
+			// Re-render child table grid
+			if (frm.fields_dict.payment_lines) {
+				frm.fields_dict.payment_lines.grid.update_docfield_property("payment_method", "options", opts);
+				frm.fields_dict.payment_lines.grid.refresh();
+			}
+		},
+	});
+}
 
 function recalc_payment_table_total(frm) {
 	const lines = frm.doc.payment_lines || [];
@@ -276,9 +304,7 @@ function paint_installment_plans(frm, plans) {
 	const selectionBanner = refOk
 		? `<div class="alert alert-info nasiya-pay-selection" style="margin-bottom:10px;">
 				<strong>Платёж привязан к:</strong>
-				${frappe.utils.escape_html(contractLabel)}
-				<span class="text-muted"> · план </span>
-				<a href="/app/installment-plan/${encodeURIComponent(frm.doc.reference_name)}" target="_blank">${frappe.utils.escape_html(frm.doc.reference_name)}</a>
+				<a href="/app/installment-plan/${encodeURIComponent(frm.doc.reference_name)}" target="_blank">${frappe.utils.escape_html(contractLabel)}</a>
 		   </div>`
 		: `<div class="alert alert-warning nasiya-pay-selection" style="margin-bottom:10px;">
 				<strong>Договор не выбран.</strong> Нажмите «Выбрать» в строке нужного плана.
@@ -287,6 +313,8 @@ function paint_installment_plans(frm, plans) {
 	const rows = plans
 		.map((p) => {
 			const debt = frappe.format(p.remaining_balance || 0, { fieldtype: "Currency" });
+			const suggested = Math.max(0, Math.min(flt(p.installment_amount || 0), flt(p.remaining_balance || 0)));
+			const toPay = frappe.format(suggested, { fieldtype: "Currency" });
 			const device = frappe.utils.escape_html(p.device_name || "-");
 			const imei = p.imei ? ` / IMEI: ${frappe.utils.escape_html(p.imei)}` : "";
 			const status = frappe.utils.escape_html(p.contract_status || p.status || "");
@@ -299,9 +327,9 @@ function paint_installment_plans(frm, plans) {
 				: `<td class="nasiya-pay-action"><button type="button" class="btn btn-primary btn-sm use-plan" data-plan="${frappe.utils.escape_html(p.name)}" ${disabled}>${__("Выбрать")}</button></td>`;
 			return `
 				<tr${rowClass}>
-					<td><a href="/app/installment-plan/${encodeURIComponent(p.name)}" target="_blank">${frappe.utils.escape_html(p.name)}</a></td>
-					<td>${frappe.utils.escape_html(dogovor)}</td>
+					<td><a href="/app/installment-plan/${encodeURIComponent(p.name)}" target="_blank">${frappe.utils.escape_html(dogovor)}</a></td>
 					<td>${device}${imei}</td>
+					<td><strong>${toPay}</strong></td>
 					<td>${debt}</td>
 					<td>${status}</td>
 					${actionCell}
@@ -318,17 +346,17 @@ function paint_installment_plans(frm, plans) {
 				<table class="table table-bordered nasiya-payment-plans">
 					<colgroup>
 						<col style="width:15%" />
-						<col style="width:14%" />
 						<col style="width:30%" />
+						<col style="width:14%" />
 						<col style="width:14%" />
 						<col style="width:14%" />
 						<col style="width:13%" />
 					</colgroup>
 					<thead>
 						<tr>
-							<th>План</th>
 							<th>Договор</th>
 							<th>Устройство</th>
+							<th>К оплате</th>
 							<th>Остаток</th>
 							<th>Статус</th>
 							<th class="nasiya-pay-action">Выбор</th>

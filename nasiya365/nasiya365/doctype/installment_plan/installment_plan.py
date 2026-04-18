@@ -101,21 +101,42 @@ class InstallmentPlan(Document):
         # Populate product model + IMEI from Stock Entry (preferred) or Sales Order (legacy / import)
         if hasattr(self, "product_name") and hasattr(self, "imei"):
             if (not self.product_name or not self.imei) and getattr(self, "stock_entry", None):
-                sei = frappe.get_all(
+                all_items = frappe.get_all(
                     "Stock Entry Item",
                     filters={"parent": self.stock_entry},
-                    fields=["product", "serial_no"],
+                    fields=["product", "imei"],
                     order_by="idx asc",
-                    limit=1,
                 )
-                if sei:
-                    row = sei[0]
+                # Skip serials already linked to other active plans on this entry
+                current_plan = self.name or ""
+                taken_rows = frappe.db.sql(
+                    """SELECT ip.imei FROM `tabInstallment Plan` ip
+                       WHERE ip.stock_entry = %s
+                         AND IFNULL(ip.docstatus, 0) < 2
+                         AND (%s = '' OR ip.name != %s)
+                         AND NULLIF(TRIM(ip.imei), '') IS NOT NULL""",
+                    (self.stock_entry, current_plan, current_plan),
+                    as_dict=True,
+                )
+                taken = {
+                    (r.imei or "").strip().upper().replace(" ", "")[-6:]
+                    for r in taken_rows if r.imei
+                }
+                row = None
+                for item in all_items:
+                    serial = (item.get("imei") or "").strip()
+                    if not serial or serial.upper().replace(" ", "")[-6:] not in taken:
+                        row = item
+                        break
+                if row is None and all_items:
+                    row = all_items[0]
+                if row:
                     if not self.product_name and row.get("product"):
                         self.product_name = frappe.db.get_value(
                             "Product", row["product"], "product_name"
                         )
-                    if not self.imei and row.get("serial_no"):
-                        full_imei = (row["serial_no"] or "").strip()
+                    if not self.imei and row.get("imei"):
+                        full_imei = (row["imei"] or "").strip()
                         self.imei = full_imei[-6:] if len(full_imei) >= 6 else full_imei
             elif (not self.product_name or not self.imei) and self.sales_order:
                 items = frappe.get_all(

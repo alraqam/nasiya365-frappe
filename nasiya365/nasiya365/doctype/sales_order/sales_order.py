@@ -218,6 +218,31 @@ def on_cancel(doc, method):
 
 
 @frappe.whitelist()
+def get_product_for_wizard(product):
+    """Return product fields needed by the sales wizard, bypassing get_value field validation."""
+    if not product:
+        return {}
+    rows = frappe.db.sql(
+        """SELECT selling_price, cost_price, product_name, allow_installment,
+                  min_down_payment_percent, max_installment_months
+           FROM `tabProduct` WHERE name = %s LIMIT 1""",
+        product,
+        as_dict=True,
+    )
+    if not rows:
+        return {}
+    row = rows[0]
+    return {
+        "selling_price": flt(row.get("selling_price") or 0),
+        "cost_price": flt(row.get("cost_price") or 0),
+        "product_name": row.get("product_name") or product,
+        "allow_installment": row.get("allow_installment"),
+        "min_down_payment_percent": flt(row.get("min_down_payment_percent") or 0),
+        "max_installment_months": row.get("max_installment_months"),
+    }
+
+
+@frappe.whitelist()
 def get_product_stock_available(product, warehouse=None):
     if not product:
         return {"available_qty": 0}

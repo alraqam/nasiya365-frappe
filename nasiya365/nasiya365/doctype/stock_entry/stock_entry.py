@@ -2,6 +2,77 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import flt, now_datetime
 
+def refresh_stock_entry_business_status(stock_entry_name):
+	"""Recompute and save business_status based on how many items are sold (by serial/IMEI)."""
+	if not stock_entry_name:
+		return
+	ste_meta = frappe.db.get_value(
+		"Stock Entry", stock_entry_name, ["docstatus", "entry_type"], as_dict=True
+	)
+	if not ste_meta or ste_meta.docstatus != 1:
+		return  # Only refresh submitted entries
+
+	items = frappe.get_all(
+		"Stock Entry Item",
+		filters={"parent": stock_entry_name},
+		fields=["imei"],
+		order_by="idx asc",
+	)
+	total = len(items)
+	serials = [(i.imei or "").strip() for i in items if (i.imei or "").strip()]
+
+	if not serials:
+		return  # No serials — cannot track per item
+
+	installment_sold = 0
+	cash_sold = 0
+
+	for serial in serials:
+		norm = serial.upper().replace(" ", "")
+		last6 = norm[-6:] if len(norm) >= 6 else norm
+
+		if frappe.db.sql(
+			"""SELECT 1 FROM `tabInstallment Plan`
+			   WHERE IFNULL(docstatus, 0) < 2
+			     AND NULLIF(TRIM(imei), '') IS NOT NULL
+			     AND (REPLACE(UPPER(TRIM(imei)),' ','') = %s
+			          OR RIGHT(REPLACE(UPPER(TRIM(imei)),' ',''), 6) = %s)
+			   LIMIT 1""",
+			(norm, last6),
+		):
+			installment_sold += 1
+			continue
+
+		if frappe.db.sql(
+			"""SELECT 1 FROM `tabSales Order Item` soi
+			   INNER JOIN `tabSales Order` so ON so.name = soi.parent
+			   WHERE so.docstatus = 1
+			     AND NULLIF(TRIM(soi.imei), '') IS NOT NULL
+			     AND (REPLACE(UPPER(TRIM(soi.imei)),' ','') = %s
+			          OR RIGHT(REPLACE(UPPER(TRIM(soi.imei)),' ',''), 6) = %s)
+			   LIMIT 1""",
+			(norm, last6),
+		):
+			cash_sold += 1
+
+	sold = installment_sold + cash_sold
+
+	if sold == 0:
+		status = "В наличии"
+	elif sold < total:
+		status = "Частично продан"
+	elif installment_sold == total:
+		status = "Рассрочка"
+	elif cash_sold == total:
+		status = "Наличные"
+	else:
+		status = "Частично продан"  # mixed methods, all gone
+
+	frappe.db.set_value(
+		"Stock Entry", stock_entry_name, "business_status", status, update_modified=False
+	)
+
+
 class StockEntry(Document):
 	def validate(self):
 		self.calculate_totals()
@@ -38,8 +109,8 @@ class StockEntry(Document):
 
 			item_desc = " · ".join(parts) if parts else (item.product or "")
 
-			if item.serial_no:
-				serial = (item.serial_no or "").strip()
+			if item.imei:
+				serial = (item.imei or "").strip()
 				if len(serial) > 6:
 					serial = "…" + serial[-6:]
 				item_desc = f"{item_desc} ({serial})"
@@ -56,18 +127,18 @@ class StockEntry(Document):
 
 	
 	def calculate_totals(self):
-		"""Calculate total quantity and value"""
-		self.total_quantity = sum([flt(item.quantity) for item in self.items])
-		self.total_value = sum([flt(item.amount) for item in self.items])
-		
-		# Calculate amount for each item
+		"""Calculate total quantity, value and expense"""
 		for item in self.items:
 			item.amount = flt(item.quantity) * flt(item.rate)
+
+		self.total_quantity = sum(flt(item.quantity) for item in self.items)
+		self.total_value = sum(flt(item.amount) for item in self.items)
+		self.total_expense = sum(flt(item.expense) for item in self.items)
 	
 	def on_submit(self):
 		"""Update stock ledger when submitted"""
 		if self._has_business_status_field():
-			self.business_status = self._resolve_sale_source_status()
+			self.business_status = "В наличии"
 			self.db_update()
 		self.update_stock_ledger()
 	
@@ -85,18 +156,7 @@ class StockEntry(Document):
 		if self.docstatus == 0 and not (getattr(self, "business_status", None) or "").strip():
 			self.business_status = "Черновик"
 		elif self.docstatus == 1 and not (getattr(self, "business_status", None) or "").strip():
-			self.business_status = "Проведен"
-
-	def _resolve_sale_source_status(self):
-		manual = (getattr(self, "business_status", None) or "").strip()
-		if manual in ("Naqd savdo", "Rassrochka savdo", "Проведен"):
-			return manual
-		remarks_lower = (self.remarks or "").lower()
-		if "рассрочка" in remarks_lower or "rassrochka" in remarks_lower:
-			return "Rassrochka savdo"
-		if "наличные" in remarks_lower or "naqd" in remarks_lower:
-			return "Naqd savdo"
-		return "Проведен"
+			self.business_status = "В наличии"
 	
 	def update_stock_ledger(self, cancel=False):
 		"""Create stock ledger entries"""
