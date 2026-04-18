@@ -308,25 +308,25 @@ function pick_stock_entry_item(frm, items) {
 		</tr>`;
 	}).join("");
 
+	const html = `<table class="table table-bordered table-sm" style="margin-bottom:0">
+		<thead><tr>
+			<th>${__("Товар")}</th>
+			<th>${__("Цвет")}</th>
+			<th>${__("Память")}</th>
+			<th>${__("IMEI")}</th>
+			<th></th>
+		</tr></thead>
+		<tbody>${rows}</tbody>
+	</table>`;
+
 	const d = new frappe.ui.Dialog({
 		title: __("Выберите товар"),
-		fields: [{
-			fieldtype: "HTML",
-			fieldname: "items_table",
-			options: `<table class="table table-bordered table-sm" style="margin-bottom:0">
-				<thead><tr>
-					<th>${__("Товар")}</th>
-					<th>${__("Цвет")}</th>
-					<th>${__("Память")}</th>
-					<th>${__("IMEI")}</th>
-					<th></th>
-				</tr></thead>
-				<tbody>${rows}</tbody>
-			</table>`,
-		}],
+		fields: [{ fieldtype: "HTML", fieldname: "items_table" }],
 	});
 
-	d.$wrapper.find(".pick-item").on("click", function () {
+	d.fields_dict.items_table.$wrapper.html(html);
+
+	d.$wrapper.on("click", ".pick-item", function () {
 		const idx = parseInt($(this).data("idx"));
 		d.hide();
 		apply_stock_entry_item(frm, items[idx]);
