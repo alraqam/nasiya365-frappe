@@ -205,6 +205,8 @@ permission_query_conditions = {
     "Expense": "nasiya365.permissions.expense_query",
     "Warehouse": "nasiya365.permissions.warehouse_query",
     "Payment Transaction": "nasiya365.permissions.payment_transaction_query",
+    "Customer Profile": "nasiya365.permissions.customer_profile_query",
+    "Stock Entry": "nasiya365.permissions.stock_entry_query",
 }
 
 has_permission = {
@@ -216,6 +218,8 @@ has_permission = {
     "Expense": "nasiya365.permissions.has_expense_permission",
     "Warehouse": "nasiya365.permissions.has_warehouse_permission",
     "Payment Transaction": "nasiya365.permissions.has_payment_transaction_permission",
+    "Customer Profile": "nasiya365.permissions.has_customer_profile_permission",
+    "Stock Entry": "nasiya365.permissions.has_stock_entry_permission",
 }
 
 # DocType User Permissions

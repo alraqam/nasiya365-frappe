@@ -4,6 +4,49 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, get_first_day, get_last_day, getdate, nowdate, today
 
+
+def _require_doc_permission(doctype: str, name: str, ptype: str = "read") -> None:
+    """Raise PermissionError if caller cannot access `name` of `doctype`."""
+    if not name:
+        frappe.throw(_("{0} is required").format(doctype))
+    if not frappe.db.exists(doctype, name):
+        frappe.throw(_("{0} not found").format(doctype))
+    if not frappe.has_permission(doctype, ptype=ptype, doc=name):
+        frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+
+def _user_branch_clause(plan_alias: str = "ip"):
+    """
+    Return (sql_fragment, params) restricting Installment-Plan-backed queries
+    to the caller's assigned branches. Fragment begins with ' AND ' when non-empty.
+    For unrestricted users returns ('', ()).
+    For users with zero branches returns a no-match fragment so they see nothing.
+    """
+    from nasiya365.permissions import _get_user_branches, _is_unrestricted
+
+    user = frappe.session.user
+    if _is_unrestricted(user):
+        return ("", ())
+    branches = _get_user_branches(user)
+    if not branches:
+        return (" AND 1=0", ())
+    placeholders = ",".join(["%s"] * len(branches))
+    fragment = (
+        f" AND {plan_alias}.sales_order IN "
+        f"(SELECT name FROM `tabSales Order` WHERE branch IN ({placeholders}))"
+    )
+    return (fragment, tuple(branches))
+
+
+def _user_branch_list():
+    """Return (is_unrestricted, branches list). Empty list means user sees nothing."""
+    from nasiya365.permissions import _get_user_branches, _is_unrestricted
+
+    user = frappe.session.user
+    if _is_unrestricted(user):
+        return (True, [])
+    return (False, _get_user_branches(user))
+
 # Поступление already consumed (cash/BNPL issue) or returned — hide from new installment plans.
 _STOCK_ENTRY_UNAVAILABLE_BUSINESS = ("Наличные", "Рассрочка", "Возврат")
 
@@ -84,29 +127,40 @@ def _revenue_mtd_prev_month_window(as_of):
 
 
 def _sum_payments_between(start, end):
+    plan_branch_clause, branch_params = _user_branch_clause("ip")
+    # Payment Transaction has no branch itself; filter via its linked Installment Plan.
+    pt_filter = (
+        "AND pt.reference_doctype = 'Installment Plan' "
+        "AND EXISTS (SELECT 1 FROM `tabInstallment Plan` ip "
+        f"           WHERE ip.name = pt.reference_name {plan_branch_clause})"
+    ) if plan_branch_clause else ""
     return _to_float(
         frappe.db.sql(
-            """
+            f"""
             SELECT COALESCE(SUM(pt.amount), 0)
             FROM `tabPayment Transaction` pt
             WHERE pt.docstatus < 2
               AND pt.status = 'Завершен'
               AND pt.payment_date BETWEEN %s AND %s
+              {pt_filter}
             """,
-            (start, end),
+            (start, end, *branch_params),
         )[0][0]
     )
 
 
 def _kpi_metrics(base_date, branch=None):
+    plan_clause, branch_params = _user_branch_clause("ip")
+
     outstanding = frappe.db.sql(
-        """
+        f"""
         SELECT COALESCE(SUM(ip.remaining_balance), 0)
         FROM `tabInstallment Plan` ip
         WHERE ip.docstatus = 1
           AND ip.status IN ('Активный', 'Просрочен')
+          {plan_clause}
     """,
-        (),
+        branch_params,
     )[0][0]
 
     in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
@@ -120,8 +174,9 @@ def _kpi_metrics(base_date, branch=None):
           AND (isc.amount - COALESCE(isc.paid_amount, 0)) > 0.001
           AND {open_pred}
           AND isc.due_date = %s
+          {plan_clause}
     """,
-        (*_OPEN_SCHEDULE_STATUSES, base_date),
+        (*_OPEN_SCHEDULE_STATUSES, base_date, *branch_params),
     )[0][0]
 
     overdue = frappe.db.sql(
@@ -135,25 +190,36 @@ def _kpi_metrics(base_date, branch=None):
             isc.status = 'Просрочен'
             OR (isc.due_date < %s AND {open_pred})
           )
+          {plan_clause}
     """,
-        (base_date, *_OPEN_SCHEDULE_STATUSES),
+        (base_date, *_OPEN_SCHEDULE_STATUSES, *branch_params),
     )[0][0]
 
+    pt_filter = (
+        "AND pt.reference_doctype = 'Installment Plan' "
+        "AND EXISTS (SELECT 1 FROM `tabInstallment Plan` ip "
+        f"           WHERE ip.name = pt.reference_name {plan_clause})"
+    ) if plan_clause else ""
     collected_today = frappe.db.sql(
-        """
+        f"""
         SELECT COALESCE(SUM(pt.amount), 0)
         FROM `tabPayment Transaction` pt
         WHERE pt.docstatus < 2
           AND pt.status = 'Завершен'
           AND pt.payment_date = %s
+          {pt_filter}
     """,
-        (base_date,),
+        (base_date, *branch_params),
     )[0][0]
 
-    active_contracts = frappe.db.count(
-        "Installment Plan",
-        {"docstatus": 1, "status": ["in", ["Активный", "Просрочен"]]},
-    )
+    active_contracts_sql = f"""
+        SELECT COUNT(*)
+        FROM `tabInstallment Plan` ip
+        WHERE ip.docstatus = 1
+          AND ip.status IN ('Активный', 'Просрочен')
+          {plan_clause}
+    """
+    active_contracts = frappe.db.sql(active_contracts_sql, branch_params)[0][0]
 
     mtd_start, mtd_end = _revenue_mtd_window(base_date)
     revenue_mtd = _sum_payments_between(mtd_start, mtd_end)
@@ -187,11 +253,10 @@ def get_bnpl_kpis(date=None, branch=None):
 @frappe.whitelist()
 def log_collection_call(installment_plan, outcome, notes="", promised_date=None, next_call_date=None):
     """Save a Collection Log entry for a collector call outcome."""
-    if not installment_plan:
-        frappe.throw("installment_plan is required")
+    _require_doc_permission("Installment Plan", installment_plan, "write")
     customer = frappe.db.get_value("Installment Plan", installment_plan, "customer")
     if not customer:
-        frappe.throw("Installment Plan not found")
+        frappe.throw(_("Installment Plan not found"))
 
     doc = frappe.new_doc("Collection Log")
     doc.customer = customer
@@ -238,6 +303,9 @@ def get_overdue_list(limit=20, branch=None, collector=None):
         """
         args.append(collector)
 
+    branch_clause, branch_params = _user_branch_clause("ip")
+    args.extend(branch_params)
+
     rows = frappe.db.sql(
         f"""
         SELECT
@@ -272,6 +340,7 @@ def get_overdue_list(limit=20, branch=None, collector=None):
             OR (isc.due_date < %s AND {open_pred})
           )
           {collector_clause}
+          {branch_clause}
         ORDER BY days_overdue DESC, amount_due DESC
         LIMIT {query_limit}
     """,
@@ -302,6 +371,7 @@ def _get_top_overdue_plans(limit=5, base_date=None):
     n = _safe_limit(limit, default_value=5, max_value=20)
     in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
     open_pred = _schedule_open_predicate(in_open)
+    branch_clause, branch_params = _user_branch_clause("ip")
 
     rows = frappe.db.sql(
         f"""
@@ -327,13 +397,14 @@ def _get_top_overdue_plans(limit=5, base_date=None):
             isc.status = 'Просрочен'
             OR (isc.due_date < %s AND {open_pred})
           )
+          {branch_clause}
         GROUP BY ip.name, ip.customer, customer_name, ip.product_name,
                  cl.outcome, cl.call_datetime, cl.promised_date,
                  cl.next_call_date, cl.notes
         ORDER BY amount_due DESC, days_overdue DESC
         LIMIT {n}
         """,
-        (base_date, base_date, *_OPEN_SCHEDULE_STATUSES),
+        (base_date, base_date, *_OPEN_SCHEDULE_STATUSES, *branch_params),
         as_dict=True,
     )
 
@@ -355,7 +426,8 @@ def get_due_today_list(limit=20, branch=None):
     in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
     open_pred = _schedule_open_predicate(in_open)
     base_date = getdate(today())
-    args = [*_OPEN_SCHEDULE_STATUSES, base_date, base_date]
+    branch_clause, branch_params = _user_branch_clause("ip")
+    args = [*_OPEN_SCHEDULE_STATUSES, base_date, base_date, *branch_params]
 
     rows = frappe.db.sql(
         f"""
@@ -389,6 +461,7 @@ def get_due_today_list(limit=20, branch=None):
           AND {open_pred}
           AND isc.due_date = %s
           {filters}
+          {branch_clause}
         ORDER BY
             CASE isc.status WHEN 'Частично' THEN 0 ELSE 1 END,
             amount_due DESC
@@ -476,9 +549,7 @@ def get_recent_activity(limit=8):
 
 @frappe.whitelist()
 def get_client_risk_snapshot(customer):
-    if not customer:
-        frappe.throw(_("Клиент обязателен"))
-
+    _require_doc_permission("Customer Profile", customer, "read")
     doc = frappe.get_doc("Customer Profile", customer)
     active_plans = frappe.db.count(
         "Installment Plan",
@@ -573,6 +644,7 @@ def _merge_timeline_events(limit=24):
     in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
     open_pred = _schedule_open_predicate(in_open)
     base_td = getdate(today())
+    branch_clause, branch_params = _user_branch_clause("ip")
     missed = frappe.db.sql(
         f"""
         SELECT
@@ -593,10 +665,11 @@ def _merge_timeline_events(limit=24):
             isc.status = 'Просрочен'
             OR (isc.due_date < %s AND {open_pred})
           )
+          {branch_clause}
         ORDER BY isc.modified DESC
         LIMIT {per}
         """,
-        (base_td, base_td, *_OPEN_SCHEDULE_STATUSES),
+        (base_td, base_td, *_OPEN_SCHEDULE_STATUSES, *branch_params),
         as_dict=True,
     )
 
@@ -660,9 +733,7 @@ def get_activity_timeline(limit=24):
 @frappe.whitelist()
 def send_due_payment_reminder(installment_plan, schedule_name=None, amount=None):
     """Send a one-off SMS reminder for a due installment (uses SMS Gateway Settings)."""
-    if not installment_plan:
-        frappe.throw(_("Укажите план рассрочки"))
-
+    _require_doc_permission("Installment Plan", installment_plan, "write")
     customer = frappe.db.get_value("Installment Plan", installment_plan, "customer")
     if not customer:
         frappe.throw(_("Клиент не найден"))
@@ -726,6 +797,7 @@ def get_control_center_snapshot(date=None):
 
     in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
     open_pred = _schedule_open_predicate(in_open)
+    branch_clause, branch_params = _user_branch_clause("ip")
     overdue_lines = frappe.db.sql(
         f"""
         SELECT COUNT(*)
@@ -737,8 +809,9 @@ def get_control_center_snapshot(date=None):
             isc.status = 'Просрочен'
             OR (isc.due_date < %s AND {open_pred})
           )
+          {branch_clause}
     """,
-        (base_date, *_OPEN_SCHEDULE_STATUSES),
+        (base_date, *_OPEN_SCHEDULE_STATUSES, *branch_params),
     )[0][0]
 
     high_risk_clients = frappe.db.sql(
@@ -753,8 +826,9 @@ def get_control_center_snapshot(date=None):
             OR (isc.due_date < %s AND {open_pred})
           )
           AND DATEDIFF(%s, isc.due_date) > 7
+          {branch_clause}
     """,
-        (base_date, *_OPEN_SCHEDULE_STATUSES, base_date),
+        (base_date, *_OPEN_SCHEDULE_STATUSES, base_date, *branch_params),
     )[0][0]
 
     due_today = cur["due_today_amount"]
@@ -871,6 +945,7 @@ def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Налич�
         )
     if not plan_name:
         frappe.throw(_("Не найден активный план рассрочки"))
+    _require_doc_permission("Installment Plan", plan_name, "write")
 
     from nasiya365.nasiya365.doctype.payment_transaction.payment_transaction import (
         _normalize_payment_line_method,
@@ -1177,6 +1252,7 @@ def get_stock_entry_details_for_installment_plan(stock_entry, installment_plan=N
     """
     if not stock_entry:
         return {}
+    _require_doc_permission("Stock Entry", stock_entry, "read")
     current_plan = installment_plan or ""
     assert_stock_entry_available_for_installment_plan(stock_entry, current_plan)
     ste = frappe.get_doc("Stock Entry", stock_entry)

@@ -125,6 +125,7 @@ def backfill_stock_entry_supplier_from_remarks():
 @frappe.whitelist()
 def purge_contract_records():
     """Delete all legacy Contract records (b3 merge keeps data on Installment Plan)."""
+    frappe.only_for("System Manager")
     if not frappe.db.exists("DocType", "Contract"):
         return 0
     names = frappe.get_all("Contract", pluck="name")
@@ -489,6 +490,7 @@ def repair_delete_ghost_installment_plans():
     Delete ghost Installment Plans that have financed_amount = 0
     but the linked Sales Order has balance > 0 (= duplicate artifacts).
     """
+    frappe.only_for("System Manager")
     ghosts = frappe.db.sql("""
         SELECT ip.name
         FROM `tabInstallment Plan` ip
@@ -537,6 +539,7 @@ def repair_installment_plan_counts():
     number_of_installments, recalculate amounts, regenerate schedules,
     and re-link SO → IP if the link was cleared by ghost deletion.
     """
+    frappe.only_for("System Manager")
     payments_csv = os.path.join(_import_data_dir(), "installment_payments.csv")
     if not os.path.isfile(payments_csv):
         print(f"CSV not found: {payments_csv}")
@@ -624,6 +627,7 @@ def repair_product_color_storage():
     Read purchase.csv and backfill color + storage on Product records.
     Uses the most recent purchase row per product_code as the source.
     """
+    frappe.only_for("System Manager")
     csv_path = os.path.join(_import_data_dir(), "purchase.csv")
     if not os.path.isfile(csv_path):
         print(f"CSV not found: {csv_path}")
@@ -703,6 +707,7 @@ def repair_import_stock_inventory():
     Skips duplicates by checking imei already exists as 'Корректировка'.
     Also reads color/storage/condition from purchase.csv for the same items.
     """
+    frappe.only_for("System Manager")
     csv_path = os.path.join(_import_data_dir(), "stock_entry.csv")
     if not os.path.isfile(csv_path):
         print(f"CSV not found: {csv_path}")
@@ -806,6 +811,7 @@ def repair_import_stock_inventory():
 @frappe.whitelist()
 def repair_normalize_frequencies():
     """Fix old RU-only frequency values to bilingual Select options."""
+    frappe.only_for("System Manager")
     updates = {
         "Ежемесячно": "Ежемесячно (Monthly)",
         "Еженедельно": "Еженедельно (Weekly)",
@@ -831,6 +837,7 @@ def repair_normalize_frequencies():
 @frappe.whitelist()
 def repair_all():
     """Run all data repair steps in sequence."""
+    frappe.only_for("System Manager")
     print("=" * 60)
     print("STEP 0: Normalize frequency values")
     print("=" * 60)
@@ -1145,6 +1152,7 @@ def repair_all_prod():
     Production-safe one-shot data reconciliation.
     Idempotent and safe to re-run.
     """
+    frappe.only_for("System Manager")
     print("=" * 60)
     print("Nasiya365 production repair started")
     print("=" * 60)

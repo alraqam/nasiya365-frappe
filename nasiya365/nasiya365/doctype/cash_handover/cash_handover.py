@@ -10,8 +10,19 @@ class CashHandover(Document):
         self._calculate_totals()
 
     def before_submit(self):
+        # Only record who confirmed; never mutate cashbox before submit succeeds
+        # (otherwise a later submit failure leaves cashbox debited against a draft handover).
         self.confirmed_by = frappe.session.user
-        self._credit_manager_cashbox()
+
+    def on_submit(self):
+        # Wrap cashbox credit in a savepoint so a validation error on the cashbox
+        # rolls back the handover submit instead of committing partial state.
+        frappe.db.savepoint("nasiya_handover_on_submit")
+        try:
+            self._credit_manager_cashbox()
+        except Exception:
+            frappe.db.rollback(save_point="nasiya_handover_on_submit")
+            raise
         self.add_comment(
             "Info",
             _("Инкассация подтверждена пользователем {0}. Принято: {1} USD / {2} UZS.").format(

@@ -77,6 +77,7 @@ class InstallmentPlan(Document):
 
         self.frequency = _normalize_frequency(self.frequency)
 
+        self.validate_unique_sales_order()
         self.validate_customer_limit()
         self.validate_stock_entry_for_bnpl()
         self._warn_structural_change_on_paid_plan()
@@ -184,6 +185,8 @@ class InstallmentPlan(Document):
     
     def on_cancel(self):
         self.release_customer_limit()
+        # Flag as cancelled so status filters and payment guards recognize it.
+        self.db_set("status", "Отменен", update_modified=False)
         self.add_comment(
             "Info",
             _("План отменён пользователем {0}. Остаток на момент отмены: {1} USD.").format(
@@ -198,6 +201,30 @@ class InstallmentPlan(Document):
         from nasiya365.api.bnpl_dashboard import assert_stock_entry_available_for_installment_plan
 
         assert_stock_entry_available_for_installment_plan(self.stock_entry, self.name or "")
+
+    def validate_unique_sales_order(self):
+        """Prevent two Installment Plans from referencing the same Sales Order.
+
+        Payment allocation maps SO -> IP via `db.get_value(... {"sales_order": rn} ...)`
+        which silently returns only the first match, so duplicates strand payments.
+        """
+        if not getattr(self, "sales_order", None):
+            return
+        other = frappe.db.get_value(
+            "Installment Plan",
+            {
+                "sales_order": self.sales_order,
+                "name": ["!=", self.name or "__new__"],
+                "docstatus": ["<", 2],
+            },
+            "name",
+        )
+        if other:
+            frappe.throw(
+                _("Для заказа {0} уже существует план рассрочки {1}.").format(
+                    self.sales_order, other
+                )
+            )
 
     def validate_customer_limit(self):
         """Check customer status; optional cap when Merchant Settings + profile credit_limit apply.
@@ -222,6 +249,14 @@ class InstallmentPlan(Document):
         if not self.is_new() and is_draft and not self.has_value_changed("principal_amount"):
             return
 
+        # D7: Lock the customer row so concurrent draft creations serialize on this check.
+        # Without this, two simultaneous requests can both read available_limit,
+        # both pass, and both save — collectively exceeding the limit.
+        frappe.db.sql(
+            "SELECT name FROM `tabCustomer Profile` WHERE name = %s FOR UPDATE",
+            (self.customer,),
+        )
+
         # Refresh debt from submitted plans
         customer.update_statistics()
 
@@ -233,6 +268,7 @@ class InstallmentPlan(Document):
             WHERE customer = %s
               AND docstatus = 0
               AND name != %s
+            FOR UPDATE
             """,
             (self.customer, self.name or "__new__"),
         )[0][0])
@@ -429,15 +465,32 @@ class InstallmentPlan(Document):
         customer.db_update()
     
     def create_contract(self):
-        """Auto-create contract document when plan is submitted"""
-        # Will be implemented when Contract DocType is ready
-        pass
+        """Auto-create a Contract document when the plan is submitted (idempotent)."""
+        if not frappe.db.exists("DocType", "Contract"):
+            return
+        if frappe.db.exists("Contract", {"installment_plan": self.name}):
+            return
+        try:
+            from nasiya365.nasiya365.doctype.contract.contract import (
+                create_contract_from_plan,
+            )
+
+            create_contract_from_plan(self.name)
+        except Exception:
+            # Contract auto-creation must never block plan submission.
+            frappe.log_error(frappe.get_traceback(), "Installment Plan: create_contract")
     
     def apply_payment(self, amount, payment_transaction=None):
         """
         Apply a payment to this installment plan
         Automatically allocates to oldest pending/overdue installments first
         """
+        if cint(getattr(self, "docstatus", 0)) == 2:
+            frappe.throw(_("Платёж нельзя применить к отменённому плану рассрочки."))
+        if self.status in ("Завершен", "Отменен", "Списан"):
+            frappe.throw(
+                _("Платёж нельзя применить к плану в статусе {0}.").format(self.status)
+            )
         if not self.schedule:
             frappe.throw(
                 _("У плана нет строк графика — сохраните план с заполненным графиком, затем повторите оплату.")
@@ -503,18 +556,21 @@ class InstallmentPlan(Document):
         if getattr(self, "docstatus", 0) == 1:
             self.flags.ignore_validate_update_after_submit = True
         # Cashiers can create payments but often have no Write on Installment Plan; allocation must still persist.
+        # Wrap plan save + customer stats in one savepoint so a stats failure does not leave
+        # the plan marked paid with stale customer.total_debt.
         frappe.flags.nasiya_plan_allocating_payment = True
+        frappe.db.savepoint("nasiya_plan_apply_payment")
         try:
             self.save(ignore_permissions=True)
+            frappe.get_doc(
+                "Customer Profile", self.customer, ignore_permissions=True
+            ).update_statistics()
+        except Exception:
+            frappe.db.rollback(save_point="nasiya_plan_apply_payment")
+            raise
         finally:
             frappe.flags.nasiya_plan_allocating_payment = False
-        
-        # Update customer statistics (must not roll back a successful plan save)
-        try:
-            frappe.get_doc("Customer Profile", self.customer, ignore_permissions=True).update_statistics()
-        except Exception:
-            frappe.log_error(frappe.get_traceback(), "Installment Plan: update_statistics after payment")
-        
+
         return remaining_payment  # Return any excess payment
 
 

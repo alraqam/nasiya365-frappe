@@ -30,9 +30,13 @@ def _get_user_branches(user: str) -> list[str]:
     return branches
 
 
+def _escaped_branch_list(branches: list[str]) -> str:
+    """Return `'a','b','c'` with each value escaped by frappe.db.escape to prevent SQL injection."""
+    return ", ".join(frappe.db.escape(b) for b in branches)
+
+
 def _branch_in(doctype: str, branches: list[str]) -> str:
-    quoted = ", ".join(f"'{b}'" for b in branches)
-    return f"`tab{doctype}`.`branch` IN ({quoted})"
+    return f"`tab{doctype}`.`branch` IN ({_escaped_branch_list(branches)})"
 
 
 # ---------------------------------------------------------------------------
@@ -56,10 +60,10 @@ def installment_plan_query(user: str = None) -> str:
     branches = _get_user_branches(user)
     if not branches:
         return "1=0"
-    quoted = ", ".join(f"'{b}'" for b in branches)
+    escaped = _escaped_branch_list(branches)
     return (
         "`tabInstallment Plan`.`sales_order` IN ("
-        f"  SELECT `name` FROM `tabSales Order` WHERE `branch` IN ({quoted})"
+        f"  SELECT `name` FROM `tabSales Order` WHERE `branch` IN ({escaped})"
         ")"
     )
 
@@ -121,10 +125,56 @@ def payment_transaction_query(user: str = None) -> str:
     branches = _get_user_branches(user)
     if not branches:
         return "1=0"
-    quoted = ", ".join(f"'{b}'" for b in branches)
+    escaped = _escaped_branch_list(branches)
+    # Filter via collector.branch OR via linked installment plan's sales_order.branch.
+    # Payments with no collector AND no plan reference are hidden from branch-scoped users.
     return (
-        "`tabPayment Transaction`.`collected_by` IN ("
-        f"  SELECT `name` FROM `tabCollector` WHERE `branch` IN ({quoted})"
+        "("
+        f"  `tabPayment Transaction`.`collected_by` IN ("
+        f"    SELECT `name` FROM `tabCollector` WHERE `branch` IN ({escaped})"
+        f"  )"
+        "  OR ("
+        "    `tabPayment Transaction`.`reference_doctype` = 'Installment Plan'"
+        "    AND `tabPayment Transaction`.`reference_name` IN ("
+        "      SELECT ip.`name` FROM `tabInstallment Plan` ip"
+        "      INNER JOIN `tabSales Order` so ON so.`name` = ip.`sales_order`"
+        f"      WHERE so.`branch` IN ({escaped})"
+        "    )"
+        "  )"
+        ")"
+    )
+
+
+def customer_profile_query(user: str = None) -> str:
+    """Filter customers to those with at least one Sales Order in caller's branches."""
+    user = user or frappe.session.user
+    if _is_unrestricted(user):
+        return ""
+    branches = _get_user_branches(user)
+    if not branches:
+        return "1=0"
+    escaped = _escaped_branch_list(branches)
+    return (
+        "EXISTS ("
+        "  SELECT 1 FROM `tabSales Order` so"
+        "  WHERE so.`customer` = `tabCustomer Profile`.`name`"
+        f"  AND so.`branch` IN ({escaped})"
+        ")"
+    )
+
+
+def stock_entry_query(user: str = None) -> str:
+    """Filter stock entries by warehouse → branch."""
+    user = user or frappe.session.user
+    if _is_unrestricted(user):
+        return ""
+    branches = _get_user_branches(user)
+    if not branches:
+        return "1=0"
+    escaped = _escaped_branch_list(branches)
+    return (
+        "`tabStock Entry`.`warehouse` IN ("
+        f"  SELECT `name` FROM `tabWarehouse` WHERE `branch` IN ({escaped})"
         ")"
     )
 
@@ -138,11 +188,12 @@ def _doc_branch(doc) -> str | None:
 
 
 def _check_branch(doc, user: str) -> bool:
+    """Fail-closed branch check for DocTypes with a branch field."""
     if _is_unrestricted(user):
         return True
     doc_branch = _doc_branch(doc)
     if not doc_branch:
-        return True
+        return False
     return doc_branch in _get_user_branches(user)
 
 
@@ -156,8 +207,10 @@ def has_installment_plan_permission(doc, ptype: str, user: str) -> bool:
     branches = _get_user_branches(user)
     if not branches:
         return False
+    if not doc.sales_order:
+        return False
     so_branch = frappe.db.get_value("Sales Order", doc.sales_order, "branch")
-    return so_branch in branches
+    return bool(so_branch) and so_branch in branches
 
 
 def has_collector_permission(doc, ptype: str, user: str) -> bool:
@@ -186,7 +239,43 @@ def has_payment_transaction_permission(doc, ptype: str, user: str) -> bool:
     branches = _get_user_branches(user)
     if not branches:
         return False
-    if not doc.collected_by:
+    # Resolve via collector first (direct).
+    if doc.collected_by:
+        collector_branch = frappe.db.get_value("Collector", doc.collected_by, "branch")
+        if collector_branch and collector_branch in branches:
+            return True
+    # Fallback: via linked installment plan → sales_order → branch.
+    if doc.reference_doctype == "Installment Plan" and doc.reference_name:
+        so = frappe.db.get_value("Installment Plan", doc.reference_name, "sales_order")
+        if so:
+            so_branch = frappe.db.get_value("Sales Order", so, "branch")
+            if so_branch and so_branch in branches:
+                return True
+    return False
+
+
+def has_customer_profile_permission(doc, ptype: str, user: str) -> bool:
+    """Customer is accessible only if they have an order in user's branch."""
+    if _is_unrestricted(user):
         return True
-    collector_branch = frappe.db.get_value("Collector", doc.collected_by, "branch")
-    return collector_branch in branches
+    branches = _get_user_branches(user)
+    if not branches:
+        return False
+    return bool(
+        frappe.db.exists(
+            "Sales Order",
+            {"customer": doc.name, "branch": ["in", branches]},
+        )
+    )
+
+
+def has_stock_entry_permission(doc, ptype: str, user: str) -> bool:
+    if _is_unrestricted(user):
+        return True
+    branches = _get_user_branches(user)
+    if not branches:
+        return False
+    if not doc.warehouse:
+        return False
+    wh_branch = frappe.db.get_value("Warehouse", doc.warehouse, "branch")
+    return bool(wh_branch) and wh_branch in branches

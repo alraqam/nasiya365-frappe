@@ -5,7 +5,7 @@ Payment Transaction DocType Controller
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt
+from frappe.utils import cint, flt
 
 _FALLBACK_METHODS = frozenset((
     "Наличные USD", "Акксессуар касса", "Наличные UZS",
@@ -165,13 +165,36 @@ def allocate_payment_transaction_to_installment_plan(doc):
     if amt <= 0:
         return
 
-    # Hard idempotency: never apply the same payment twice across separate saves/hooks.
-    if doc.name and frappe.db.exists(
-        "Installment Schedule",
-        {"parent": plan_name, "payment_transaction": doc.name},
-    ):
-        doc._nasiya_installment_plan_allocated = True
-        return
+    # F4: re-verify header amount matches payment_lines total at allocation time,
+    # so direct `db.set_value` or stale in-memory state can't desync cashbox vs plan.
+    if doc.name:
+        line_total_usd = _recompute_payment_lines_total_usd(doc)
+        if line_total_usd > 0 and abs(line_total_usd - amt) > 0.01:
+            frappe.log_error(
+                f"Payment {doc.name}: header amount {amt:.4f} != payment_lines total {line_total_usd:.4f}",
+                "Payment Transaction: amount mismatch",
+            )
+            frappe.throw(
+                _("Сумма платежа ({0}) не совпадает с суммой строк оплаты ({1}). Пересохраните документ.").format(
+                    f"{amt:.2f}", f"{line_total_usd:.2f}"
+                )
+            )
+
+    # D6: Hard idempotency with row lock. SELECT FOR UPDATE serializes concurrent
+    # allocations of the same payment; the second caller will see the row once the
+    # first commits and short-circuit instead of double-applying.
+    if doc.name:
+        locked = frappe.db.sql(
+            """
+            SELECT name FROM `tabInstallment Schedule`
+            WHERE parent = %s AND payment_transaction = %s
+            FOR UPDATE
+            """,
+            (plan_name, doc.name),
+        )
+        if locked:
+            doc._nasiya_installment_plan_allocated = True
+            return
 
     plan = _get_installment_plan_for_payment(plan_name)
     try:
@@ -186,6 +209,14 @@ def allocate_payment_transaction_to_installment_plan(doc):
             update_modified=False,
         )
         doc.overpayment_amount = flt(excess)
+        # F5: surface overpayment visibly — cashier needs to know they accepted extra money.
+        frappe.msgprint(
+            _("Переплата {0} USD по плану {1}. Отразите как возврат или кредит клиенту.").format(
+                f"{flt(excess):.2f}", plan_name
+            ),
+            indicator="orange",
+            alert=True,
+        )
         frappe.log_error(
             f"Payment {doc.name} has excess of {excess:.4f} USD over plan {plan_name}. "
             f"Payment amount: {amt}, plan remaining_balance was: {flt(amt) - flt(excess):.4f}",
@@ -193,6 +224,37 @@ def allocate_payment_transaction_to_installment_plan(doc):
         )
 
     doc._nasiya_installment_plan_allocated = True
+
+
+def _recompute_payment_lines_total_usd(doc) -> float:
+    """Recompute USD total from stored payment_lines rows (DB-authoritative).
+
+    Returns 0 if the doc has no persisted lines yet (e.g. during initial insert).
+    """
+    if not getattr(doc, "name", None):
+        return 0.0
+    default_rate = flt(getattr(doc, "exchange_rate", 0))
+    rows = frappe.get_all(
+        "Payment Transaction Line",
+        filters={"parent": doc.name, "parenttype": "Payment Transaction"},
+        fields=["amount", "currency", "exchange_rate"],
+    )
+    if not rows:
+        return 0.0
+    total = 0.0
+    for r in rows:
+        row_amount = flt(r.amount)
+        if row_amount <= 0:
+            continue
+        currency = (r.currency or "USD").strip().upper()
+        if currency == "UZS":
+            rate = flt(r.exchange_rate or default_rate)
+            if rate <= 0:
+                return 0.0  # cannot compute — skip check
+            total += row_amount / rate
+        else:
+            total += row_amount
+    return total
 
 
 def _get_open_cashbox_for_payment(doc):
@@ -320,6 +382,66 @@ def _sync_payment_to_cashbox(doc):
     doc._nasiya_cashbox_synced = True
 
 
+def _deallocate_payment_from_installment_plan(doc):
+    """Reverse schedule-row updates made by a payment transaction on cancel.
+
+    Finds every Installment Schedule row referencing this payment, reduces its
+    paid_amount by the allocated share, resets status if fully unpaid, then
+    recalculates plan totals.
+    """
+    if not getattr(doc, "name", None):
+        return
+
+    rows = frappe.db.sql(
+        """
+        SELECT isc.name, isc.parent, isc.amount, isc.paid_amount, isc.status
+        FROM `tabInstallment Schedule` isc
+        WHERE isc.payment_transaction = %s
+        """,
+        (doc.name,),
+        as_dict=True,
+    )
+    if not rows:
+        return
+
+    # Reverse by the smaller of (this row's paid_amount, total doc amount spread proportionally).
+    # Since the original allocation wrote payment_transaction on rows it paid/partially paid,
+    # we simply clear paid_amount back to zero on those rows (the transaction is the sole
+    # contributor — Frappe stores at most one payment_transaction reference per row).
+    affected_plans = set()
+    for r in rows:
+        frappe.db.set_value(
+            "Installment Schedule",
+            r.name,
+            {
+                "paid_amount": 0,
+                "paid_date": None,
+                "payment_transaction": None,
+                "status": "Ожидает",
+            },
+            update_modified=False,
+        )
+        affected_plans.add(r.parent)
+
+    for plan_name in affected_plans:
+        try:
+            plan = _get_installment_plan_for_payment(plan_name)
+        except Exception:
+            continue
+        paid_total = sum(flt(s.paid_amount) for s in plan.schedule)
+        plan.paid_amount = paid_total
+        plan.remaining_balance = flt(plan.total_amount) - paid_total
+        # Unwind terminal status so future payments can apply again.
+        if plan.status == "Завершен":
+            plan.status = "Активный" if cint(plan.docstatus) == 1 else "Черновик"
+        plan.flags.ignore_validate_update_after_submit = True
+        frappe.flags.nasiya_plan_allocating_payment = True
+        try:
+            plan.save(ignore_permissions=True)
+        finally:
+            frappe.flags.nasiya_plan_allocating_payment = False
+
+
 def _remove_payment_from_cashbox(doc):
     """Remove all cashbox rows created for this payment."""
     if not getattr(doc, "name", None):
@@ -361,8 +483,15 @@ class PaymentTransaction(Document):
 
     def after_insert(self):
         """Allocate to plan (also registered in hooks.py doc_events; idempotent flag prevents double apply)."""
-        allocate_payment_transaction_to_installment_plan(self)
-        _sync_payment_to_cashbox(self)
+        # Wrap allocation + cashbox sync so a cashbox failure doesn't leave the plan
+        # marked paid without a corresponding cashbox row.
+        frappe.db.savepoint("nasiya_payment_after_insert")
+        try:
+            allocate_payment_transaction_to_installment_plan(self)
+            _sync_payment_to_cashbox(self)
+        except Exception:
+            frappe.db.rollback(save_point="nasiya_payment_after_insert")
+            raise
         if self.get("send_payment_sms"):
             try:
                 _send_payment_receipt_sms(self)
@@ -391,6 +520,7 @@ class PaymentTransaction(Document):
             allocate_payment_transaction_to_installment_plan(self)
 
     def on_cancel(self):
+        _deallocate_payment_from_installment_plan(self)
         _remove_payment_from_cashbox(self)
         self.add_comment(
             "Info",

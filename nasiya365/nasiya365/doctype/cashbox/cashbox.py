@@ -121,40 +121,46 @@ def close_and_transfer(cashbox_name, to_cashbox=None):
 	if not any(v > 0 for v in lines.values()):
 		frappe.throw(_("Нет приходных транзакций для передачи"))
 
-	# Create Cash Handover (draft — awaits manager confirmation)
-	handover = frappe.new_doc("Cash Handover")
-	handover.from_cashbox = cashbox_name
-	handover.to_cashbox = to_cashbox
-	handover.branch = doc.branch
-	handover.transferred_by = frappe.session.user
-	handover.transfer_date = today()
-	for (method, currency), amount in sorted(lines.items()):
-		if amount > 0:
-			handover.append("lines", {
-				"payment_method": method,
-				"currency": currency,
-				"amount": amount,
-			})
-	handover.insert(ignore_permissions=True)
+	# Wrap handover-create + source-cashbox-debit in one savepoint so a failure
+	# on the second step does not leave an orphan handover with no matching debit.
+	frappe.db.savepoint("nasiya_close_and_transfer")
+	try:
+		handover = frappe.new_doc("Cash Handover")
+		handover.from_cashbox = cashbox_name
+		handover.to_cashbox = to_cashbox
+		handover.branch = doc.branch
+		handover.transferred_by = frappe.session.user
+		handover.transfer_date = today()
+		for (method, currency), amount in sorted(lines.items()):
+			if amount > 0:
+				handover.append("lines", {
+					"payment_method": method,
+					"currency": currency,
+					"amount": amount,
+				})
+		handover.insert(ignore_permissions=True)
 
-	# Debit salesperson cashbox — one Расход row per method
-	for (method, currency), amount in sorted(lines.items()):
-		if amount > 0:
-			doc.append("transactions", {
-				"transaction_type": "Расход",
-				"payment_method": method,
-				"currency": currency,
-				"exchange_rate": rates.get((method, currency), 0),
-				"amount": amount,
-				"category": "Перевод",
-				"reference_doctype": "Cash Handover",
-				"reference_name": handover.name,
-				"notes": f"Инкассация → {to_cashbox} [HAND:{handover.name}]",
-			})
+		# Debit salesperson cashbox — one Расход row per method
+		for (method, currency), amount in sorted(lines.items()):
+			if amount > 0:
+				doc.append("transactions", {
+					"transaction_type": "Расход",
+					"payment_method": method,
+					"currency": currency,
+					"exchange_rate": rates.get((method, currency), 0),
+					"amount": amount,
+					"category": "Перевод",
+					"reference_doctype": "Cash Handover",
+					"reference_name": handover.name,
+					"notes": f"Инкассация → {to_cashbox} [HAND:{handover.name}]",
+				})
 
-	doc.status = "Закрыта"
-	doc.closing_date = today()
-	doc.save(ignore_permissions=True)
+		doc.status = "Закрыта"
+		doc.closing_date = today()
+		doc.save(ignore_permissions=True)
+	except Exception:
+		frappe.db.rollback(save_point="nasiya_close_and_transfer")
+		raise
 
 	return handover.name
 
