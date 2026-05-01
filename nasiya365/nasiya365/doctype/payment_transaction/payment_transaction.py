@@ -615,7 +615,7 @@ def _send_payment_receipt_sms(doc):
 
     amount_str = f"{flt(doc.amount):.2f} USD"
     ref = doc.reference_name or doc.name
-    message = f"Nasiya365: Оплата {amount_str} принята. Договор {ref}. Спасибо!"
+    message = _("Nasiya365: Оплата {0} принята. Договор {1}. Спасибо!").format(amount_str, ref)
     SMSManager().send_sms(phone, message)
 
 
@@ -650,7 +650,8 @@ def get_customer_installment_plans(customer):
             )), ''), '') AS device_name
         FROM `tabInstallment Plan` ip
         LEFT JOIN `tabStock Entry Item` sei
-            ON sei.parent = ip.stock_entry AND sei.idx = 1
+            ON sei.name = ip.stock_entry
+            OR (sei.parent = ip.stock_entry AND sei.idx = 1)
         LEFT JOIN `tabProduct` p
             ON p.name = sei.product
         LEFT JOIN `tabSales Order Item` soi

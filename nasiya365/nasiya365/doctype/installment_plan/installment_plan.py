@@ -83,6 +83,8 @@ class InstallmentPlan(Document):
         self._warn_structural_change_on_paid_plan()
         self.calculate_amounts()
         self.generate_schedule()
+        # `has_dp_row` / total_amount depend on whether row 0 exists — only known after the schedule exists.
+        self.calculate_amounts()
         if self.schedule:
             self.paid_amount = sum(flt(s.paid_amount) for s in self.schedule)
             self.remaining_balance = flt(self.total_amount) - flt(self.paid_amount)
@@ -102,22 +104,34 @@ class InstallmentPlan(Document):
         # Populate product model + IMEI from Stock Entry (preferred) or Sales Order (legacy / import)
         if hasattr(self, "product_name") and hasattr(self, "imei"):
             if (not self.product_name or not self.imei) and getattr(self, "stock_entry", None):
-                all_items = frappe.get_all(
-                    "Stock Entry Item",
-                    filters={"parent": self.stock_entry},
-                    fields=["product", "imei"],
-                    order_by="idx asc",
+                from nasiya365.api.bnpl_dashboard import (
+                    installment_plan_stock_ref_is_sei_row,
+                    installment_plan_stock_ref_to_parent,
+                    installment_plan_taken_imei_rows_for_receipt,
                 )
+
+                parent_se = installment_plan_stock_ref_to_parent(self.stock_entry)
+                if parent_se:
+                    if installment_plan_stock_ref_is_sei_row(self.stock_entry):
+                        all_items = frappe.get_all(
+                            "Stock Entry Item",
+                            filters={"name": self.stock_entry},
+                            fields=["product", "imei"],
+                            order_by="idx asc",
+                        )
+                    else:
+                        all_items = frappe.get_all(
+                            "Stock Entry Item",
+                            filters={"parent": self.stock_entry},
+                            fields=["product", "imei"],
+                            order_by="idx asc",
+                        )
+                else:
+                    all_items = []
                 # Skip serials already linked to other active plans on this entry
                 current_plan = self.name or ""
-                taken_rows = frappe.db.sql(
-                    """SELECT ip.imei FROM `tabInstallment Plan` ip
-                       WHERE ip.stock_entry = %s
-                         AND IFNULL(ip.docstatus, 0) < 2
-                         AND (%s = '' OR ip.name != %s)
-                         AND NULLIF(TRIM(ip.imei), '') IS NOT NULL""",
-                    (self.stock_entry, current_plan, current_plan),
-                    as_dict=True,
+                taken_rows = installment_plan_taken_imei_rows_for_receipt(
+                    self.stock_entry, current_plan
                 )
                 taken = {
                     (r.imei or "").strip().upper().replace(" ", "")[-6:]
@@ -137,8 +151,7 @@ class InstallmentPlan(Document):
                             "Product", row["product"], "product_name"
                         )
                     if not self.imei and row.get("imei"):
-                        full_imei = (row["imei"] or "").strip()
-                        self.imei = full_imei[-6:] if len(full_imei) >= 6 else full_imei
+                        self.imei = (row["imei"] or "").strip()
             elif (not self.product_name or not self.imei) and self.sales_order:
                 items = frappe.get_all(
                     "Sales Order Item",
@@ -151,20 +164,15 @@ class InstallmentPlan(Document):
                     if not self.product_name and items[0].get("product_name"):
                         self.product_name = items[0]["product_name"]
                     if not self.imei and items[0].get("imei"):
-                        full_imei = (items[0]["imei"] or "").strip()
-                        self.imei = full_imei[-6:] if len(full_imei) >= 6 else full_imei
+                        self.imei = (items[0]["imei"] or "").strip()
 
-        # Update contract status based on signatures (same rule as Contract DocType)
         if hasattr(self, "contract_status"):
             if self.signed_by_customer and self.signed_by_merchant:
-                if self.contract_status == "Черновик":
+                if self.contract_status == "Не подписан":
                     self.contract_status = "Подписан"
 
-        # Financial summary (same rule as Contract.set_financial_summary)
-        if hasattr(self, "total_debt"):
-            self.total_debt = flt(getattr(self, "remaining_balance", 0))
-        if hasattr(self, "monthly_payment"):
-            self.monthly_payment = flt(getattr(self, "installment_amount", 0))
+        if hasattr(self, "contract_date") and not self.contract_date:
+            self.contract_date = getdate(self.start_date) if self.start_date else getdate(today())
 
         if hasattr(self, "debt_today"):
             debt_today = 0
@@ -172,7 +180,7 @@ class InstallmentPlan(Document):
                 for s in self.schedule:
                     if not s.due_date or getdate(s.due_date) > getdate(today()):
                         continue
-                    if s.status in ["Ожидает", "Просрочен", "Частично"]:
+                    if _installment_row_accepts_payment(s):
                         debt_today += flt(s.amount) - flt(s.paid_amount)
             self.debt_today = debt_today
     

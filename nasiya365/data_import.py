@@ -463,15 +463,10 @@ def process_row(row, default_branch, summary, skip_validation=False):
         installment_plan.contract_number = installment_plan.contract_number or installment_plan.name
         installment_plan.contract_date = sale_date
         installment_plan.valid_until = installment_plan.end_date or sale_date
-        installment_plan.contract_status = "Активный" if remaining_debt > 0 else "Завершен"
+        installment_plan.contract_status = "Подписан"
 
-        # Product identity (for printing)
         installment_plan.product_name = product_name
         installment_plan.imei = imei
-
-        # Financial summary (same fields as old Contract)
-        installment_plan.total_debt = flt(remaining_debt)
-        installment_plan.monthly_payment = flt(installment_plan.installment_amount)
 
         debt_today = 0
         for s in installment_plan.schedule or []:

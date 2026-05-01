@@ -7,6 +7,7 @@ Runs via hooks.py scheduler_events:
 """
 
 import frappe
+from frappe import _
 from frappe.utils import today
 
 from nasiya365.utils.sms_manager import SMSManager
@@ -48,7 +49,7 @@ def send_due_today_reminders():
         if not phone:
             continue
         amount = f"{row.total_due:.2f}"
-        message = f"Nasiya365: Сегодня срок оплаты {amount} USD. Просим оплатить своевременно."
+        message = _("Nasiya365: Сегодня срок оплаты {0} USD. Просим оплатить своевременно.").format(amount)
         if sms.send_sms(phone, message):
             sent += 1
 
@@ -92,10 +93,7 @@ def send_overdue_warnings():
             continue
         amount = f"{row.total_overdue:.2f}"
         days = int(row.max_days or 0)
-        message = (
-            f"Nasiya365: Просрочка {days} дн., долг {amount} USD. "
-            f"Просим погасить задолженность."
-        )
+        message = _("Nasiya365: Просрочка {0} дн., долг {1} USD. Просим погасить задолженность.").format(days, amount)
         if sms.send_sms(phone, message):
             sent += 1
 

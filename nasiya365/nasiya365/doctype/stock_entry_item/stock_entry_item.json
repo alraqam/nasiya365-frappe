@@ -96,14 +96,16 @@
     "index_web_pages_for_search": 1,
     "istable": 1,
     "links": [],
-    "modified": "2026-01-18 12:55:00.000000",
+    "modified": "2026-04-19 16:00:00.000000",
     "modified_by": "Administrator",
     "module": "nasiya365",
     "name": "Stock Entry Item",
     "owner": "Administrator",
     "permissions": [],
+    "show_title_field_in_link": 1,
     "sort_field": "modified",
     "sort_order": "DESC",
     "states": [],
+    "title_field": "product",
     "track_changes": 1
 }

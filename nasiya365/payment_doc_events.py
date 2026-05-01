@@ -72,8 +72,11 @@ def installment_plan_refresh_stock_entry(doc, method=None):
     stock_entry = getattr(doc, "stock_entry", None)
     if not stock_entry:
         return
+    from nasiya365.api.bnpl_dashboard import installment_plan_stock_ref_to_parent
     from nasiya365.nasiya365.doctype.stock_entry.stock_entry import refresh_stock_entry_business_status
-    refresh_stock_entry_business_status(stock_entry)
+
+    parent = installment_plan_stock_ref_to_parent(stock_entry) or stock_entry
+    refresh_stock_entry_business_status(parent)
 
 
 def sales_order_refresh_stock_entries(doc, method=None):

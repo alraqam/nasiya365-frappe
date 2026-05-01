@@ -10,6 +10,47 @@ def clear_branch_user_cache(doc, method=None):
             frappe.cache().delete_value(f"nasiya365:user_branches:{row.user}")
 
 
+def auto_assign_manager_branch(login_manager):
+    """On login, if the user has no branch assignments, add them as Менеджер
+    to any branch whose `manager` field points to their account."""
+    user = getattr(login_manager, "user", None) or frappe.session.user
+    if not user or user in ("Administrator", "Guest"):
+        return
+    if _is_unrestricted(user):
+        return
+    # Skip if already assigned to at least one active branch
+    existing = frappe.get_all(
+        "Branch User",
+        filters={"user": user, "is_active": 1},
+        fields=["name"],
+        limit=1,
+        ignore_permissions=True,
+    )
+    if existing:
+        return
+    # Find branches where this user is set as manager
+    managed = frappe.get_all(
+        "Branch",
+        filters={"manager": user, "is_active": 1},
+        fields=["name"],
+        ignore_permissions=True,
+    )
+    for row in managed:
+        branch = frappe.get_doc("Branch", row.name)
+        already = any(r.user == user for r in branch.get("branch_users") or [])
+        if not already:
+            branch.append("branch_users", {"user": user, "role": "Менеджер", "is_active": 1})
+            branch.save(ignore_permissions=True)
+    if managed:
+        frappe.cache().delete_value(f"nasiya365:user_branches:{user}")
+        # Ensure the user has the Branch Manager system role so DocType permissions apply
+        user_doc = frappe.get_doc("User", user)
+        has_role = any(r.role == "Branch Manager" for r in user_doc.get("roles") or [])
+        if not has_role:
+            user_doc.append("roles", {"role": "Branch Manager"})
+            user_doc.save(ignore_permissions=True)
+
+
 def _is_unrestricted(user: str) -> bool:
     return bool(_UNRESTRICTED_ROLES & set(frappe.get_roles(user)))
 

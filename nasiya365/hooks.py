@@ -240,6 +240,8 @@ has_permission = {
 # Authentication and Authorization
 # --------------------------------
 
+on_session_creation = "nasiya365.permissions.auto_assign_manager_branch"
+
 # auth_hooks = [
 #     "nasiya365.auth.validate_session"
 # ]

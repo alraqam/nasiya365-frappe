@@ -83,47 +83,62 @@ class StockEntry(Document):
 		return bool(self.meta.get_field("business_status"))
 
 	def set_items_summary(self):
-		"""Human-readable line summary for list views and Link field titles (name + attributes)."""
-		summary_items = []
-		for item in self.items[:3]:
+		"""Human-readable summary grouped by product: 'iPhone 16 Pro (…1234, …5678) — Apple'."""
+		from collections import OrderedDict
+
+		groups: dict = OrderedDict()
+		for item in self.items:
 			if not item.product:
 				continue
+			groups.setdefault(item.product, []).append(item)
 
-			product_name = frappe.get_cached_value("Product", item.product, "product_name")
-			brand = frappe.get_cached_value("Product", item.product, "brand")
+		MAX_GROUPS = 3
+		parts = []
 
-			parts = []
-			base = (product_name or item.product or "").strip()
-			if base:
-				parts.append(base)
+		for product, rows in list(groups.items())[:MAX_GROUPS]:
+			product_name = (frappe.get_cached_value("Product", product, "product_name") or product).strip()
+			brand = (frappe.get_cached_value("Product", product, "brand") or "").strip()
 
-			color = (getattr(item, "color", None) or "").strip()
-			if color:
-				parts.append(color)
-			storage = (getattr(item, "storage", None) or "").strip()
-			if storage:
-				parts.append(storage)
-			capacity = (getattr(item, "capacity", None) or "").strip()
-			if capacity:
-				parts.append(capacity)
+			colors = {(r.color or "").strip() for r in rows if (r.color or "").strip()}
+			storages = {(r.storage or "").strip() for r in rows if (r.storage or "").strip()}
+			capacities = {(getattr(r, "capacity", None) or "").strip() for r in rows if (getattr(r, "capacity", None) or "").strip()}
 
-			item_desc = " · ".join(parts) if parts else (item.product or "")
+			attrs = [product_name]
+			if len(colors) == 1:
+				attrs.append(next(iter(colors)))
+			if len(storages) == 1:
+				attrs.append(next(iter(storages)))
+			if len(capacities) == 1:
+				attrs.append(next(iter(capacities)))
 
-			if item.imei:
-				serial = (item.imei or "").strip()
-				if len(serial) > 6:
-					serial = "…" + serial[-6:]
-				item_desc = f"{item_desc} ({serial})"
+			base = " · ".join(attrs)
+
+			n = len(rows)
+			serials = []
+			for r in rows:
+				s = (r.imei or "").strip()
+				if s:
+					serials.append("…" + s[-6:] if len(s) > 6 else s)
+
+			if n == 1:
+				if serials:
+					base = f"{base} ({serials[0]})"
+			elif serials:
+				shown = ", ".join(serials[:3])
+				base = f"{base} ({shown}{'…' if n > 3 else ''})"
+			else:
+				base = f"{base} ×{n}"
 
 			if brand:
-				item_desc = f"{item_desc} — {brand}"
+				base = f"{base} — {brand}"
 
-			summary_items.append(item_desc)
+			parts.append(base)
 
-		if len(self.items) > 3:
-			summary_items.append(f"… (+{len(self.items) - 3})")
+		extra = len(groups) - MAX_GROUPS
+		if extra > 0:
+			parts.append(f"+{extra}")
 
-		self.items_summary = ", ".join(summary_items)
+		self.items_summary = ", ".join(parts)
 
 	
 	def calculate_totals(self):

@@ -43,3 +43,6 @@ fix_workspace*.py
 build_dashboard.py
 add_stock_entry_workspace.py
 fix_nasiya_workspace*.py
+
+# Claude Code memory
+.claude/

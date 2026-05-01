@@ -16,6 +16,8 @@
   "status",
   "customer_phone",
   "stock_entry",
+  "product_name",
+  "imei",
   "sales_order",
   "column_break_1",
   "amounts_section",
@@ -38,14 +40,13 @@
   "progress_section",
   "paid_amount",
   "remaining_balance",
+  "debt_today",
   "column_break_4",
   "paid_installments",
   "overdue_installments",
   "contract_section",
   "contract_number",
   "contract_type",
-  "product_name",
-  "imei",
   "column_break_contract_1",
   "contract_date",
   "valid_until",
@@ -56,12 +57,6 @@
   "column_break_contract_protection",
   "protection_password",
   "protection_notes",
-  "financial_section_contract",
-  "debt_today",
-  "column_break_contract_financial",
-  "total_debt",
-  "monthly_payment",
-  "template",
   "signatures_section",
   "signed_by_customer",
   "customer_signature",
@@ -69,6 +64,7 @@
   "signed_by_merchant",
   "merchant_signatory",
   "document_section",
+  "template",
   "pdf_file",
   "notes",
   "system_section",
@@ -160,7 +156,6 @@
   {
    "fieldname": "principal_amount",
    "fieldtype": "Currency",
-   "in_list_view": 1,
    "label": "Сумма покупки",
    "reqd": 1
   },
@@ -184,7 +179,6 @@
    "default": "6",
    "fieldname": "number_of_installments",
    "fieldtype": "Int",
-   "in_list_view": 1,
    "label": "Количество платежей",
    "reqd": 1
   },
@@ -239,6 +233,7 @@
   {
    "fieldname": "total_amount",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Всего к оплате",
    "read_only": 1
   },
@@ -257,7 +252,7 @@
    "fieldname": "progress_section",
    "collapsible": 1,
    "fieldtype": "Section Break",
-   "label": "Прогресс оплаты"
+   "label": "Прогресс и долг"
   },
   {
    "default": "0",
@@ -271,6 +266,13 @@
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Остаток",
+   "read_only": 1
+  },
+  {
+   "fieldname": "debt_today",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Долг за сегодня",
    "read_only": 1
   },
   {
@@ -317,7 +319,7 @@
    "fieldname": "product_name",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Модель",
+   "label": "Товар",
    "read_only": 1
   },
   {
@@ -343,75 +345,53 @@
    "label": "Действует до"
   },
   {
-   "default": "Черновик",
+   "default": "Не подписан",
    "fieldname": "contract_status",
    "fieldtype": "Select",
    "in_standard_filter": 1,
-   "label": "Статус",
-   "options": "Черновик\nПодписан\nАктивный\nЗавершен\nОтменен"
+   "label": "Статус договора",
+   "options": "Не подписан\nПодписан\nОтменен"
   },
   {
    "collapsible": 1,
    "fieldname": "protection_section",
    "fieldtype": "Section Break",
-   "label": "Защита устройства"
+   "label": "Защита устройства",
+   "permlevel": 1
   },
   {
    "default": "Нет",
    "fieldname": "protection_type",
    "fieldtype": "Select",
    "label": "Тип защиты",
-   "options": "Нет\niCloud\nSamsung Block\nGoogle FRP\nДругое"
+   "options": "Нет\niCloud\nSamsung Block\nGoogle FRP\nДругое",
+   "permlevel": 1
   },
   {
    "depends_on": "eval:doc.protection_type && doc.protection_type !== 'Нет'",
    "fieldname": "protection_login",
    "fieldtype": "Data",
-   "label": "Логин"
+   "label": "Логин",
+   "permlevel": 1
   },
   {
    "fieldname": "column_break_contract_protection",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "permlevel": 1
   },
   {
    "depends_on": "eval:doc.protection_type && doc.protection_type !== 'Нет'",
    "fieldname": "protection_password",
    "fieldtype": "Password",
-   "label": "Пароль"
+   "label": "Пароль",
+   "permlevel": 1
   },
   {
    "depends_on": "eval:doc.protection_type && doc.protection_type !== 'Нет'",
    "fieldname": "protection_notes",
    "fieldtype": "Small Text",
-   "label": "Примечания по защите"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "financial_section_contract",
-   "fieldtype": "Section Break",
-   "label": "Финансовая информация"
-  },
-  {
-   "fieldname": "debt_today",
-   "fieldtype": "Currency",
-   "label": "Долг за сегодня",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_contract_financial",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "total_debt",
-   "fieldtype": "Currency",
-   "label": "Общий долг",
-   "read_only": 1
-  },
-  {
-   "fieldname": "monthly_payment",
-   "fieldtype": "Currency",
-   "label": "Ежемесячная оплата",
-   "read_only": 1
+   "label": "Примечания по защите",
+   "permlevel": 1
   },
   {
    "fieldname": "template",
@@ -575,6 +555,29 @@
    "role": "Credit Officer",
    "share": 1,
    "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Nasiya365 Admin",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Branch Manager",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Collector"
   }
  ],
  "search_fields": "customer,customer_name",

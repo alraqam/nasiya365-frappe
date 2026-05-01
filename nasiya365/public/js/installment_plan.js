@@ -11,6 +11,7 @@ frappe.ui.form.on("Installment Plan", {
 	refresh(frm) {
 		frm.$wrapper.addClass("nasiya-ip-wizard");
 		set_stock_entry_filter(frm);
+		bind_stock_entry_line_picker(frm);
 		set_sales_order_filter(frm);
 		setup_bnpl_actions(frm);
 		load_risk_panel(frm);
@@ -34,24 +35,9 @@ frappe.ui.form.on("Installment Plan", {
 
 	stock_entry(frm) {
 		if (!frm.doc.stock_entry) return;
-		frappe.call({
-			method:
-				"nasiya365.api.bnpl_dashboard.get_stock_entry_details_for_installment_plan",
-			args: {
-				stock_entry: frm.doc.stock_entry,
-				installment_plan: frm.doc.name || "",
-			},
-			callback(r) {
-				if (!r.message) return;
-				const d = r.message;
-				const items = d.free_items || [];
-				if (items.length > 1) {
-					pick_stock_entry_item(frm, items);
-				} else {
-					apply_stock_entry_item(frm, d);
-				}
-			},
-		});
+		// Defer: Frappe sets the Link on `awesomplete-select`; our handler runs after
+		// the control's handler so `frm._nasiya_se_picked_imei` is filled before we read it.
+		setTimeout(() => nasiya_fetch_stock_entry_details(frm), 0);
 	},
 
 	sales_order(frm) {
@@ -67,8 +53,7 @@ frappe.ui.form.on("Installment Plan", {
 				if (!frm.doc.customer && so.customer) frm.set_value("customer", so.customer);
 				if (so.product_name) frm.set_value("product_name", so.product_name);
 				if (so.imei) {
-					const full = (so.imei || "").trim();
-					frm.set_value("imei", full.length >= 6 ? full.slice(-6) : full);
+					frm.set_value("imei", (so.imei || "").trim());
 				}
 				schedule_preview_refresh(frm, 0);
 			},
@@ -282,14 +267,11 @@ function schedule_preview_change(frm) {
 }
 
 function apply_stock_entry_item(frm, item) {
-	if (flt(item.total_amount || item.amount) > 0) {
-		frm.set_value("principal_amount", flt(item.total_amount || item.amount));
+	if (flt(item.amount) > 0) {
+		frm.set_value("principal_amount", flt(item.amount));
 	}
 	if (item.product_name) frm.set_value("product_name", item.product_name);
-	if (item.imei) {
-		const full = (item.imei || "").trim();
-		frm.set_value("imei", full.length >= 6 ? full.slice(-6) : full);
-	}
+	if (item.imei) frm.set_value("imei", (item.imei || "").trim());
 	schedule_preview_refresh(frm, 0);
 }
 
@@ -340,6 +322,43 @@ function set_stock_entry_filter(frm) {
 		query: "nasiya365.api.bnpl_dashboard.installment_plan_stock_entry_query",
 		filters: { installment_plan: frm.doc.name || "" },
 	}));
+}
+
+/** Parse IMEI from link row label: "Product — IMEI · color/storage (STE-…)" */
+function read_imei_from_label_string(label) {
+	if (!label) return "";
+	const sep = " — ";
+	const i = label.indexOf(sep);
+	if (i === -1) return "";
+	const rest = label.slice(i + sep.length);
+	const stop = rest.indexOf(" · ");
+	const imeiPart = (stop === -1 ? rest : rest.slice(0, stop)).trim();
+	if (!imeiPart || imeiPart === "—") return "";
+	return imeiPart;
+}
+
+function nasiya_fetch_stock_entry_details(frm) {
+	frappe.call({
+		method: "nasiya365.api.bnpl_dashboard.get_stock_entry_details_for_installment_plan",
+		args: {
+			stock_entry: frm.doc.stock_entry,
+			installment_plan: frm.doc.name || "",
+		},
+		callback(r) {
+			if (!r.message) return;
+			const d = r.message;
+			const items = d.free_items || [];
+			if (items.length > 1) {
+				pick_stock_entry_item(frm, items);
+			} else if (items.length === 1) {
+				apply_stock_entry_item(frm, items[0]);
+			}
+		},
+	});
+}
+
+function bind_stock_entry_line_picker(frm) {
+	// No-op: stock_entry now links to Stock Entry (parent); item selection handled by picker dialog.
 }
 
 function set_sales_order_filter(frm) {
@@ -533,15 +552,6 @@ function setup_bnpl_actions(frm) {
 	);
 	frm.add_custom_button(__("Отправить OTP"), () => send_otp(frm), __("BNPL"));
 	frm.add_custom_button(__("Предпросмотр / печать"), () => frm.print_doc(), __("BNPL"));
-	frm.add_custom_button(
-		__("Отправить клиенту"),
-		() =>
-			frappe.show_alert({
-				message: __("Скоро: отправка договора по SMS / email."),
-				indicator: "orange",
-			}),
-		__("BNPL")
-	);
 	if (frm.doc.docstatus === 0) {
 		frm.add_custom_button(__("Сохранить черновик"), () => save_draft(frm), __("BNPL"));
 		frm
