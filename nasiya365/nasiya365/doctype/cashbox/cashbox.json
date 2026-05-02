@@ -51,7 +51,7 @@
             "options": "Branch"
         },
         {
-            "default": "user",
+            "default": "__user",
             "fieldname": "responsible_user",
             "fieldtype": "Link",
             "label": "Ответственный",
