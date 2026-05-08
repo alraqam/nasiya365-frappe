@@ -2,8 +2,11 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import flt, now_datetime
 
-def refresh_stock_entry_business_status(stock_entry_name):
-	"""Recompute and save business_status based on how many items are sold (by serial/IMEI)."""
+def refresh_stock_entry_business_status(stock_entry_name, exclude_plan_name=None):
+	"""Recompute and save business_status based on how many items are sold (by serial/IMEI).
+
+	`exclude_plan_name` — skip this plan when counting (used during on_trash before the row is deleted).
+	"""
 	if not stock_entry_name:
 		return
 	ste_meta = frappe.db.get_value(
@@ -24,6 +27,7 @@ def refresh_stock_entry_business_status(stock_entry_name):
 	if not serials:
 		return  # No serials — cannot track per item
 
+	exclude = (exclude_plan_name or "").strip()
 	installment_sold = 0
 	cash_sold = 0
 
@@ -34,11 +38,12 @@ def refresh_stock_entry_business_status(stock_entry_name):
 		if frappe.db.sql(
 			"""SELECT 1 FROM `tabInstallment Plan`
 			   WHERE IFNULL(docstatus, 0) < 2
+			     AND (%s = '' OR name != %s)
 			     AND NULLIF(TRIM(imei), '') IS NOT NULL
 			     AND (REPLACE(UPPER(TRIM(imei)),' ','') = %s
 			          OR RIGHT(REPLACE(UPPER(TRIM(imei)),' ',''), 6) = %s)
 			   LIMIT 1""",
-			(norm, last6),
+			(exclude, exclude, norm, last6),
 		):
 			installment_sold += 1
 			continue

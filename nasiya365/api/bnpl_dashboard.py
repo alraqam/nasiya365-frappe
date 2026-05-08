@@ -1155,10 +1155,13 @@ def assert_stock_entry_available_for_installment_plan(stock_entry, current_plan_
     if row.entry_type != "Поступление":
         frappe.throw(_("Для рассрочки доступны только операции типа «Поступление»"))
     bs = (row.business_status or "").strip()
+    # "Рассрочка" is set by this plan itself after submit — allow when updating an existing plan.
+    # "Наличные" / "Возврат" are always final and must be blocked.
     if bs in _STOCK_ENTRY_UNAVAILABLE_BUSINESS:
-        frappe.throw(
-            _("Это поступление уже отражено как продажа или возврат. Выберите другой документ.")
-        )
+        if bs != "Рассрочка" or not current_plan_name:
+            frappe.throw(
+                _("Это поступление уже отражено как продажа или возврат. Выберите другой документ.")
+            )
     if installment_plan_stock_ref_is_sei_row(stock_entry):
         sei = frappe.db.get_value(
             "Stock Entry Item",

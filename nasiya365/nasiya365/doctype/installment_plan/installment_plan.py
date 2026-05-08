@@ -202,6 +202,23 @@ class InstallmentPlan(Document):
                 flt(self.remaining_balance, 2),
             ),
         )
+        self._refresh_linked_stock_entry_status()
+
+    def on_trash(self):
+        # Pass self.name so the refresh query excludes this plan (on_trash runs before the row is deleted).
+        self._refresh_linked_stock_entry_status(exclude_self=True)
+
+    def _refresh_linked_stock_entry_status(self, exclude_self=False):
+        stock_entry_ref = getattr(self, "stock_entry", None)
+        if not stock_entry_ref:
+            return
+        from nasiya365.api.bnpl_dashboard import installment_plan_stock_ref_to_parent
+        from nasiya365.nasiya365.doctype.stock_entry.stock_entry import refresh_stock_entry_business_status
+
+        parent = installment_plan_stock_ref_to_parent(stock_entry_ref)
+        if parent:
+            exclude = self.name if exclude_self else None
+            refresh_stock_entry_business_status(parent, exclude_plan_name=exclude)
     
     def validate_stock_entry_for_bnpl(self):
         if not getattr(self, "stock_entry", None):
