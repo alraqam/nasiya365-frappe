@@ -6,6 +6,12 @@ function nasiya_has_field(frm, fieldname) {
 frappe.ui.form.on("Installment Plan", {
 	onload(frm) {
 		frm._nasiya_preview_timer = null;
+		// Load the payment preview once when the form is first opened.
+		// Keeping this out of refresh() prevents repeated AJAX calls on every
+		// form refresh (Frappe Cloud triggers refresh more aggressively), which
+		// was causing the schedule grid to be rebuilt while a child-row dialog
+		// was open, destroying the dialog and leaving the backdrop behind.
+		schedule_preview_refresh(frm, 0);
 	},
 
 	refresh(frm) {
@@ -15,7 +21,6 @@ frappe.ui.form.on("Installment Plan", {
 		set_sales_order_filter(frm);
 		setup_bnpl_actions(frm);
 		load_risk_panel(frm);
-		schedule_preview_refresh(frm, 0);
 	},
 
 	customer(frm) {
