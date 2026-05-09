@@ -519,12 +519,9 @@ function maybe_generate_schedule(frm, force_regenerate) {
 			frm.set_value("end_date", preview.end_date);
 			frm.set_value("remaining_balance", preview.total_amount - flt(cur.paid_amount || 0));
 
-			// Keep existing schedule rows unless the user explicitly forced a rebuild.
-			// New plans with an already-built schedule must also be protected — clearing
-			// the grid while a child-row quick-form dialog is open destroys the dialog
-			// DOM and leaves the Bootstrap backdrop ("white bg") orphaned.
+			// For saved plans keep the existing schedule unless empty or forced.
 			const has_existing_schedule = (cur.schedule || []).length > 0;
-			if (!force_regenerate && has_existing_schedule) return;
+			if (!force_regenerate && !is_new_plan && has_existing_schedule) return;
 
 			frm.clear_table("schedule");
 			(preview.schedule || []).forEach((row) => {
