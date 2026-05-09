@@ -418,12 +418,14 @@ class InstallmentPlan(Document):
         if not self.schedule or regular_count != num:
             self.schedule = []
 
-            # Row 0 — down payment (unpaid, due on start_date)
+            # Row 0 — down payment due on the contract signing date (today),
+            # not on the first installment date, so the dashboard "due today"
+            # panel can display and track it from day one.
             down = flt(self.down_payment)
             if down > 0:
                 self.append("schedule", {
                     "installment_number": 0,
-                    "due_date": self.start_date,
+                    "due_date": today(),
                     "amount": down,
                     "status": "Ожидает",
                     "paid_amount": 0,
@@ -652,11 +654,11 @@ def _build_installment_preview(principal, down_payment, interest_rate, num_insta
     schedule = []
     current_date = getdate(start_date)
 
-    # Row 0 — down payment (unpaid, due on start_date)
+    # Row 0 — down payment due today (signing date), not on the first installment date.
     if down_payment > 0:
         schedule.append({
             "installment_number": 0,
-            "due_date": str(current_date),
+            "due_date": today(),
             "amount": down_payment,
             "status": "Ожидает",
             "paid_amount": 0,
