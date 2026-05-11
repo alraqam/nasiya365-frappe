@@ -59,6 +59,20 @@ class InstallmentPlan(Document):
         if frappe.flags.in_import:
             return
 
+        # Submitted plans are immutable — block user edits.
+        # Allow: initial submission (docstatus just changed 0→1), payment engine saves,
+        # and Administrator emergency fixes.
+        if (
+            cint(self.docstatus) == 1
+            and not self.has_value_changed("docstatus")
+            and not frappe.flags.get("nasiya_plan_allocating_payment")
+            and frappe.session.user != "Administrator"
+        ):
+            frappe.throw(
+                _("Редактирование проведённого плана рассрочки запрещено. Отмените план и создайте новый."),
+                frappe.PermissionError,
+            )
+
         # Payment-driven save: skip stock / new-plan checks and schedule regeneration so
         # cashier payments never block allocation or wipe the just-updated schedule rows.
         if frappe.flags.get("nasiya_plan_allocating_payment"):

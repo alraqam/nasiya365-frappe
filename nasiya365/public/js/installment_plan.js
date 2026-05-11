@@ -21,6 +21,24 @@ frappe.ui.form.on("Installment Plan", {
 		set_sales_order_filter(frm);
 		setup_bnpl_actions(frm);
 		load_risk_panel(frm);
+
+		if (frm.doc.docstatus === 1) {
+			frm.disable_save();
+			// Block amendment — plan is immutable after activation; cancel and recreate instead.
+			frm.amend_doc = () =>
+				frappe.msgprint({
+					message: __("Редактирование проведённого плана запрещено. Отмените план и создайте новый."),
+					indicator: "orange",
+				});
+			// Hide the Amend menu item (Frappe renders it after refresh, so defer).
+			setTimeout(() => {
+				frm.page.actions_btn_group
+					?.find("li a")
+					.filter((_, el) => $(el).text().trim() === __("Amend"))
+					.closest("li")
+					.hide();
+			}, 0);
+		}
 	},
 
 	customer(frm) {
