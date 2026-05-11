@@ -203,6 +203,7 @@ class InstallmentPlan(Document):
         self.created_by = frappe.session.user
     
     def on_submit(self):
+        self.db_set("status", "Активный", update_modified=False)
         self.update_customer_limit()
         self.create_contract()
     

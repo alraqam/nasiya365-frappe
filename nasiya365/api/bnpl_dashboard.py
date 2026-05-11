@@ -156,7 +156,7 @@ def _kpi_metrics(base_date, branch=None):
         f"""
         SELECT COALESCE(SUM(ip.remaining_balance), 0)
         FROM `tabInstallment Plan` ip
-        WHERE ip.docstatus = 1
+        WHERE ip.docstatus < 2
           AND ip.status IN ('Активный', 'Просрочен')
           {plan_clause}
     """,
@@ -215,7 +215,7 @@ def _kpi_metrics(base_date, branch=None):
     active_contracts_sql = f"""
         SELECT COUNT(*)
         FROM `tabInstallment Plan` ip
-        WHERE ip.docstatus = 1
+        WHERE ip.docstatus < 2
           AND ip.status IN ('Активный', 'Просрочен')
           {plan_clause}
     """
