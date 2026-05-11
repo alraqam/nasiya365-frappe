@@ -59,17 +59,18 @@ class InstallmentPlan(Document):
         if frappe.flags.in_import:
             return
 
-        # Submitted plans are immutable — block user edits.
+        # Lock the plan once it is active and the contract is signed by both parties.
         # Allow: initial submission (docstatus just changed 0→1), payment engine saves,
         # and Administrator emergency fixes.
         if (
             cint(self.docstatus) == 1
+            and (self.contract_status or "") == "Подписан"
             and not self.has_value_changed("docstatus")
             and not frappe.flags.get("nasiya_plan_allocating_payment")
             and frappe.session.user != "Administrator"
         ):
             frappe.throw(
-                _("Редактирование проведённого плана рассрочки запрещено. Отмените план и создайте новый."),
+                _("Редактирование запрещено: план активен и договор подписан. Отмените план и создайте новый."),
                 frappe.PermissionError,
             )
 

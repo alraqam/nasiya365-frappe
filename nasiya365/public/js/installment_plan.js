@@ -22,12 +22,12 @@ frappe.ui.form.on("Installment Plan", {
 		setup_bnpl_actions(frm);
 		load_risk_panel(frm);
 
-		if (frm.doc.docstatus === 1) {
+		if (frm.doc.docstatus === 1 && frm.doc.contract_status === "Подписан") {
 			frm.disable_save();
-			// Block amendment — plan is immutable after activation; cancel and recreate instead.
+			// Block amendment — plan is immutable once active and contract is signed.
 			frm.amend_doc = () =>
 				frappe.msgprint({
-					message: __("Редактирование проведённого плана запрещено. Отмените план и создайте новый."),
+					message: __("Редактирование запрещено: план активен и договор подписан. Отмените план и создайте новый."),
 					indicator: "orange",
 				});
 			// Hide the Amend menu item (Frappe renders it after refresh, so defer).
