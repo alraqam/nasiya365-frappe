@@ -22,7 +22,7 @@ frappe.ui.form.on("Installment Plan", {
 		setup_bnpl_actions(frm);
 		load_risk_panel(frm);
 
-		if (frm.doc.docstatus === 1 && frm.doc.contract_status === "Подписан") {
+		if (frm.doc.status === "Активный" && frm.doc.contract_status === "Подписан") {
 			frm.disable_save();
 			// Block amendment — plan is immutable once active and contract is signed.
 			frm.amend_doc = () =>
@@ -567,6 +567,8 @@ function setup_bnpl_actions(frm) {
 		frm.set_intro(null);
 	}
 
+	const locked = frm.doc.status === "Активный" && frm.doc.contract_status === "Подписан";
+
 	frm.clear_custom_buttons();
 
 	frm.add_custom_button(
@@ -574,14 +576,16 @@ function setup_bnpl_actions(frm) {
 		() => open_term_simulator(frm),
 		__("BNPL")
 	);
-	frm.add_custom_button(
-		__("Сформировать график"),
-		() => generate_schedule_now(frm),
-		__("BNPL")
-	);
+	if (!locked) {
+		frm.add_custom_button(
+			__("Сформировать график"),
+			() => generate_schedule_now(frm),
+			__("BNPL")
+		);
+	}
 	frm.add_custom_button(__("Отправить OTP"), () => send_otp(frm), __("BNPL"));
 	frm.add_custom_button(__("Предпросмотр / печать"), () => frm.print_doc(), __("BNPL"));
-	if (frm.doc.docstatus === 0) {
+	if (!locked && frm.doc.docstatus === 0) {
 		frm.add_custom_button(__("Сохранить черновик"), () => save_draft(frm), __("BNPL"));
 		frm
 			.add_custom_button(__("Активировать (провести)"), () => activate_plan(frm), __("BNPL"))

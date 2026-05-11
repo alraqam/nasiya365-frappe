@@ -59,13 +59,11 @@ class InstallmentPlan(Document):
         if frappe.flags.in_import:
             return
 
-        # Lock the plan once it is active and the contract is signed by both parties.
-        # Allow: initial submission (docstatus just changed 0→1), payment engine saves,
-        # and Administrator emergency fixes.
+        # Lock the plan once status is Активный and the contract is signed by both parties.
+        # Allow: payment engine saves and Administrator emergency fixes.
         if (
-            cint(self.docstatus) == 1
+            (self.status or "") == "Активный"
             and (self.contract_status or "") == "Подписан"
-            and not self.has_value_changed("docstatus")
             and not frappe.flags.get("nasiya_plan_allocating_payment")
             and frappe.session.user != "Administrator"
         ):
