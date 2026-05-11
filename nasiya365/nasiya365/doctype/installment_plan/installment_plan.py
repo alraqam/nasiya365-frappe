@@ -59,16 +59,15 @@ class InstallmentPlan(Document):
         if frappe.flags.in_import:
             return
 
-        # Lock the plan once status is Активный and the contract is signed by both parties.
+        # Lock the plan once status is Активный.
         # Allow: payment engine saves and Administrator emergency fixes.
         if (
             (self.status or "") == "Активный"
-            and (self.contract_status or "") == "Подписан"
             and not frappe.flags.get("nasiya_plan_allocating_payment")
             and frappe.session.user != "Administrator"
         ):
             frappe.throw(
-                _("Редактирование запрещено: план активен и договор подписан. Отмените план и создайте новый."),
+                _("Редактирование запрещено: план активен. Отмените план и создайте новый."),
                 frappe.PermissionError,
             )
 
