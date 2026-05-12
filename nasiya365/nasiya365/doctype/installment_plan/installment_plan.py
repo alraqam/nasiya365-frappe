@@ -194,15 +194,25 @@ class InstallmentPlan(Document):
         if hasattr(self, "contract_date") and not self.contract_date:
             self.contract_date = getdate(self.start_date) if self.start_date else getdate(today())
 
-        if hasattr(self, "debt_today"):
-            debt_today = 0
-            if getattr(self, "schedule", None):
-                for s in self.schedule:
-                    if not s.due_date or getdate(s.due_date) > getdate(today()):
-                        continue
-                    if _installment_row_accepts_payment(s):
-                        debt_today += flt(s.amount) - flt(s.paid_amount)
-            self.debt_today = debt_today
+        self._recompute_debt_today()
+
+    def _recompute_debt_today(self):
+        """Sum the unpaid amount on schedule rows due on/before today.
+
+        Stored as a denormalised header field so list views can sort/filter on it.
+        Called from validate (set_contract_fields_from_plan) AND directly from
+        apply_payment + before_cancel — Frappe skips validate on docstatus=1 saves,
+        so we have to call this explicitly from the payment / cancel paths."""
+        if not hasattr(self, "debt_today"):
+            return
+        debt = 0
+        if getattr(self, "schedule", None):
+            for s in self.schedule:
+                if not s.due_date or getdate(s.due_date) > getdate(today()):
+                    continue
+                if _installment_row_accepts_payment(s):
+                    debt += flt(s.amount) - flt(s.paid_amount)
+        self.debt_today = debt
     
     def before_insert(self):
         self.created_by = frappe.session.user
@@ -250,6 +260,9 @@ class InstallmentPlan(Document):
         paid = sum(flt(r.paid_amount) for r in (self.schedule or []))
         self.paid_amount = paid
         self.remaining_balance = flt(self.total_amount) - paid
+        # After cascade reverses payments, the previously-paid rows are open again —
+        # the denormalised debt_today field needs to follow.
+        self._recompute_debt_today()
 
     def on_cancel(self):
         # Flag as cancelled so status filters and payment guards recognize it.
@@ -702,6 +715,10 @@ class InstallmentPlan(Document):
                     s.status = "Оплачен"
             self.paid_amount = sum(flt(s.paid_amount) for s in self.schedule)
             self.remaining_balance = flt(self.total_amount) - flt(self.paid_amount)
+
+        # Recompute the stored debt_today denormalisation. Frappe skips validate() on
+        # docstatus=1 saves so we cannot rely on set_contract_fields_from_plan firing.
+        self._recompute_debt_today()
 
         # Check if all rows (including down payment) are paid
         if all(s.status == "Оплачен" for s in self.schedule):
