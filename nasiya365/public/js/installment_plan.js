@@ -6,12 +6,14 @@ function nasiya_has_field(frm, fieldname) {
 frappe.ui.form.on("Installment Plan", {
 	onload(frm) {
 		frm._nasiya_preview_timer = null;
-		// Load the payment preview once when the form is first opened.
-		// Keeping this out of refresh() prevents repeated AJAX calls on every
-		// form refresh (Frappe Cloud triggers refresh more aggressively), which
-		// was causing the schedule grid to be rebuilt while a child-row dialog
-		// was open, destroying the dialog and leaving the backdrop behind.
+		// Run the expensive AJAX work ONCE when the form is first opened.
+		// On Frappe Cloud the `refresh` event fires many times during a single
+		// user interaction (e.g. while editing a date in the schedule grid). Any
+		// frappe.call() callback that lands mid-interaction can fire frm.set_value
+		// side effects that tear down the child-row dialog DOM, leaving an
+		// orphan Bootstrap backdrop ("white background remains").
 		schedule_preview_refresh(frm, 0);
+		load_risk_panel(frm);
 	},
 
 	refresh(frm) {
@@ -20,9 +22,10 @@ frappe.ui.form.on("Installment Plan", {
 		bind_stock_entry_line_picker(frm);
 		set_sales_order_filter(frm);
 		setup_bnpl_actions(frm);
-		load_risk_panel(frm);
-		// No custom edit lock here — `is_submittable=1` + `allow_amend=0` means Frappe
-		// hides Save / shows Cancel automatically when docstatus=1, and blocks any amend.
+		// schedule_preview_refresh + load_risk_panel intentionally NOT here — see onload().
+		// The customer(frm) handler still refreshes the risk panel when the customer changes.
+		// is_submittable=1 + allow_amend=0 means Frappe hides Save and shows Cancel on
+		// docstatus=1 automatically.
 	},
 
 	customer(frm) {
