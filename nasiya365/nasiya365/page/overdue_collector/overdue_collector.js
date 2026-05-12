@@ -103,11 +103,23 @@ nasiya365.OverdueCollector = class OverdueCollector {
 			const debt_label = total_debt > 0
 				? `<span class="bnpl-row-debt">${__("Долг на сегодня")}: <b>${nasiya365._fmt_money(total_debt)}</b></span>`
 				: "";
-			// Aggregated row: one entry per contract. Count helps the collector see
-			// when multiple installments roll up into the same line.
+			// Aggregated row: one entry per contract. Down payment (row 0) is split
+			// from regular installments so the collector sees the contractually-
+			// separate amounts.
 			const installment_count = cint(row.overdue_count || row.due_count || 0);
 			const count_label = installment_count > 1 ? ` · ${installment_count} ${__("взн.")}` : "";
 			const amount_label = installment_count > 1 ? __("К оплате") : __("Взнос");
+			const down_payment_due = flt(row.down_payment_due);
+			const installments_line = installment_count > 0
+				? `<div class="bnpl-row-sub">
+					${amount_label}: ${nasiya365._fmt_money(row.amount_due)}${count_label}${overdue_label}
+				</div>`
+				: "";
+			const down_payment_line = down_payment_due > 0
+				? `<div class="bnpl-row-sub" style="color:var(--orange-500)">
+					${__("Первоначальный взнос")}: <b>${nasiya365._fmt_money(down_payment_due)}</b>
+				</div>`
+				: "";
 
 			const last_call_label = row.last_call_outcome
 				? `<div class="bnpl-row-sub" style="margin-top:2px;color:var(--text-muted);font-size:11px;">
@@ -123,9 +135,8 @@ nasiya365.OverdueCollector = class OverdueCollector {
 				<div class="bnpl-list-row bnpl-list-row--clickable">
 					<div class="bnpl-row-info" style="cursor:pointer;flex:1;min-width:0;">
 						<div class="bnpl-row-title">${frappe.utils.escape_html(row.customer_name || row.customer)}${product}</div>
-						<div class="bnpl-row-sub">
-							${amount_label}: ${nasiya365._fmt_money(row.amount_due)}${count_label}${overdue_label}
-						</div>
+						${down_payment_line}
+						${installments_line}
 						${debt_label ? `<div class="bnpl-row-sub" style="margin-top:2px;">${debt_label}</div>` : ""}
 						${last_call_label}
 					</div>
@@ -181,6 +192,11 @@ nasiya365.OverdueCollector = class OverdueCollector {
 		const count_row = installment_count > 1
 			? `<tr><td>${__("Взносов в строке")}</td><td><b>${installment_count}</b></td></tr>`
 			: "";
+		const down_payment_due = flt(row.down_payment_due);
+		const down_payment_row = down_payment_due > 0
+			? `<tr><td>${__("Первоначальный взнос")}</td>
+			      <td style="color:var(--orange-500)"><b>${fmt(down_payment_due)}</b></td></tr>`
+			: "";
 		const total_debt = flt(row.total_debt_today);
 
 		const d = new frappe.ui.Dialog({
@@ -202,8 +218,9 @@ nasiya365.OverdueCollector = class OverdueCollector {
 							    <td>${frappe.format(row.due_date, {fieldtype: "Date"})}${installment_count > 1 ? ` <span class="text-muted">(${__("самая ранняя")})</span>` : ""}</td></tr>
 							${overdue_row}
 							${count_row}
-							<tr><td>${installment_count > 1 ? __("К оплате") : __("Сумма взноса")}</td>
-							    <td><b>${fmt(row.amount_due)}</b></td></tr>
+							${down_payment_row}
+							${installment_count > 0 ? `<tr><td>${installment_count > 1 ? __("Взносы — к оплате") : __("Сумма взноса")}</td>
+							    <td><b>${fmt(row.amount_due)}</b></td></tr>` : ""}
 							${total_debt > 0 ? `<tr><td>${__("Долг на сегодня")}</td>
 							    <td><b style="color:var(--red-500)">${fmt(total_debt)}</b></td></tr>` : ""}
 							${row.last_call_outcome ? `<tr><td>${__("Последний звонок")}</td>

@@ -469,14 +469,23 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 				row.urgency === "high"
 					? `<span class="bnpl-urgency bnpl-urgency--high">${__("Срочно")}</span>`
 					: `<span class="bnpl-urgency bnpl-urgency--normal">${__("Сегодня")}</span>`;
-			// Aggregated by contract — show installment count when >1.
+			// Aggregated by contract — show installment count when >1, and split out
+			// the down payment if it's part of today's due roll-up.
 			const installment_count = cint(row.due_count || 0);
 			const count_label = installment_count > 1 ? ` <span class="text-muted">· ${installment_count} ${__("взн.")}</span>` : "";
+			const down_payment_due = flt(row.down_payment_due);
+			const dp_line = down_payment_due > 0
+				? `<div class="bnpl-row-sub" style="color:var(--orange-500)">${__("Первоначальный взнос")}: <b>${format_currency(down_payment_due)}</b></div>`
+				: "";
+			const inst_line = installment_count > 0
+				? `<div class="bnpl-row-sub">${format_currency(row.amount_due)}${count_label}</div>`
+				: "";
 			const item = $(`
 				<div class="bnpl-list-row bnpl-due-row">
 					<div>
 						<div class="bnpl-row-title">${frappe.utils.escape_html(row.customer_name || row.customer)}</div>
-						<div class="bnpl-row-sub">${format_currency(row.amount_due)}${count_label}</div>
+						${dp_line}
+						${inst_line}
 					</div>
 					<div class="bnpl-due-actions">
 						${urg}

@@ -306,8 +306,9 @@ def get_overdue_list(limit=20, branch=None, collector=None):
     branch_clause, branch_params = _user_branch_clause("ip")
     args.extend(branch_params)
 
-    # Aggregate by Installment Plan — one row per contract regardless of how many
-    # individual schedule rows are overdue.
+    # Aggregate by Installment Plan — one row per contract. Down payment (row 0,
+    # installment_number=0) is split out so the UI shows "Первоначальный взнос" and
+    # the regular installments separately.
     rows = frappe.db.sql(
         f"""
         SELECT
@@ -316,9 +317,15 @@ def get_overdue_list(limit=20, branch=None, collector=None):
             {_collection_customer_select()},
             COALESCE(NULLIF(TRIM(ip.product_name), ''), '') AS product_name,
             MIN(isc.due_date) AS due_date,
-            SUM(isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due,
+            SUM(CASE WHEN COALESCE(isc.installment_number, 0) = 0
+                     THEN (isc.amount - COALESCE(isc.paid_amount, 0))
+                     ELSE 0 END) AS down_payment_due,
+            SUM(CASE WHEN COALESCE(isc.installment_number, 0) > 0
+                     THEN (isc.amount - COALESCE(isc.paid_amount, 0))
+                     ELSE 0 END) AS amount_due,
             MAX(DATEDIFF(%s, isc.due_date)) AS days_overdue,
-            COUNT(*) AS overdue_count,
+            SUM(CASE WHEN COALESCE(isc.installment_number, 0) > 0 THEN 1 ELSE 0 END)
+                AS overdue_count,
             MAX((
                 SELECT COALESCE(SUM(s.amount - COALESCE(s.paid_amount, 0)), 0)
                 FROM `tabInstallment Schedule` s
@@ -353,6 +360,7 @@ def get_overdue_list(limit=20, branch=None, collector=None):
 
     for row in rows:
         row["amount_due"] = _to_float(row["amount_due"])
+        row["down_payment_due"] = _to_float(row.get("down_payment_due"))
         row["total_debt_today"] = _to_float(row["total_debt_today"])
         row["days_overdue"] = cint(row["days_overdue"])
         row["overdue_count"] = cint(row["overdue_count"])
@@ -435,8 +443,8 @@ def get_due_today_list(limit=20, branch=None):
     # then isc.due_date in WHERE.
     args = [base_date, *_OPEN_SCHEDULE_STATUSES, base_date, *branch_params]
 
-    # Aggregate by Installment Plan — one row per contract, even if today has multiple
-    # schedule entries (e.g. down payment + first installment on the same date).
+    # Aggregate by Installment Plan — one row per contract. Down payment (row 0,
+    # installment_number=0) is split out from the regular installment sum.
     rows = frappe.db.sql(
         f"""
         SELECT
@@ -445,8 +453,14 @@ def get_due_today_list(limit=20, branch=None):
             {_collection_customer_select()},
             COALESCE(NULLIF(TRIM(ip.product_name), ''), '') AS product_name,
             MIN(isc.due_date) AS due_date,
-            SUM(isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due,
-            COUNT(*) AS due_count,
+            SUM(CASE WHEN COALESCE(isc.installment_number, 0) = 0
+                     THEN (isc.amount - COALESCE(isc.paid_amount, 0))
+                     ELSE 0 END) AS down_payment_due,
+            SUM(CASE WHEN COALESCE(isc.installment_number, 0) > 0
+                     THEN (isc.amount - COALESCE(isc.paid_amount, 0))
+                     ELSE 0 END) AS amount_due,
+            SUM(CASE WHEN COALESCE(isc.installment_number, 0) > 0 THEN 1 ELSE 0 END)
+                AS due_count,
             MAX(CASE WHEN isc.status = 'Частично' THEN 1 ELSE 0 END) AS has_partial,
             MAX(cl.outcome) AS last_call_outcome,
             MAX(cl.call_datetime) AS last_call_date,
@@ -471,7 +485,7 @@ def get_due_today_list(limit=20, branch=None):
           {filters}
           {branch_clause}
         GROUP BY ip.name, ip.customer, cp.full_name, ip.product_name
-        ORDER BY has_partial DESC, amount_due DESC
+        ORDER BY has_partial DESC, amount_due DESC, down_payment_due DESC
         LIMIT {query_limit}
     """,
         tuple(args),
@@ -479,6 +493,7 @@ def get_due_today_list(limit=20, branch=None):
     )
     for row in rows:
         row["amount_due"] = _to_float(row["amount_due"])
+        row["down_payment_due"] = _to_float(row.get("down_payment_due"))
         row["total_debt_today"] = _to_float(row["total_debt_today"])
         row["due_count"] = cint(row["due_count"])
         row["urgency"] = "high" if cint(row.get("has_partial")) else "normal"
