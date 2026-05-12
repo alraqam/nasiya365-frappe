@@ -641,6 +641,7 @@ def get_customer_installment_plans(customer):
     # Permission check: caller must be able to read this customer (branch-scoped).
     require_branch_access("Customer Profile", customer, ptype="read")
 
+    from frappe.utils import today as _today
     branch_clause, branch_params = _user_branch_clause("ip")
     rows = frappe.db.sql(
         f"""
@@ -664,7 +665,14 @@ def get_customer_installment_plans(customer):
                 )), ''),
                 NULLIF(TRIM(COALESCE(NULLIF(sei.color, ''), NULLIF(soi.color, ''), '')), ''),
                 NULLIF(TRIM(COALESCE(NULLIF(sei.storage, ''), NULLIF(soi.storage, ''), '')), '')
-            )), ''), '') AS device_name
+            )), ''), '') AS device_name,
+            (
+                SELECT COALESCE(SUM(s.amount - COALESCE(s.paid_amount, 0)), 0)
+                FROM `tabInstallment Schedule` s
+                WHERE s.parent = ip.name
+                  AND s.due_date <= %s
+                  AND (s.amount - COALESCE(s.paid_amount, 0)) > 0.001
+            ) AS debt_today
         FROM `tabInstallment Plan` ip
         LEFT JOIN `tabStock Entry Item` sei
             ON sei.name = ip.stock_entry
@@ -677,7 +685,7 @@ def get_customer_installment_plans(customer):
           {branch_clause}
         ORDER BY ip.modified DESC
         """,
-        (customer, *branch_params),
+        (_today(), customer, *branch_params),
         as_dict=True,
     )
     return rows or []

@@ -315,6 +315,10 @@ function paint_installment_plans(frm, plans) {
 			const debt = frappe.format(p.remaining_balance || 0, { fieldtype: "Currency" });
 			const suggested = Math.max(0, Math.min(flt(p.installment_amount || 0), flt(p.remaining_balance || 0)));
 			const toPay = frappe.format(suggested, { fieldtype: "Currency" });
+			const debtToday = flt(p.debt_today || 0);
+			const debtTodayFmt = debtToday > 0
+				? `<strong style="color:var(--red-500)">${frappe.format(debtToday, { fieldtype: "Currency" })}</strong>`
+				: `<span class="text-muted">—</span>`;
 			const device = frappe.utils.escape_html(p.device_name || "-");
 			const imei = p.imei ? ` / IMEI: ${frappe.utils.escape_html(p.imei)}` : "";
 			const status = frappe.utils.escape_html(p.contract_status || p.status || "");
@@ -330,6 +334,7 @@ function paint_installment_plans(frm, plans) {
 					<td><a href="/app/installment-plan/${encodeURIComponent(p.name)}" target="_blank">${frappe.utils.escape_html(dogovor)}</a></td>
 					<td>${device}${imei}</td>
 					<td><strong>${toPay}</strong></td>
+					<td>${debtTodayFmt}</td>
 					<td>${debt}</td>
 					<td>${status}</td>
 					${actionCell}
@@ -345,18 +350,20 @@ function paint_installment_plans(frm, plans) {
 			<div class="nasiya-payment-plans-wrap">
 				<table class="table table-bordered nasiya-payment-plans">
 					<colgroup>
-						<col style="width:15%" />
-						<col style="width:30%" />
 						<col style="width:14%" />
-						<col style="width:14%" />
-						<col style="width:14%" />
+						<col style="width:26%" />
+						<col style="width:12%" />
 						<col style="width:13%" />
+						<col style="width:12%" />
+						<col style="width:12%" />
+						<col style="width:11%" />
 					</colgroup>
 					<thead>
 						<tr>
 							<th>Договор</th>
 							<th>Устройство</th>
 							<th>К оплате</th>
+							<th>${__("Долг на сегодня")}</th>
 							<th>Остаток</th>
 							<th>Статус</th>
 							<th class="nasiya-pay-action">Выбор</th>
