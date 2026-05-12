@@ -107,22 +107,34 @@ function nasiya_defer_grid_refresh(frm) {
 	requestAnimationFrame(tryRefresh);
 }
 
+/** Quietly set a header field without triggering Frappe's full set_value side-effects
+ *  (which on newer Frappe builds run through dirty/change tracking that can refresh
+ *  unrelated parts of the form, including the schedule grid, killing any open date
+ *  picker the user is interacting with). */
+function nasiya_quiet_header_set(frm, fieldname, value) {
+	if (frm.doc[fieldname] === value) return;
+	frm.doc[fieldname] = value;
+	if (frm.fields_dict[fieldname]) {
+		try {
+			frm.fields_dict[fieldname].refresh();
+		} catch (e) {
+			/* refresh is best-effort */
+		}
+	}
+}
+
 /** Cascade schedule dates from the edited row (same step as server: week / 2 weeks / month).
- *  Uses in-memory row mutation (no frappe.model.set_value per row) because each event
- *  trigger refreshes the grid cell on newer Frappe builds, killing any open date picker
- *  the user is interacting with. */
+ *  All mutations are direct (no frappe.model.set_value / frm.set_value) because each
+ *  event trigger refreshes part of the form on newer Frappe builds, killing the user's
+ *  open date picker. frm.dirty() marks the form as unsaved at the end. */
 function nasiya_cascade_schedule_from_row(frm, edited_row_name, anchor_date) {
 	const schedule = frm.doc.schedule || [];
 	if (schedule.length < 2) {
 		const only = schedule[0];
 		if (only && only.name === edited_row_name) {
-			frm._nasiya_skip_schedule_preview = true;
-			try {
-				frm.set_value("start_date", anchor_date);
-			} finally {
-				frm._nasiya_skip_schedule_preview = false;
-			}
-			frm.set_value("end_date", anchor_date);
+			nasiya_quiet_header_set(frm, "start_date", anchor_date);
+			nasiya_quiet_header_set(frm, "end_date", anchor_date);
+			frm.dirty();
 		}
 		return;
 	}
@@ -137,20 +149,15 @@ function nasiya_cascade_schedule_from_row(frm, edited_row_name, anchor_date) {
 		for (let i = pos + 1; i < rows.length; i++) {
 			const r = rows[i];
 			prev = nasiya_schedule_step_date(prev, frm.doc.frequency);
-			// Direct mutation: no model event triggered → no grid cell re-render →
-			// the user's open date picker stays alive.
 			r.due_date = prev;
 		}
 		if (pos === 0) {
-			frm._nasiya_skip_schedule_preview = true;
-			try {
-				frm.set_value("start_date", anchor_date);
-			} finally {
-				frm._nasiya_skip_schedule_preview = false;
-			}
+			nasiya_quiet_header_set(frm, "start_date", anchor_date);
 		}
 		const last_row = rows[rows.length - 1];
-		if (last_row.due_date) frm.set_value("end_date", last_row.due_date);
+		if (last_row.due_date) {
+			nasiya_quiet_header_set(frm, "end_date", last_row.due_date);
+		}
 		frm.dirty();
 	} finally {
 		frm._nasiya_cascade_schedule = false;
