@@ -34,6 +34,23 @@ class Cashbox(Document):
 	def validate(self):
 		self.calculate_totals()
 
+	def on_trash(self):
+		"""Block deletion if the cashbox holds Payment Transaction refs — removing it
+		would orphan the cashbox transactions side of the audit trail."""
+		if not self.transactions:
+			return
+		has_pt = any(
+			(t.reference_doctype or "") == "Payment Transaction" and (t.reference_name or "")
+			for t in self.transactions
+		)
+		if has_pt:
+			frappe.throw(
+				_(
+					"Невозможно удалить кассу: в ней есть строки, привязанные к платежам. "
+					"Сначала отмените соответствующие платежи."
+				)
+			)
+
 	def calculate_totals(self):
 		"""Calculate USD-equivalent totals and per-method breakdowns from transactions."""
 		default_rate = flt(self.default_exchange_rate) or 12200.0
@@ -85,7 +102,15 @@ def _find_master_cashbox(branch=None):
 
 @frappe.whitelist()
 def get_master_cashbox(branch=None):
-	"""Return the open master cashbox name for the given branch."""
+	"""Return the open master cashbox name for the given branch.
+
+	Branch-scoped: caller must be assigned to the branch, otherwise blocked.
+	"""
+	from nasiya365.permissions import _get_user_branches, _is_unrestricted
+
+	if branch and not _is_unrestricted(frappe.session.user):
+		if branch not in _get_user_branches(frappe.session.user):
+			frappe.throw(_("Нет доступа к этому филиалу"), frappe.PermissionError)
 	return _find_master_cashbox(branch)
 
 
@@ -94,7 +119,13 @@ def close_and_transfer(cashbox_name, to_cashbox=None):
 	"""
 	Close a salesperson cashbox and create a Cash Handover pending manager confirmation.
 	Returns the new Cash Handover name.
+
+	Branch-scoped: caller needs write access on the source cashbox (which is itself
+	branch-filtered via has_cashbox_permission).
 	"""
+	from nasiya365.permissions import require_branch_access
+
+	require_branch_access("Cashbox", cashbox_name, ptype="write")
 	doc = frappe.get_doc("Cashbox", cashbox_name)
 
 	if doc.status == "Закрыта":

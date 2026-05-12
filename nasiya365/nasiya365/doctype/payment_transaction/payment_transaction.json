@@ -194,7 +194,9 @@
    "label": "Примечания"
   }
  ],
+ "allow_amend": 0,
  "index_web_pages_for_search": 1,
+ "is_submittable": 1,
  "links": [],
  "modified": "2026-04-06 12:00:00.000000",
  "modified_by": "Administrator",
@@ -204,6 +206,7 @@
  "owner": "Administrator",
  "permissions": [
   {
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -213,8 +216,35 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
-   "write": 1,
-   "cancel": 1
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nasiya365 Admin",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Branch Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
   },
   {
    "create": 1,
@@ -225,38 +255,11 @@
    "report": 1,
    "role": "Cashier",
    "share": 1,
+   "submit": 1,
    "write": 1
   },
   {
-   "role": "Nasiya365 Admin",
-   "read": 1,
-   "write": 1,
    "create": 1,
-   "delete": 1,
-   "cancel": 1,
-   "email": 1,
-   "print": 1,
-   "report": 1,
-   "export": 1,
-   "share": 1
-  },
-  {
-   "role": "Branch Manager",
-   "read": 1,
-   "email": 1,
-   "print": 1,
-   "report": 1,
-   "export": 1
-  },
-  {
-   "role": "Salesperson",
-   "read": 1,
-   "report": 1,
-   "export": 1
-  },
-  {
-   "create": 1,
-   "delete": 0,
    "email": 1,
    "export": 1,
    "print": 1,
@@ -264,19 +267,24 @@
    "report": 1,
    "role": "Collector",
    "share": 1,
+   "submit": 1,
    "write": 1
   },
   {
-   "create": 0,
-   "delete": 0,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Credit Officer",
-   "share": 1,
-   "write": 0
+   "role": "Salesperson"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Credit Officer"
   }
  ],
  "quick_entry": 0,

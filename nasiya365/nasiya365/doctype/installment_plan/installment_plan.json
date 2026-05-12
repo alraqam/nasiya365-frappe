@@ -581,6 +581,18 @@
   {
    "permlevel": 1,
    "read": 1,
+   "role": "Salesperson",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Credit Officer",
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
    "role": "Collector"
   }
  ],

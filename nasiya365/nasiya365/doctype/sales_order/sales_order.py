@@ -33,6 +33,21 @@ class SalesOrder(Document):
     
     def on_cancel(self):
         self.reverse_stock()
+
+    def on_trash(self):
+        """Block deletion if any Installment Plan references this SO — they need
+        to be cancelled first so the cascade reverses payments / contracts cleanly."""
+        from nasiya365.permissions import admin_only_for_submitted_delete
+
+        admin_only_for_submitted_delete(self)
+        ip_count = frappe.db.count("Installment Plan", {"sales_order": self.name})
+        if ip_count:
+            frappe.throw(
+                _(
+                    "Невозможно удалить заказ: к нему привязан план рассрочки. "
+                    "Сначала отмените план."
+                )
+            )
     
     def set_defaults(self):
         """Set default values"""
@@ -203,6 +218,8 @@ class SalesOrder(Document):
             },
         )
         receipt.insert()
+        # Submit so on_submit fires (status=Завершен, allocate, cashbox sync).
+        receipt.submit()
 
 
 def on_submit(doc, method):

@@ -169,6 +169,30 @@ class StockEntry(Document):
 			self.db_update()
 		self.update_stock_ledger(cancel=True)
 
+	def on_trash(self):
+		"""Block deletion if any Installment Plan references this Stock Entry — the
+		plan's stock_entry FK would go stale and the BNPL flow would break."""
+		from nasiya365.permissions import admin_only_for_submitted_delete
+
+		admin_only_for_submitted_delete(self)
+		# Check both legacy parent ref and per-line SEI ref.
+		ip_count_parent = frappe.db.count(
+			"Installment Plan", {"stock_entry": self.name}
+		)
+		ip_count_line = frappe.db.sql(
+			"""SELECT COUNT(*) FROM `tabInstallment Plan` ip
+			   INNER JOIN `tabStock Entry Item` sei ON sei.name = ip.stock_entry
+			   WHERE sei.parent = %s""",
+			(self.name,),
+		)[0][0]
+		total = (ip_count_parent or 0) + (ip_count_line or 0)
+		if total:
+			frappe.throw(
+				frappe._(
+					"Невозможно удалить поступление: оно связано с {0} планом(и) рассрочки."
+				).format(total)
+			)
+
 	def set_business_status(self):
 		if not self._has_business_status_field():
 			return

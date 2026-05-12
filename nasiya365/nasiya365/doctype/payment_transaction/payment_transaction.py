@@ -75,18 +75,23 @@ def _installment_plan_has_outstanding_payment(plan_name: str) -> bool:
 def installment_plans_with_outstanding_for_customer(customer):
     """Plans that are not closed/write-off and still have something to collect (by header or график).
 
-    Uses SQL so role permissions on Installment Plan never hide rows from autolink.
+    Branch-scoped: a cashier in Branch A cannot autolink to a plan in Branch B,
+    so payments stay within branch boundaries.
     """
     if not customer:
         return []
+    from nasiya365.api.bnpl_dashboard import _user_branch_clause
+
+    branch_clause, branch_params = _user_branch_clause("ip")
     names = frappe.db.sql(
-        """
-        SELECT name FROM `tabInstallment Plan`
-        WHERE customer = %s
-          AND IFNULL(`status`, '') NOT IN ('Завершен', 'Списан')
-        ORDER BY modified DESC
+        f"""
+        SELECT ip.name FROM `tabInstallment Plan` ip
+        WHERE ip.customer = %s
+          AND IFNULL(ip.`status`, '') NOT IN ('Завершен', 'Списан')
+          {branch_clause}
+        ORDER BY ip.modified DESC
         """,
-        (customer,),
+        (customer, *branch_params),
         pluck=True,
     )
     names = names or []
@@ -478,6 +483,19 @@ def _remove_payment_from_cashbox(doc):
 
 
 class PaymentTransaction(Document):
+    """Payment Transaction state machine:
+
+        docstatus=0, status=Ожидает    → draft, not yet posted to plan/cashbox
+        docstatus=1, status=Завершен    → posted: plan schedule rows allocated, cashbox row added
+        docstatus=2, status=Отменен     → cancelled: allocation + cashbox row reversed
+
+    Side-effects on transitions:
+        on_submit  → status=Завершен, allocate_payment_transaction_to_installment_plan,
+                     _sync_payment_to_cashbox, optional SMS receipt
+        on_cancel  → status=Отменен, _deallocate_payment_from_installment_plan,
+                     _remove_payment_from_cashbox, audit comment
+    """
+
     def validate(self):
         self.autolink_single_open_installment_plan()
         self.apply_payment_totals()
@@ -486,16 +504,15 @@ class PaymentTransaction(Document):
         if not self.received_by:
             self.received_by = frappe.session.user
 
-    def after_insert(self):
-        """Allocate to plan (also registered in hooks.py doc_events; idempotent flag prevents double apply)."""
-        # Wrap allocation + cashbox sync so a cashbox failure doesn't leave the plan
-        # marked paid without a corresponding cashbox row.
-        frappe.db.savepoint("nasiya_payment_after_insert")
+    def on_submit(self):
+        """Submission posts the payment: allocate to plan, sync cashbox, send SMS."""
+        self.db_set("status", "Завершен", update_modified=False)
+        frappe.db.savepoint("nasiya_payment_on_submit")
         try:
             allocate_payment_transaction_to_installment_plan(self)
             _sync_payment_to_cashbox(self)
         except Exception:
-            frappe.db.rollback(save_point="nasiya_payment_after_insert")
+            frappe.db.rollback(save_point="nasiya_payment_on_submit")
             raise
         if self.get("send_payment_sms"):
             try:
@@ -508,23 +525,8 @@ class PaymentTransaction(Document):
                     alert=True,
                 )
 
-    def on_update(self):
-        if (self.reference_doctype or "").strip() != "Installment Plan":
-            if self.has_value_changed("status") and (self.status or "").strip() == "Отменен":
-                _remove_payment_from_cashbox(self)
-            return
-        if self.has_value_changed("status") and (self.status or "").strip() == "Отменен":
-            _remove_payment_from_cashbox(self)
-            return
-        if self.has_value_changed("status") and (self.status or "").strip() == "Завершен":
-            _sync_payment_to_cashbox(self)
-            # Re-run allocation in case payment was initially saved as "Ожидает"
-            # (DB idempotency check prevents double-allocation if already applied).
-            allocate_payment_transaction_to_installment_plan(self)
-        elif self.has_value_changed("reference_name") or self.has_value_changed("reference_doctype"):
-            allocate_payment_transaction_to_installment_plan(self)
-
     def on_cancel(self):
+        self.db_set("status", "Отменен", update_modified=False)
         _deallocate_payment_from_installment_plan(self)
         _remove_payment_from_cashbox(self)
         self.add_comment(
@@ -626,12 +628,22 @@ def _send_payment_receipt_sms(doc):
 
 @frappe.whitelist()
 def get_customer_installment_plans(customer):
-    """Return all installment plans for a customer with debt + device info."""
+    """Return all installment plans for a customer with debt + device info.
+
+    Branch-scoped: non-admin users only see plans whose Sales Order branch is
+    in their assigned branch list.
+    """
+    from nasiya365.permissions import require_branch_access
+    from nasiya365.api.bnpl_dashboard import _user_branch_clause
+
     if not customer:
         return []
+    # Permission check: caller must be able to read this customer (branch-scoped).
+    require_branch_access("Customer Profile", customer, ptype="read")
 
+    branch_clause, branch_params = _user_branch_clause("ip")
     rows = frappe.db.sql(
-        """
+        f"""
         SELECT
             ip.name,
             ip.status,
@@ -662,9 +674,10 @@ def get_customer_installment_plans(customer):
         LEFT JOIN `tabSales Order Item` soi
             ON soi.parent = ip.sales_order AND soi.idx = 1
         WHERE ip.customer = %s
+          {branch_clause}
         ORDER BY ip.modified DESC
         """,
-        (customer,),
+        (customer, *branch_params),
         as_dict=True,
     )
     return rows or []

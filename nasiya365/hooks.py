@@ -109,10 +109,9 @@ after_migrate = "nasiya365.install.after_migrate"
 
 # Hook on document methods and events
 doc_events = {
-    "Payment Transaction": {
-        "after_insert": "nasiya365.payment_doc_events.payment_transaction_after_insert",
-        "on_update": "nasiya365.payment_doc_events.payment_transaction_on_update",
-    },
+    # Payment Transaction is now submittable — allocation runs from on_submit,
+    # reversal from on_cancel (both defined on the Document class). No after_insert
+    # / on_update hooks needed (would double-fire allocation on draft saves).
     "Product": {
         "before_validate": "nasiya365.payment_doc_events.product_before_validate",
     },

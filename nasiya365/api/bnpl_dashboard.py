@@ -589,6 +589,10 @@ def get_client_risk_snapshot(customer):
 
 @frappe.whitelist()
 def get_installment_suggestions(customer=None, product=None, amount=None):
+    # Branch-scoped read on the customer if provided, so users can't enumerate
+    # other branches' customer income data via this endpoint.
+    if customer:
+        _require_doc_permission("Customer Profile", customer, "read")
     if amount is None and product:
         amount = frappe.db.get_value("Product", product, "selling_price")
     amount = _to_float(amount)
@@ -954,7 +958,6 @@ def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Налич�
     customer = frappe.db.get_value("Installment Plan", plan_name, "customer")
     payment = frappe.new_doc("Payment Transaction")
     payment.customer = customer
-    payment.status = "Завершен"
     payment.payment_method = _normalize_payment_line_method(mode)
     payment.payment_date = nowdate()
     payment.reference_doctype = "Installment Plan"
@@ -969,6 +972,8 @@ def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Налич�
         },
     )
     payment.insert(ignore_permissions=True)
+    # Submit so on_submit fires (sets status=Завершен, allocates to plan, syncs cashbox).
+    payment.submit()
     frappe.db.commit()
     return {"name": payment.name, "plan": plan_name}
 
@@ -983,6 +988,17 @@ def create_sales_order_from_wizard(payload):
     for key in required_fields:
         if not data.get(key):
             frappe.throw(_("Поле {0} обязательно").format(key))
+
+    # Branch must be one the caller is assigned to (admins bypass).
+    from nasiya365.permissions import _get_user_branches, _is_unrestricted
+
+    user = frappe.session.user
+    if not _is_unrestricted(user):
+        if data["branch"] not in _get_user_branches(user):
+            frappe.throw(
+                _("Вы не назначены на филиал {0}").format(data["branch"]),
+                frappe.PermissionError,
+            )
 
     price = _to_float(data.get("price") or frappe.db.get_value("Product", data["product"], "selling_price"))
     qty = cint(data.get("qty") or 1)
@@ -1362,12 +1378,15 @@ def get_stock_entry_details_for_installment_plan(
     """
     if not stock_entry:
         return {}
-    _require_doc_permission("Stock Entry", stock_entry, "read")
-    current_plan = installment_plan or ""
-    assert_stock_entry_available_for_installment_plan(stock_entry, current_plan)
+    # Caller passes either a Stock Entry name (legacy) or a Stock Entry Item row name.
+    # Resolve to the parent Stock Entry FIRST so the read permission check uses the
+    # actual doctype that branch filtering applies to.
     parent = installment_plan_stock_ref_to_parent(stock_entry)
     if not parent:
         return {}
+    _require_doc_permission("Stock Entry", parent, "read")
+    current_plan = installment_plan or ""
+    assert_stock_entry_available_for_installment_plan(stock_entry, current_plan)
     ste = frappe.get_doc("Stock Entry", parent)
     is_line = installment_plan_stock_ref_is_sei_row(stock_entry)
 

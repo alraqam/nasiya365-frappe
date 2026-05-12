@@ -6,3 +6,5 @@ nasiya365.patches.v1_0_0.reload_product_doctype.execute
 nasiya365.patches.v1_0_0.migrate_serial_no_to_imei.execute
 nasiya365.patches.v1_0_0.reload_payment_transaction_line.execute
 nasiya365.patches.v1_0_0.migrate_installment_plans_to_submittable.execute
+nasiya365.patches.v1_0_0.migrate_payment_transactions_to_submittable.execute
+nasiya365.patches.v1_0_0.sync_branch_user_system_roles.execute

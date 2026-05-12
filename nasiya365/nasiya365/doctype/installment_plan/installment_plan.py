@@ -265,6 +265,10 @@ class InstallmentPlan(Document):
         )
 
     def on_trash(self):
+        # Only admins can delete docstatus=1/2 records; drafts in own branch deletable by BM.
+        from nasiya365.permissions import admin_only_for_submitted_delete
+
+        admin_only_for_submitted_delete(self)
         # Block deletion if any Payment Transaction is linked — cancellation reverses them
         # cleanly; deletion would orphan the FK. Drafts with no payments delete freely.
         pt_count = frappe.db.count(
@@ -284,55 +288,33 @@ class InstallmentPlan(Document):
         self._cancel_or_delete_linked_contract()
 
     def _cascade_cancel_linked_payments(self):
-        """Reverse every "live" Payment Transaction linked to this plan.
+        """Cancel every submitted Payment Transaction linked to this plan.
 
-        Two cases (Payment Transaction is currently NOT submittable, so legacy data sits
-        at docstatus=0 with status='Завершен'):
-
-        * `docstatus=1, status='Завершен'`  → call pt.cancel() — fires on_cancel which
-          runs `_deallocate_payment_from_installment_plan` and `_remove_payment_from_cashbox`.
-
-        * `docstatus=0, status='Завершен'`  → soft-cancel: run the same reversal helpers
-          directly, then flip status='Отменен' via db_set (no save → no validate re-entry).
+        Now that Payment Transaction is submittable, every live PT sits at docstatus=1.
+        pt.cancel() fires PT.on_cancel → _deallocate_payment_from_installment_plan and
+        _remove_payment_from_cashbox.
 
         Sets `nasiya_plan_cancel_cascade` so the deallocate path skips re-saving the plan
         back (rows are zeroed atomically via db.set_value; we're mid-cancel).
         """
-        rows = frappe.get_all(
+        pt_names = frappe.get_all(
             "Payment Transaction",
             filters={
                 "reference_doctype": "Installment Plan",
                 "reference_name": self.name,
-                "status": ["!=", "Отменен"],
+                "docstatus": 1,
             },
-            fields=["name", "docstatus"],
+            pluck="name",
         )
-        if not rows:
+        if not pt_names:
             return
-
-        from nasiya365.nasiya365.doctype.payment_transaction.payment_transaction import (
-            _deallocate_payment_from_installment_plan,
-            _remove_payment_from_cashbox,
-        )
 
         frappe.flags.nasiya_plan_cancel_cascade = True
         try:
-            for row in rows:
-                pt = frappe.get_doc("Payment Transaction", row.name)
+            for pt_name in pt_names:
+                pt = frappe.get_doc("Payment Transaction", pt_name)
                 pt.flags.ignore_permissions = True
-                if cint(row.docstatus) == 1:
-                    pt.cancel()
-                else:
-                    # Soft-cancel legacy / unsubmitted PTs.
-                    _deallocate_payment_from_installment_plan(pt)
-                    _remove_payment_from_cashbox(pt)
-                    frappe.db.set_value(
-                        "Payment Transaction",
-                        pt.name,
-                        "status",
-                        "Отменен",
-                        update_modified=False,
-                    )
+                pt.cancel()
         finally:
             frappe.flags.nasiya_plan_cancel_cascade = False
 

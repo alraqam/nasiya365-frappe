@@ -25,6 +25,32 @@ class CustomerProfile(Document):
         self.sync_addresses()
         self.update_available_limit()
         self.calculate_risk_profile()
+
+    def on_trash(self):
+        """Block customer deletion if any plan or payment references them — otherwise
+        FK pointers go stale and financial reconciliation breaks. Cancel + delete the
+        related docs first."""
+        ip_count = frappe.db.count("Installment Plan", {"customer": self.name})
+        if ip_count:
+            frappe.throw(
+                _(
+                    "Невозможно удалить клиента: к нему привязано {0} план(ов) рассрочки."
+                ).format(ip_count)
+            )
+        pt_count = frappe.db.count("Payment Transaction", {"customer": self.name})
+        if pt_count:
+            frappe.throw(
+                _(
+                    "Невозможно удалить клиента: к нему привязано {0} платёж(ей)."
+                ).format(pt_count)
+            )
+        so_count = frappe.db.count("Sales Order", {"customer": self.name})
+        if so_count:
+            frappe.throw(
+                _(
+                    "Невозможно удалить клиента: к нему привязано {0} заказ(ов) продажи."
+                ).format(so_count)
+            )
     
     def set_full_name(self):
         """Set full_name from first_name and last_name"""
