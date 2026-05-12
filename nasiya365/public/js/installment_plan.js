@@ -21,24 +21,8 @@ frappe.ui.form.on("Installment Plan", {
 		set_sales_order_filter(frm);
 		setup_bnpl_actions(frm);
 		load_risk_panel(frm);
-
-		if (frm.doc.status === "Активный") {
-			frm.disable_save();
-			// Block amendment — active plans are immutable; cancel and recreate instead.
-			frm.amend_doc = () =>
-				frappe.msgprint({
-					message: __("Редактирование запрещено: план активен. Отмените план и создайте новый."),
-					indicator: "orange",
-				});
-			// Hide the Amend menu item (Frappe renders it after refresh, so defer).
-			setTimeout(() => {
-				frm.page.actions_btn_group
-					?.find("li a")
-					.filter((_, el) => $(el).text().trim() === __("Amend"))
-					.closest("li")
-					.hide();
-			}, 0);
-		}
+		// No custom edit lock here — `is_submittable=1` + `allow_amend=0` means Frappe
+		// hides Save / shows Cancel automatically when docstatus=1, and blocks any amend.
 	},
 
 	customer(frm) {
@@ -567,7 +551,9 @@ function setup_bnpl_actions(frm) {
 		frm.set_intro(null);
 	}
 
-	const locked = frm.doc.status === "Активный";
+	// "locked" = anything beyond draft: Frappe hides Save / shows Cancel automatically,
+	// and structural BNPL helpers below are gated to draft state.
+	const is_draft = frm.doc.docstatus === 0;
 
 	frm.clear_custom_buttons();
 
@@ -576,7 +562,7 @@ function setup_bnpl_actions(frm) {
 		() => open_term_simulator(frm),
 		__("BNPL")
 	);
-	if (!locked) {
+	if (is_draft) {
 		frm.add_custom_button(
 			__("Сформировать график"),
 			() => generate_schedule_now(frm),
@@ -585,12 +571,8 @@ function setup_bnpl_actions(frm) {
 	}
 	frm.add_custom_button(__("Отправить OTP"), () => send_otp(frm), __("BNPL"));
 	frm.add_custom_button(__("Предпросмотр / печать"), () => frm.print_doc(), __("BNPL"));
-	if (!locked && frm.doc.docstatus === 0) {
-		frm.add_custom_button(__("Сохранить черновик"), () => save_draft(frm), __("BNPL"));
-		frm
-			.add_custom_button(__("Активировать (провести)"), () => activate_plan(frm), __("BNPL"))
-			.addClass("btn-primary");
-	}
+	// Native Frappe Save / Submit buttons handle draft persist + activation now that the
+	// DocType is submittable. Custom "Сохранить черновик" / "Активировать" removed.
 }
 
 function generate_schedule_now(frm) {
@@ -607,25 +589,6 @@ function generate_schedule_now(frm) {
 	}
 	maybe_generate_schedule(frm, true);
 	frappe.show_alert({ message: __("График обновлён"), indicator: "green" });
-}
-
-function save_draft(frm) {
-	frm.set_value("status", "Черновик");
-	frm.save();
-}
-
-function activate_plan(frm) {
-	const go = () => {
-		if (frm.doc.docstatus === 0) frm.savesubmit();
-	};
-	if (!frm.doc.schedule || !frm.doc.schedule.length) {
-		frappe.confirm(__("График пуст. Сформировать из текущих полей?"), () => {
-			schedule_preview_refresh(frm, 0);
-			setTimeout(go, 400);
-		});
-		return;
-	}
-	go();
 }
 
 function send_otp(frm) {

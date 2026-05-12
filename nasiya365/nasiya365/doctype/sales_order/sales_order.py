@@ -178,10 +178,11 @@ class SalesOrder(Document):
         plan.interest_rate = settings.default_interest_rate or 0
         plan.number_of_installments = 6  # Default
         plan.frequency = "Ежемесячно (Monthly)"
-        plan.status = "Активный"
         plan.start_date = today()
         plan.insert()
-        
+        # Submit so on_submit fires (sets status=Активный, updates customer, creates contract).
+        plan.submit()
+
         self.installment_plan = plan.name
         self.db_update()
     

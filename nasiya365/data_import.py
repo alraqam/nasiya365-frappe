@@ -585,8 +585,7 @@ def create_installment_plan(
     plan.customer_name = customer_display_name(customer)
     plan.sales_order = so.name
     plan.start_date = sale_date
-    plan.status = "Активный"
-    
+
     plan.principal_amount = total_amount
     plan.down_payment = paid_amount
     plan.financed_amount = remaining_debt
@@ -594,7 +593,7 @@ def create_installment_plan(
     plan.installment_amount = remaining_debt / num_installments if num_installments > 0 else remaining_debt
     freq_raw = row_get(row, "Частота платежей", "frequency")
     plan.frequency = _map_installment_frequency(freq_raw)
-    
+
     plan.flags.ignore_permissions = True
     plan.insert()
     # validate() returns early during import, so schedule is not generated on insert
@@ -603,7 +602,12 @@ def create_installment_plan(
     plan.calculate_amounts()
     plan.generate_schedule()
     plan.save(ignore_permissions=True)
-    
+    # Submit so docstatus=1 and on_submit hook sets status="Активный", updates customer
+    # statistics, and creates the contract. is_submittable=1 makes this the canonical path.
+    plan.reload()
+    plan.flags.ignore_permissions = True
+    plan.submit()
+
     return plan
 
 

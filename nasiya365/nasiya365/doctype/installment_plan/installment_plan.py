@@ -55,21 +55,29 @@ def _normalize_frequency(freq):
 
 
 class InstallmentPlan(Document):
+    """Installment Plan state machine:
+
+        docstatus=0, status=Черновик   → editable; no impact on customer/stock/contract
+        docstatus=1, status=Активный    → live; edits blocked by Frappe (allow_amend=0)
+        docstatus=1, status=Завершен    → fully paid; remains submitted
+        docstatus=2, status=Отменен     → cancelled; linked PTs reversed, customer limit
+                                           released, stock entry refreshed, contract closed
+
+    Side-effects on transitions:
+        on_submit          → status=Активный, customer.update_statistics, create_contract
+        before_cancel      → cascade-cancel linked PTs + contract (each PT's on_cancel
+                             reverses schedule rows and cashbox via existing logic)
+        on_cancel          → status=Отменен, release customer limit, refresh stock entry
+        on_trash (delete)  → blocked if any PT linked; otherwise release customer + stock cleanup
+    """
+
     def validate(self):
         if frappe.flags.in_import:
             return
 
-        # Lock the plan once status is Активный.
-        # Allow: payment engine saves and Administrator emergency fixes.
-        if (
-            (self.status or "") == "Активный"
-            and not frappe.flags.get("nasiya_plan_allocating_payment")
-            and frappe.session.user != "Administrator"
-        ):
-            frappe.throw(
-                _("Редактирование запрещено: план активен. Отмените план и создайте новый."),
-                frappe.PermissionError,
-            )
+        # No custom edit lock here — `is_submittable=1` + `allow_amend=0` means Frappe
+        # makes submitted plans read-only natively. Drafts (docstatus=0) remain freely
+        # editable. The state machine: 0=Черновик, 1=Активный/Завершен, 2=Отменен.
 
         # Payment-driven save: skip stock / new-plan checks and schedule regeneration so
         # cashier payments never block allocation or wipe the just-updated schedule rows.
@@ -203,11 +211,51 @@ class InstallmentPlan(Document):
         self.db_set("status", "Активный", update_modified=False)
         self.update_customer_limit()
         self.create_contract()
-    
+
+    def before_cancel(self):
+        """Cascade-cancel payments + contract BEFORE Frappe flips docstatus to 2.
+
+        Payment Transaction's own on_cancel hook runs `_deallocate_payment_from_installment_plan`
+        and `_remove_payment_from_cashbox` — we just trigger them via doc.cancel().
+        Doing this in before_cancel means failures abort the plan cancel cleanly.
+
+        After the cascade, refresh self.schedule from DB so Frappe's subsequent
+        `db_update_all` (which writes child rows back from memory) doesn't overwrite
+        the reset paid_amount / status values with the stale in-memory copies.
+        """
+        self._cascade_cancel_linked_payments()
+        self._cancel_or_delete_linked_contract()
+        self._sync_schedule_from_db()
+
+    def _sync_schedule_from_db(self):
+        """Pull fresh paid_amount / status / payment_transaction values from DB into
+        self.schedule so Frappe's pending db_update_all writes the reset state."""
+        fresh = {
+            r.name: r
+            for r in frappe.db.sql(
+                """SELECT name, paid_amount, status, payment_transaction, paid_date
+                   FROM `tabInstallment Schedule` WHERE parent=%s""",
+                (self.name,),
+                as_dict=True,
+            )
+        }
+        for row in (self.schedule or []):
+            fr = fresh.get(row.name)
+            if not fr:
+                continue
+            row.paid_amount = fr.paid_amount
+            row.status = fr.status
+            row.payment_transaction = fr.payment_transaction
+            row.paid_date = fr.paid_date
+        paid = sum(flt(r.paid_amount) for r in (self.schedule or []))
+        self.paid_amount = paid
+        self.remaining_balance = flt(self.total_amount) - paid
+
     def on_cancel(self):
-        self.release_customer_limit()
         # Flag as cancelled so status filters and payment guards recognize it.
         self.db_set("status", "Отменен", update_modified=False)
+        self.release_customer_limit()
+        self._refresh_linked_stock_entry_status()
         self.add_comment(
             "Info",
             _("План отменён пользователем {0}. Остаток на момент отмены: {1} USD.").format(
@@ -215,11 +263,96 @@ class InstallmentPlan(Document):
                 flt(self.remaining_balance, 2),
             ),
         )
-        self._refresh_linked_stock_entry_status()
 
     def on_trash(self):
-        # Pass self.name so the refresh query excludes this plan (on_trash runs before the row is deleted).
+        # Block deletion if any Payment Transaction is linked — cancellation reverses them
+        # cleanly; deletion would orphan the FK. Drafts with no payments delete freely.
+        pt_count = frappe.db.count(
+            "Payment Transaction",
+            {"reference_doctype": "Installment Plan", "reference_name": self.name},
+        )
+        if pt_count:
+            frappe.throw(
+                _(
+                    "Невозможно удалить план: к нему привязано {0} платёж(ей). "
+                    "Сначала отмените план — платежи будут автоматически возвращены."
+                ).format(pt_count)
+            )
+        # Pass self.name so the refresh query excludes this plan (runs before the row is deleted).
         self._refresh_linked_stock_entry_status(exclude_self=True)
+        self.release_customer_limit()
+        self._cancel_or_delete_linked_contract()
+
+    def _cascade_cancel_linked_payments(self):
+        """Reverse every "live" Payment Transaction linked to this plan.
+
+        Two cases (Payment Transaction is currently NOT submittable, so legacy data sits
+        at docstatus=0 with status='Завершен'):
+
+        * `docstatus=1, status='Завершен'`  → call pt.cancel() — fires on_cancel which
+          runs `_deallocate_payment_from_installment_plan` and `_remove_payment_from_cashbox`.
+
+        * `docstatus=0, status='Завершен'`  → soft-cancel: run the same reversal helpers
+          directly, then flip status='Отменен' via db_set (no save → no validate re-entry).
+
+        Sets `nasiya_plan_cancel_cascade` so the deallocate path skips re-saving the plan
+        back (rows are zeroed atomically via db.set_value; we're mid-cancel).
+        """
+        rows = frappe.get_all(
+            "Payment Transaction",
+            filters={
+                "reference_doctype": "Installment Plan",
+                "reference_name": self.name,
+                "status": ["!=", "Отменен"],
+            },
+            fields=["name", "docstatus"],
+        )
+        if not rows:
+            return
+
+        from nasiya365.nasiya365.doctype.payment_transaction.payment_transaction import (
+            _deallocate_payment_from_installment_plan,
+            _remove_payment_from_cashbox,
+        )
+
+        frappe.flags.nasiya_plan_cancel_cascade = True
+        try:
+            for row in rows:
+                pt = frappe.get_doc("Payment Transaction", row.name)
+                pt.flags.ignore_permissions = True
+                if cint(row.docstatus) == 1:
+                    pt.cancel()
+                else:
+                    # Soft-cancel legacy / unsubmitted PTs.
+                    _deallocate_payment_from_installment_plan(pt)
+                    _remove_payment_from_cashbox(pt)
+                    frappe.db.set_value(
+                        "Payment Transaction",
+                        pt.name,
+                        "status",
+                        "Отменен",
+                        update_modified=False,
+                    )
+        finally:
+            frappe.flags.nasiya_plan_cancel_cascade = False
+
+    def _cancel_or_delete_linked_contract(self):
+        """Cancel submitted contracts; delete unsubmitted drafts."""
+        if not frappe.db.exists("DocType", "Contract"):
+            return
+        rows = frappe.get_all(
+            "Contract",
+            filters={"installment_plan": self.name},
+            fields=["name", "docstatus"],
+        )
+        for row in rows:
+            doc = frappe.get_doc("Contract", row.name)
+            doc.flags.ignore_permissions = True
+            if cint(row.docstatus) == 1:
+                doc.cancel()
+            elif cint(row.docstatus) == 0:
+                doc.delete()
+            # docstatus=2 (already cancelled) — leave alone
 
     def _refresh_linked_stock_entry_status(self, exclude_self=False):
         stock_entry_ref = getattr(self, "stock_entry", None)

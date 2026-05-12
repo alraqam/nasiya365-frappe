@@ -424,6 +424,11 @@ def _deallocate_payment_from_installment_plan(doc):
         affected_plans.add(r.parent)
 
     for plan_name in affected_plans:
+        # When the plan itself is being cancelled, its before_cancel hook drives the PT
+        # cascade. Schedule rows are already zeroed atomically (db.set_value above); skip the
+        # plan.save() here so we don't fight Frappe's pending docstatus→2 db_update.
+        if frappe.flags.get("nasiya_plan_cancel_cascade"):
+            continue
         try:
             plan = _get_installment_plan_for_payment(plan_name)
         except Exception:
