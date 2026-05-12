@@ -364,20 +364,17 @@
    "fieldname": "protection_type",
    "fieldtype": "Select",
    "label": "Тип защиты",
-   "options": "Нет\niCloud\nSamsung Block\nGoogle FRP\nДругое",
-   "permlevel": 1
+   "options": "Нет\niCloud\nSamsung Block\nGoogle FRP\nДругое"
   },
   {
    "depends_on": "eval:doc.protection_type && doc.protection_type !== 'Нет'",
    "fieldname": "protection_login",
    "fieldtype": "Data",
-   "label": "Логин",
-   "permlevel": 1
+   "label": "Логин"
   },
   {
    "fieldname": "column_break_contract_protection",
-   "fieldtype": "Column Break",
-   "permlevel": 1
+   "fieldtype": "Column Break"
   },
   {
    "depends_on": "eval:doc.protection_type && doc.protection_type !== 'Нет'",
