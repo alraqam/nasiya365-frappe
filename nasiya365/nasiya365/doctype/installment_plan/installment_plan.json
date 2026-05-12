@@ -523,7 +523,6 @@
    "share": 1
   },
   {
-   "cancel": 1,
    "create": 1,
    "delete": 0,
    "email": 1,
@@ -549,7 +548,6 @@
    "write": 0
   },
   {
-   "cancel": 1,
    "create": 1,
    "delete": 0,
    "email": 1,
