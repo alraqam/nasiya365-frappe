@@ -80,7 +80,37 @@ frappe.ui.form.on("Installment Plan", {
 
 const NASIYA_SCHEDULE_CHILD = "Installment Schedule";
 
-/** Cascade schedule dates from the edited row (same step as server: week / 2 weeks / month). */
+/** Schedule a deferred grid refresh that only fires after any open Frappe dialog/popover
+ *  has closed. Calling frm.refresh_field on the schedule grid while the user is mid-
+ *  date-pick tears the parent DOM down and leaves the Bootstrap backdrop orphaned
+ *  ("modal disappears, white background remains") — particularly on Frappe Cloud's
+ *  newer build where grid cell updates are more aggressive. */
+function nasiya_defer_grid_refresh(frm) {
+	if (frm._nasiya_grid_refresh_pending) return;
+	frm._nasiya_grid_refresh_pending = true;
+	const tryRefresh = () => {
+		// Bail if the user still has a Frappe dialog or popover (date picker, modal,
+		// or grid edit form) open — try again on the next animation frame.
+		const blocked =
+			document.querySelector(".modal.show, .flatpickr-calendar.open, .grid-row-open");
+		if (blocked) {
+			requestAnimationFrame(tryRefresh);
+			return;
+		}
+		frm._nasiya_grid_refresh_pending = false;
+		try {
+			frm.refresh_field("schedule");
+		} catch (e) {
+			/* never crash on a stale ref */
+		}
+	};
+	requestAnimationFrame(tryRefresh);
+}
+
+/** Cascade schedule dates from the edited row (same step as server: week / 2 weeks / month).
+ *  Uses in-memory row mutation (no frappe.model.set_value per row) because each event
+ *  trigger refreshes the grid cell on newer Frappe builds, killing any open date picker
+ *  the user is interacting with. */
 function nasiya_cascade_schedule_from_row(frm, edited_row_name, anchor_date) {
 	const schedule = frm.doc.schedule || [];
 	if (schedule.length < 2) {
@@ -107,7 +137,9 @@ function nasiya_cascade_schedule_from_row(frm, edited_row_name, anchor_date) {
 		for (let i = pos + 1; i < rows.length; i++) {
 			const r = rows[i];
 			prev = nasiya_schedule_step_date(prev, frm.doc.frequency);
-			frappe.model.set_value(r.doctype || NASIYA_SCHEDULE_CHILD, r.name, "due_date", prev);
+			// Direct mutation: no model event triggered → no grid cell re-render →
+			// the user's open date picker stays alive.
+			r.due_date = prev;
 		}
 		if (pos === 0) {
 			frm._nasiya_skip_schedule_preview = true;
@@ -118,15 +150,12 @@ function nasiya_cascade_schedule_from_row(frm, edited_row_name, anchor_date) {
 			}
 		}
 		const last_row = rows[rows.length - 1];
-		const last_due = frappe.model.get_value(
-			last_row.doctype || NASIYA_SCHEDULE_CHILD,
-			last_row.name,
-			"due_date"
-		);
-		if (last_due) frm.set_value("end_date", last_due);
+		if (last_row.due_date) frm.set_value("end_date", last_row.due_date);
+		frm.dirty();
 	} finally {
 		frm._nasiya_cascade_schedule = false;
 	}
+	nasiya_defer_grid_refresh(frm);
 }
 
 /** Set the same payment amount on all schedule rows after the edited row (equal installments). */
@@ -143,11 +172,13 @@ function nasiya_cascade_amount_from_row(frm, edited_row_name, anchor_amount) {
 	try {
 		for (let i = pos + 1; i < rows.length; i++) {
 			const r = rows[i];
-			frappe.model.set_value(r.doctype || NASIYA_SCHEDULE_CHILD, r.name, "amount", amt);
+			r.amount = amt;
 		}
+		frm.dirty();
 	} finally {
 		frm._nasiya_cascade_schedule = false;
 	}
+	nasiya_defer_grid_refresh(frm);
 }
 
 /**
