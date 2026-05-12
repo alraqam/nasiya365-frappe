@@ -469,11 +469,14 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 				row.urgency === "high"
 					? `<span class="bnpl-urgency bnpl-urgency--high">${__("Срочно")}</span>`
 					: `<span class="bnpl-urgency bnpl-urgency--normal">${__("Сегодня")}</span>`;
+			// Aggregated by contract — show installment count when >1.
+			const installment_count = cint(row.due_count || 0);
+			const count_label = installment_count > 1 ? ` <span class="text-muted">· ${installment_count} ${__("взн.")}</span>` : "";
 			const item = $(`
 				<div class="bnpl-list-row bnpl-due-row">
 					<div>
 						<div class="bnpl-row-title">${frappe.utils.escape_html(row.customer_name || row.customer)}</div>
-						<div class="bnpl-row-sub">${format_currency(row.amount_due)}</div>
+						<div class="bnpl-row-sub">${format_currency(row.amount_due)}${count_label}</div>
 					</div>
 					<div class="bnpl-due-actions">
 						${urg}
@@ -489,7 +492,6 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 					method: "nasiya365.api.bnpl_dashboard.send_due_payment_reminder",
 					args: {
 						installment_plan: row.installment_plan,
-						schedule_name: row.schedule_name,
 						amount: row.amount_due,
 					},
 					callback: (r) => {

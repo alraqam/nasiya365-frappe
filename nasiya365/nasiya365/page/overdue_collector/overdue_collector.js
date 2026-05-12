@@ -98,11 +98,16 @@ nasiya365.OverdueCollector = class OverdueCollector {
 
 		rows.forEach((row) => {
 			const product = row.product_name ? `<span class="bnpl-row-product">${frappe.utils.escape_html(row.product_name)}</span>` : "";
-			const overdue_label = row.days_overdue ? ` · <span style="color:var(--red-500)">${row.days_overdue} дн. просрочки</span>` : "";
+			const overdue_label = row.days_overdue ? ` · <span style="color:var(--red-500)">${row.days_overdue} ${__("дн. просрочки")}</span>` : "";
 			const total_debt = flt(row.total_debt_today);
 			const debt_label = total_debt > 0
-				? `<span class="bnpl-row-debt">Долг на сегодня: <b>${nasiya365._fmt_money(total_debt)}</b></span>`
+				? `<span class="bnpl-row-debt">${__("Долг на сегодня")}: <b>${nasiya365._fmt_money(total_debt)}</b></span>`
 				: "";
+			// Aggregated row: one entry per contract. Count helps the collector see
+			// when multiple installments roll up into the same line.
+			const installment_count = cint(row.overdue_count || row.due_count || 0);
+			const count_label = installment_count > 1 ? ` · ${installment_count} ${__("взн.")}` : "";
+			const amount_label = installment_count > 1 ? __("К оплате") : __("Взнос");
 
 			const last_call_label = row.last_call_outcome
 				? `<div class="bnpl-row-sub" style="margin-top:2px;color:var(--text-muted);font-size:11px;">
@@ -119,7 +124,7 @@ nasiya365.OverdueCollector = class OverdueCollector {
 					<div class="bnpl-row-info" style="cursor:pointer;flex:1;min-width:0;">
 						<div class="bnpl-row-title">${frappe.utils.escape_html(row.customer_name || row.customer)}${product}</div>
 						<div class="bnpl-row-sub">
-							${__("Взнос")}: ${nasiya365._fmt_money(row.amount_due)}${overdue_label}
+							${amount_label}: ${nasiya365._fmt_money(row.amount_due)}${count_label}${overdue_label}
 						</div>
 						${debt_label ? `<div class="bnpl-row-sub" style="margin-top:2px;">${debt_label}</div>` : ""}
 						${last_call_label}
@@ -172,6 +177,10 @@ nasiya365.OverdueCollector = class OverdueCollector {
 		const overdue_row = row.days_overdue
 			? `<tr><td>${__("Просрочка")}</td><td style="color:var(--red-500)">${row.days_overdue} ${__("дн.")}</td></tr>`
 			: "";
+		const installment_count = cint(row.overdue_count || row.due_count || 0);
+		const count_row = installment_count > 1
+			? `<tr><td>${__("Взносов в строке")}</td><td><b>${installment_count}</b></td></tr>`
+			: "";
 		const total_debt = flt(row.total_debt_today);
 
 		const d = new frappe.ui.Dialog({
@@ -190,9 +199,10 @@ nasiya365.OverdueCollector = class OverdueCollector {
 							    <td><a href="/app/installment-plan/${encodeURIComponent(row.installment_plan)}" target="_blank">
 							        ${frappe.utils.escape_html(row.installment_plan)}</a></td></tr>
 							<tr><td>${__("Дата платежа")}</td>
-							    <td>${frappe.format(row.due_date, {fieldtype: "Date"})}</td></tr>
+							    <td>${frappe.format(row.due_date, {fieldtype: "Date"})}${installment_count > 1 ? ` <span class="text-muted">(${__("самая ранняя")})</span>` : ""}</td></tr>
 							${overdue_row}
-							<tr><td>${__("Сумма взноса")}</td>
+							${count_row}
+							<tr><td>${installment_count > 1 ? __("К оплате") : __("Сумма взноса")}</td>
 							    <td><b>${fmt(row.amount_due)}</b></td></tr>
 							${total_debt > 0 ? `<tr><td>${__("Долг на сегодня")}</td>
 							    <td><b style="color:var(--red-500)">${fmt(total_debt)}</b></td></tr>` : ""}

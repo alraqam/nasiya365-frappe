@@ -306,6 +306,8 @@ def get_overdue_list(limit=20, branch=None, collector=None):
     branch_clause, branch_params = _user_branch_clause("ip")
     args.extend(branch_params)
 
+    # Aggregate by Installment Plan — one row per contract regardless of how many
+    # individual schedule rows are overdue.
     rows = frappe.db.sql(
         f"""
         SELECT
@@ -313,22 +315,22 @@ def get_overdue_list(limit=20, branch=None, collector=None):
             ip.customer,
             {_collection_customer_select()},
             COALESCE(NULLIF(TRIM(ip.product_name), ''), '') AS product_name,
-            isc.name AS schedule_name,
-            isc.due_date,
-            (isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due,
-            DATEDIFF(%s, isc.due_date) AS days_overdue,
-            (
+            MIN(isc.due_date) AS due_date,
+            SUM(isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due,
+            MAX(DATEDIFF(%s, isc.due_date)) AS days_overdue,
+            COUNT(*) AS overdue_count,
+            MAX((
                 SELECT COALESCE(SUM(s.amount - COALESCE(s.paid_amount, 0)), 0)
                 FROM `tabInstallment Schedule` s
                 WHERE s.parent = ip.name
                   AND s.due_date <= %s
                   AND (s.amount - COALESCE(s.paid_amount, 0)) > 0.001
-            ) AS total_debt_today,
-            cl.outcome AS last_call_outcome,
-            cl.call_datetime AS last_call_date,
-            cl.promised_date AS last_promised_date,
-            cl.next_call_date AS next_call_date,
-            cl.notes AS last_call_notes
+            )) AS total_debt_today,
+            MAX(cl.outcome) AS last_call_outcome,
+            MAX(cl.call_datetime) AS last_call_date,
+            MAX(cl.promised_date) AS last_promised_date,
+            MAX(cl.next_call_date) AS next_call_date,
+            MAX(cl.notes) AS last_call_notes
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
         LEFT JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
@@ -341,6 +343,7 @@ def get_overdue_list(limit=20, branch=None, collector=None):
           )
           {collector_clause}
           {branch_clause}
+        GROUP BY ip.name, ip.customer, cp.full_name, ip.product_name
         ORDER BY days_overdue DESC, amount_due DESC
         LIMIT {query_limit}
     """,
@@ -352,6 +355,7 @@ def get_overdue_list(limit=20, branch=None, collector=None):
         row["amount_due"] = _to_float(row["amount_due"])
         row["total_debt_today"] = _to_float(row["total_debt_today"])
         row["days_overdue"] = cint(row["days_overdue"])
+        row["overdue_count"] = cint(row["overdue_count"])
         row["phone"] = frappe.db.get_value(
             "Customer Phone Number",
             {"parent": row["customer"], "is_primary": 1},
@@ -427,8 +431,12 @@ def get_due_today_list(limit=20, branch=None):
     open_pred = _schedule_open_predicate(in_open)
     base_date = getdate(today())
     branch_clause, branch_params = _user_branch_clause("ip")
-    args = [*_OPEN_SCHEDULE_STATUSES, base_date, base_date, *branch_params]
+    # SQL placeholder order is: total_debt_today subquery date, then open_pred (3 statuses),
+    # then isc.due_date in WHERE.
+    args = [base_date, *_OPEN_SCHEDULE_STATUSES, base_date, *branch_params]
 
+    # Aggregate by Installment Plan — one row per contract, even if today has multiple
+    # schedule entries (e.g. down payment + first installment on the same date).
     rows = frappe.db.sql(
         f"""
         SELECT
@@ -436,22 +444,22 @@ def get_due_today_list(limit=20, branch=None):
             ip.customer,
             {_collection_customer_select()},
             COALESCE(NULLIF(TRIM(ip.product_name), ''), '') AS product_name,
-            isc.name AS schedule_name,
-            isc.due_date,
-            isc.status AS schedule_status,
-            (isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due,
-            cl.outcome AS last_call_outcome,
-            cl.call_datetime AS last_call_date,
-            cl.promised_date AS last_promised_date,
-            cl.next_call_date AS next_call_date,
-            cl.notes AS last_call_notes,
-            (
+            MIN(isc.due_date) AS due_date,
+            SUM(isc.amount - COALESCE(isc.paid_amount, 0)) AS amount_due,
+            COUNT(*) AS due_count,
+            MAX(CASE WHEN isc.status = 'Частично' THEN 1 ELSE 0 END) AS has_partial,
+            MAX(cl.outcome) AS last_call_outcome,
+            MAX(cl.call_datetime) AS last_call_date,
+            MAX(cl.promised_date) AS last_promised_date,
+            MAX(cl.next_call_date) AS next_call_date,
+            MAX(cl.notes) AS last_call_notes,
+            MAX((
                 SELECT COALESCE(SUM(s.amount - COALESCE(s.paid_amount, 0)), 0)
                 FROM `tabInstallment Schedule` s
                 WHERE s.parent = ip.name
                   AND s.due_date <= %s
                   AND (s.amount - COALESCE(s.paid_amount, 0)) > 0.001
-            ) AS total_debt_today
+            )) AS total_debt_today
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
         LEFT JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
@@ -462,9 +470,8 @@ def get_due_today_list(limit=20, branch=None):
           AND isc.due_date = %s
           {filters}
           {branch_clause}
-        ORDER BY
-            CASE isc.status WHEN 'Частично' THEN 0 ELSE 1 END,
-            amount_due DESC
+        GROUP BY ip.name, ip.customer, cp.full_name, ip.product_name
+        ORDER BY has_partial DESC, amount_due DESC
         LIMIT {query_limit}
     """,
         tuple(args),
@@ -473,7 +480,8 @@ def get_due_today_list(limit=20, branch=None):
     for row in rows:
         row["amount_due"] = _to_float(row["amount_due"])
         row["total_debt_today"] = _to_float(row["total_debt_today"])
-        row["urgency"] = "high" if row.get("schedule_status") == "Частично" else "normal"
+        row["due_count"] = cint(row["due_count"])
+        row["urgency"] = "high" if cint(row.get("has_partial")) else "normal"
         row["phone"] = frappe.db.get_value(
             "Customer Phone Number",
             {"parent": row["customer"], "is_primary": 1},
