@@ -18,6 +18,7 @@
   "column_break_2",
   "order_kind",
   "status",
+  "stock_entry",
   "items_section",
   "items",
   "totals_section",
@@ -126,6 +127,13 @@
    "in_standard_filter": 1,
    "label": "Статус",
    "options": "Черновик\nПодтвержден\nДоставлен\nОтменен"
+  },
+  {
+   "fieldname": "stock_entry",
+   "fieldtype": "Link",
+   "label": "Поступление на склад",
+   "options": "Stock Entry",
+   "description": "Выберите поступление — товары подтянутся в таблицу автоматически"
   },
   {
    "fieldname": "items_section",

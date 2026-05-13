@@ -3,6 +3,7 @@ frappe.ui.form.on("Sales Order", {
 		if (frm.is_new()) {
 			frm.add_custom_button(__("Оформить в рассрочку"), () => new NasiyaSalesWizard().start()).addClass("btn-primary");
 		}
+		so_set_stock_entry_filter(frm);
 		show_stock_hint(frm);
 	},
 	warehouse(frm) {
@@ -11,7 +12,102 @@ frappe.ui.form.on("Sales Order", {
 	items_on_form_rendered(frm) {
 		show_stock_hint(frm);
 	},
+	stock_entry(frm) {
+		if (!frm.doc.stock_entry) return;
+		// Clear the field immediately so the user can pick again for the next item.
+		const se_name = frm.doc.stock_entry;
+		frm.set_value("stock_entry", "");
+		so_fetch_stock_entry_items(frm, se_name);
+	},
 });
+
+function so_set_stock_entry_filter(frm) {
+	frm.set_query("stock_entry", () => ({
+		query: "nasiya365.api.bnpl_dashboard.installment_plan_stock_entry_query",
+		filters: { installment_plan: "" },
+	}));
+}
+
+function so_fetch_stock_entry_items(frm, stock_entry) {
+	frappe.call({
+		method: "nasiya365.api.bnpl_dashboard.get_stock_entry_details_for_installment_plan",
+		args: { stock_entry, installment_plan: "" },
+		callback(r) {
+			if (!r.message) return;
+			const items = r.message.free_items || [];
+			if (!items.length) {
+				frappe.show_alert({ message: __("Нет доступных позиций в этом поступлении"), indicator: "orange" });
+				return;
+			}
+			if (items.length === 1) {
+				so_apply_stock_item(frm, items[0]);
+			} else {
+				so_pick_stock_item(frm, items);
+			}
+		},
+	});
+}
+
+function so_pick_stock_item(frm, items) {
+	const rows = items.map((item, idx) => {
+		const name = frappe.utils.escape_html(item.product_name || item.product || "—");
+		const color = frappe.utils.escape_html(item.color || "—");
+		const storage = frappe.utils.escape_html(item.storage || "—");
+		const imei = frappe.utils.escape_html(item.imei || "—");
+		const price = frappe.format(item.amount || 0, { fieldtype: "Currency" });
+		return `<tr>
+			<td>${name}</td>
+			<td>${color}</td>
+			<td>${storage}</td>
+			<td><code>${imei}</code></td>
+			<td>${price}</td>
+			<td><button class="btn btn-primary btn-sm pick-item" data-idx="${idx}">${__("Добавить")}</button></td>
+		</tr>`;
+	}).join("");
+
+	const html = `<table class="table table-bordered table-sm" style="margin-bottom:0">
+		<thead><tr>
+			<th>${__("Товар")}</th>
+			<th>${__("Цвет")}</th>
+			<th>${__("Память")}</th>
+			<th>${__("IMEI")}</th>
+			<th>${__("Цена")}</th>
+			<th></th>
+		</tr></thead>
+		<tbody>${rows}</tbody>
+	</table>`;
+
+	const d = new frappe.ui.Dialog({
+		title: __("Выберите товар"),
+		fields: [{ fieldtype: "HTML", fieldname: "items_table" }],
+	});
+	d.fields_dict.items_table.$wrapper.html(html);
+	d.$wrapper.on("click", ".pick-item", function () {
+		const idx = parseInt($(this).data("idx"));
+		so_apply_stock_item(frm, items[idx]);
+		$(this).closest("tr").addClass("table-success").find("button").prop("disabled", true).text(__("Добавлено"));
+	});
+	d.show();
+}
+
+function so_apply_stock_item(frm, item) {
+	// Fetch the selling price from the Product master (stock entry rate is cost, not selling price).
+	frappe.call({
+		method: "nasiya365.nasiya365.doctype.sales_order.sales_order.get_product_for_wizard",
+		args: { product: item.product },
+		callback(r) {
+			const selling_price = flt((r.message || {}).selling_price || item.amount || 0);
+			const child = frm.add_child("items");
+			frappe.model.set_value(child.doctype, child.name, "product", item.product);
+			frappe.model.set_value(child.doctype, child.name, "imei", item.imei || "");
+			frappe.model.set_value(child.doctype, child.name, "color", item.color || "");
+			frappe.model.set_value(child.doctype, child.name, "storage", item.storage || "");
+			frappe.model.set_value(child.doctype, child.name, "unit_price", selling_price);
+			frappe.model.set_value(child.doctype, child.name, "quantity", 1);
+			frm.refresh_field("items");
+		},
+	});
+}
 
 function show_stock_hint(frm) {
 	const item = (frm.doc.items || [])[0];
