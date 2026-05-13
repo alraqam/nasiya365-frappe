@@ -1,0 +1,332 @@
+{
+ "actions": [],
+ "allow_amend": 0,
+ "autoname": "format:TRADE-{YYYY}-{#####}",
+ "creation": "2026-05-14 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "is_submittable": 1,
+ "field_order": [
+  "header_section",
+  "customer",
+  "customer_name",
+  "trade_in_date",
+  "column_break_h",
+  "branch",
+  "warehouse",
+  "status",
+  "device_section",
+  "product",
+  "product_name",
+  "imei",
+  "column_break_d",
+  "color",
+  "storage",
+  "condition",
+  "battery_cycles",
+  "device_notes",
+  "valuation_section",
+  "appraisal_amount",
+  "payout_method",
+  "column_break_v",
+  "payout_currency",
+  "linked_sales_order",
+  "audit_section",
+  "stock_entry",
+  "cashbox_transaction_marker",
+  "created_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "header_section",
+   "fieldtype": "Section Break",
+   "label": "Обмен"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Клиент",
+   "options": "Customer Profile",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "customer.full_name",
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Имя клиента",
+   "read_only": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "trade_in_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Дата",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_h",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Филиал",
+   "options": "Branch",
+   "reqd": 1
+  },
+  {
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "label": "Склад",
+   "options": "Warehouse",
+   "reqd": 1
+  },
+  {
+   "default": "Черновик",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Статус",
+   "options": "Черновик\nПринят\nОтменен",
+   "read_only": 1
+  },
+  {
+   "fieldname": "device_section",
+   "fieldtype": "Section Break",
+   "label": "Устройство"
+  },
+  {
+   "fieldname": "product",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Товар",
+   "options": "Product",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "product.product_name",
+   "fieldname": "product_name",
+   "fieldtype": "Data",
+   "label": "Наименование",
+   "read_only": 1
+  },
+  {
+   "fieldname": "imei",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "IMEI",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_d",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "product.color",
+   "fieldname": "color",
+   "fieldtype": "Data",
+   "label": "Цвет"
+  },
+  {
+   "fetch_from": "product.storage",
+   "fieldname": "storage",
+   "fieldtype": "Data",
+   "label": "Память"
+  },
+  {
+   "default": "Хорошее",
+   "fieldname": "condition",
+   "fieldtype": "Select",
+   "label": "Состояние",
+   "options": "Отличное\nХорошее\nУдовлетворительное\nБ/У",
+   "reqd": 1
+  },
+  {
+   "fieldname": "battery_cycles",
+   "fieldtype": "Int",
+   "label": "Циклы аккумулятора"
+  },
+  {
+   "fieldname": "device_notes",
+   "fieldtype": "Small Text",
+   "label": "Заметки"
+  },
+  {
+   "fieldname": "valuation_section",
+   "fieldtype": "Section Break",
+   "label": "Оценка и выплата"
+  },
+  {
+   "fieldname": "appraisal_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Сумма оценки",
+   "reqd": 1
+  },
+  {
+   "default": "Удержано",
+   "fieldname": "payout_method",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Способ выплаты",
+   "options": "Наличные\nВ счёт покупки\nУдержано",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_v",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "USD",
+   "depends_on": "eval:doc.payout_method=='Наличные'",
+   "fieldname": "payout_currency",
+   "fieldtype": "Select",
+   "label": "Валюта",
+   "options": "USD\nUZS"
+  },
+  {
+   "depends_on": "eval:doc.payout_method=='В счёт покупки'",
+   "fieldname": "linked_sales_order",
+   "fieldtype": "Link",
+   "label": "Связанный заказ",
+   "options": "Sales Order"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "audit_section",
+   "fieldtype": "Section Break",
+   "label": "Системные ссылки"
+  },
+  {
+   "fieldname": "stock_entry",
+   "fieldtype": "Link",
+   "label": "Поступление",
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cashbox_transaction_marker",
+   "fieldtype": "Data",
+   "label": "Метка кассы",
+   "read_only": 1
+  },
+  {
+   "fieldname": "created_by",
+   "fieldtype": "Link",
+   "label": "Создал",
+   "options": "User",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-14 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "nasiya365",
+ "name": "Trade In",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nasiya365 Admin",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Branch Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Salesperson",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Credit Officer",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Cashier"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Collector"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Warehouse Manager"
+  }
+ ],
+ "search_fields": "customer,customer_name,imei,product_name",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "customer_name",
+ "show_title_field_in_link": 1,
+ "track_changes": 1
+}

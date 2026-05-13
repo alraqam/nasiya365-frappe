@@ -187,6 +187,16 @@ def sales_order_query(user: str = None) -> str:
     return _branch_in("Sales Order", branches)
 
 
+def trade_in_query(user: str = None) -> str:
+    user = user or frappe.session.user
+    if _is_unrestricted(user):
+        return ""
+    branches = _get_user_branches(user)
+    if not branches:
+        return "1=0"
+    return _branch_in("Trade In", branches)
+
+
 def installment_plan_query(user: str = None) -> str:
     user = user or frappe.session.user
     if _is_unrestricted(user):
@@ -332,6 +342,10 @@ def _check_branch(doc, user: str) -> bool:
 
 
 def has_sales_order_permission(doc, ptype: str, user: str) -> bool:
+    return _check_branch(doc, user)
+
+
+def has_trade_in_permission(doc, ptype: str, user: str) -> bool:
     return _check_branch(doc, user)
 
 

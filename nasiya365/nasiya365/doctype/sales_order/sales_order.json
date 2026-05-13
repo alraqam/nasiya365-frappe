@@ -15,6 +15,7 @@
   "warehouse",
   "salesperson",
   "installment_plan",
+  "trade_in",
   "column_break_2",
   "order_kind",
   "status",
@@ -105,6 +106,14 @@
    "fieldtype": "Link",
    "label": "План рассрочки",
    "options": "Installment Plan"
+  },
+  {
+   "fieldname": "trade_in",
+   "fieldtype": "Link",
+   "label": "Обмен",
+   "options": "Trade In",
+   "read_only": 1,
+   "description": "Заполняется автоматически при проведении документа обмена"
   },
   {
    "fieldname": "column_break_2",

@@ -61,7 +61,7 @@
             "fieldname": "category",
             "fieldtype": "Select",
             "label": "Категория",
-            "options": "Оплата получена\nРасход\nПеревод\nДругое"
+            "options": "Оплата получена\nРасход\nПеревод\nВыкуп товара\nДругое"
         },
         {
             "fieldname": "reference_doctype",

@@ -206,6 +206,7 @@ permission_query_conditions = {
     "Payment Transaction": "nasiya365.permissions.payment_transaction_query",
     "Customer Profile": "nasiya365.permissions.customer_profile_query",
     "Stock Entry": "nasiya365.permissions.stock_entry_query",
+    "Trade In": "nasiya365.permissions.trade_in_query",
 }
 
 has_permission = {
@@ -219,6 +220,7 @@ has_permission = {
     "Payment Transaction": "nasiya365.permissions.has_payment_transaction_permission",
     "Customer Profile": "nasiya365.permissions.has_customer_profile_permission",
     "Stock Entry": "nasiya365.permissions.has_stock_entry_permission",
+    "Trade In": "nasiya365.permissions.has_trade_in_permission",
 }
 
 # DocType User Permissions

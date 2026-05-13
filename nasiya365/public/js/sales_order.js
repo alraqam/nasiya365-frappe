@@ -3,6 +3,15 @@ frappe.ui.form.on("Sales Order", {
 		if (frm.is_new()) {
 			frm.add_custom_button(__("Оформить в рассрочку"), () => new NasiyaSalesWizard().start()).addClass("btn-primary");
 		}
+		// Trade-in entry: only meaningful for draft, saved SOs (need a name to link from).
+		if (frm.doc.docstatus === 0 && !frm.is_new() && !frm.doc.trade_in) {
+			frm.add_custom_button(__("Принять обмен"), () => so_open_trade_in(frm));
+		}
+		if (frm.doc.trade_in) {
+			frm.add_custom_button(__("Открыть обмен"), () => {
+				frappe.set_route("Form", "Trade In", frm.doc.trade_in);
+			});
+		}
 		so_set_stock_entry_filter(frm);
 		show_stock_hint(frm);
 	},
@@ -88,6 +97,18 @@ function so_pick_stock_item(frm, items) {
 		$(this).closest("tr").addClass("table-success").find("button").prop("disabled", true).text(__("Добавлено"));
 	});
 	d.show();
+}
+
+function so_open_trade_in(frm) {
+	// Open a new Trade In form pre-filled with customer + linked_sales_order + branch.
+	frappe.route_options = {
+		customer: frm.doc.customer,
+		branch: frm.doc.branch,
+		warehouse: frm.doc.warehouse,
+		linked_sales_order: frm.doc.name,
+		payout_method: "В счёт покупки",
+	};
+	frappe.new_doc("Trade In");
 }
 
 function so_apply_stock_item(frm, item) {
