@@ -14,6 +14,8 @@ frappe.ui.form.on("Sales Order", {
 		}
 		so_set_stock_entry_filter(frm);
 		show_stock_hint(frm);
+		// New SO opens with one empty starter row; drop it so the grid starts clean.
+		if (frm.is_new()) so_remove_blank_item_rows(frm);
 	},
 	warehouse(frm) {
 		show_stock_hint(frm);
@@ -111,12 +113,28 @@ function so_open_trade_in(frm) {
 	frappe.new_doc("Trade In");
 }
 
+function so_remove_blank_item_rows(frm) {
+	// Frappe auto-adds one empty row for the reqd `items` table on new docs
+	// (see create_new.js). Drop rows with no product so the grid starts clean and
+	// picked items don't leave a stray blank behind. Remove directly from the doc
+	// array — GridRow.remove() no-ops at the refresh event because the grid rows
+	// aren't registered in grid_rows_by_docname yet.
+	const items = frm.doc.items || [];
+	const blanks = items.filter((row) => !row.product);
+	if (!blanks.length) return;
+	blanks.forEach((row) => frappe.model.clear_doc(row.doctype, row.name));
+	frm.doc.items = items.filter((row) => row.product);
+	frm.doc.items.forEach((row, i) => (row.idx = i + 1));
+	frm.refresh_field("items");
+}
+
 function so_apply_stock_item(frm, item) {
 	// Fetch the selling price from the Product master (stock entry rate is cost, not selling price).
 	frappe.call({
 		method: "nasiya365.nasiya365.doctype.sales_order.sales_order.get_product_for_wizard",
 		args: { product: item.product },
 		callback(r) {
+			so_remove_blank_item_rows(frm);
 			const selling_price = flt((r.message || {}).selling_price || item.amount || 0);
 			const child = frm.add_child("items");
 			frappe.model.set_value(child.doctype, child.name, "product", item.product);
