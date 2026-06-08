@@ -656,7 +656,7 @@ function open_term_simulator(frm) {
 
 	if (!p || !frm.doc.start_date) {
 		frappe.show_alert({
-			message: __("Укажите сумму покупки и дату первого платежа"),
+			message: __("Укажите сумму покупки и дату договора"),
 			indicator: "orange",
 		});
 		return;
