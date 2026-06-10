@@ -24,7 +24,7 @@ def check_overdue_installments():
             isc.modified = NOW()
         WHERE isc.status IN ('Ожидает', 'Частично', 'Pending')
           AND isc.due_date < %(today)s
-          AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан')
+          AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан', 'Отменен')
         """,
         {"today": today()},
     )
@@ -37,7 +37,7 @@ def check_overdue_installments():
         FROM `tabInstallment Schedule` isc
         INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
         WHERE isc.status = 'Просрочен'
-          AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан')
+          AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан', 'Отменен')
         """,
         pluck=True,
     ) or []

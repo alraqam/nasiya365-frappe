@@ -87,7 +87,7 @@ def installment_plans_with_outstanding_for_customer(customer):
         f"""
         SELECT ip.name FROM `tabInstallment Plan` ip
         WHERE ip.customer = %s
-          AND IFNULL(ip.`status`, '') NOT IN ('Завершен', 'Списан')
+          AND IFNULL(ip.`status`, '') NOT IN ('Завершен', 'Списан', 'Отменен')
           {branch_clause}
         ORDER BY ip.modified DESC
         """,

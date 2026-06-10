@@ -29,7 +29,7 @@ def send_due_today_reminders():
         INNER JOIN `tabInstallment Schedule` isc ON isc.parent = ip.name
         INNER JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
         WHERE ip.docstatus = 1
-          AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан')
+          AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан', 'Отменен')
           AND isc.status IN ('Ожидает', 'Частично', 'Pending')
           AND isc.due_date = %s
         GROUP BY ip.customer, cp.full_name
@@ -72,7 +72,7 @@ def send_overdue_warnings():
         INNER JOIN `tabInstallment Schedule` isc ON isc.parent = ip.name
         INNER JOIN `tabCustomer Profile` cp ON cp.name = ip.customer
         WHERE ip.docstatus = 1
-          AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан')
+          AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан', 'Отменен')
           AND isc.status = 'Просрочен'
         GROUP BY ip.customer, cp.full_name
         HAVING total_overdue > 0.001

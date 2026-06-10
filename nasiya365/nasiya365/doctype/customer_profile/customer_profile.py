@@ -152,7 +152,7 @@ class CustomerProfile(Document):
             LEFT JOIN `tabInstallment Schedule` isc ON isc.parent = ip.name
             WHERE ip.customer = %s
               AND ip.docstatus = 1
-              AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан')
+              AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан', 'Отменен')
             """,
             (self.name,),
             as_dict=True,

@@ -218,7 +218,13 @@ function nasiya_recalc_interest_rate_from_schedule(frm) {
 		frm.set_value("total_amount", flt(schedule_sum));
 		frm.set_value("installment_amount", flt(schedule_sum / n));
 		frm.set_value("remaining_balance", flt(schedule_sum - flt(frm.doc.paid_amount || 0)));
-		frm.set_value("interest_rate", flt(rate_pct, 6));
+		// interest_rate is a watched field: frm.set_value fires its change handler
+		// asynchronously — after this finally block clears the skip flag — which
+		// re-triggers schedule_preview_change and regenerates the whole schedule,
+		// wiping the user's edited due dates and amounts. Set it quietly instead so
+		// recalc only updates the derived header value without rebuilding the grid.
+		nasiya_quiet_header_set(frm, "interest_rate", flt(rate_pct, 6));
+		frm.dirty();
 	} finally {
 		frm._nasiya_skip_schedule_preview = false;
 	}
