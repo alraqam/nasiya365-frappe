@@ -1,14 +1,12 @@
 """
 Sales Order DocType Controller
-Handles cash, BNPL, and mixed sales
+Handles cash sales (no installment/BNPL link)
 """
 
 import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, today
-
-from nasiya365.utils.credit import is_customer_credit_limit_enforced
 
 
 class SalesOrder(Document):
@@ -17,18 +15,23 @@ class SalesOrder(Document):
         self.calculate_totals()
         self.validate_payment_rules()
         self.validate_stock_available()
-        self.set_order_kind()
-    
+
     def before_insert(self):
         if not self.salesperson:
             self.salesperson = frappe.session.user
-    
+
+    def before_submit(self):
+        # Legacy BNPL records carry an outstanding balance; skip the cash-only
+        # check during data import so historical orders still submit.
+        if frappe.flags.in_import:
+            return
+        if flt(self.balance_amount) > 0:
+            frappe.throw(_("Заказ должен быть полностью оплачен перед проведением (продажа только за наличные)"))
+
     def on_submit(self):
         self.update_stock()
-        if flt(self.balance_amount) > 0:
-            self.create_installment_plan()
         # Skip creating payment transaction during import (legacy data)
-        if flt(self.balance_amount) <= 0 and not frappe.flags.in_import:
+        if not frappe.flags.in_import:
             self.create_cash_receipt()
     
     def on_cancel(self):
@@ -67,41 +70,19 @@ class SalesOrder(Document):
             item.amount = flt(item.quantity) * flt(item.unit_price) * (1 - flt(item.discount_percent) / 100.0)
             
         self.subtotal = sum(flt(item.amount) for item in self.items)
-        
+
         # Calculate discount
-        if self.discount_percent:
-            self.discount_amount = (self.subtotal * self.discount_percent) / 100
-        
+        if flt(self.discount_percent):
+            self.discount_amount = (self.subtotal * flt(self.discount_percent)) / 100
+
         self.total_amount = self.subtotal - flt(self.discount_amount)
         self.balance_amount = self.total_amount - flt(self.paid_amount)
     
     def validate_payment_rules(self):
-        """No manual sale type: derive mode from paid/balance."""
         if flt(self.paid_amount) < 0:
             frappe.throw(_("Оплачено не может быть отрицательным"))
         if flt(self.paid_amount) > flt(self.total_amount):
             frappe.throw(_("Оплачено не может превышать общую сумму"))
-
-        # BNPL eligibility when there is outstanding balance.
-        if flt(self.balance_amount) > 0:
-            customer = frappe.get_doc("Customer Profile", self.customer)
-            if customer.status != "Активный":
-                frappe.throw(_("Клиент не имеет права на рассрочку (BNPL)"))
-            if is_customer_credit_limit_enforced() and flt(customer.credit_limit) > 0:
-                customer.update_statistics()
-                if self.total_amount > flt(customer.available_limit):
-                    frappe.throw(_("Сумма заказа превышает доступный кредитный лимит клиента"))
-            for item in self.items:
-                product = frappe.get_doc("Product", item.product)
-                if not product.allow_installment:
-                    frappe.throw(
-                        _("Товар {0} недоступен для покупки в рассрочку").format(
-                            product.product_name
-                        )
-                    )
-
-    def set_order_kind(self):
-        self.order_kind = "Rassrochka" if flt(self.balance_amount) > 0 else "Naqd Savdo"
 
     def validate_stock_available(self):
         """Ensure requested qty does not exceed on-hand stock."""
@@ -174,33 +155,6 @@ class SalesOrder(Document):
         ledger.posting_date = today()
         ledger.insert(ignore_permissions=True)
     
-    def create_installment_plan(self):
-        """Create installment plan for BNPL/Mixed sales"""
-        if self.installment_plan:
-            return  # Already created
-        
-        # Amount to finance
-        financed_amount = self.total_amount - flt(self.paid_amount)
-        
-        # Get default settings
-        settings = frappe.get_single("Merchant Settings")
-        
-        plan = frappe.new_doc("Installment Plan")
-        plan.customer = self.customer
-        plan.sales_order = self.name
-        plan.principal_amount = self.total_amount
-        plan.down_payment = self.paid_amount
-        plan.interest_rate = settings.default_interest_rate or 0
-        plan.number_of_installments = 6  # Default
-        plan.frequency = "Ежемесячно (Monthly)"
-        plan.start_date = today()
-        plan.insert()
-        # Submit so on_submit fires (sets status=Активный, updates customer, creates contract).
-        plan.submit()
-
-        self.installment_plan = plan.name
-        self.db_update()
-    
     def create_cash_receipt(self):
         """Create payment transaction for full cash payment"""
         receipt = frappe.new_doc("Payment Transaction")
@@ -225,7 +179,6 @@ class SalesOrder(Document):
 def on_submit(doc, method):
     """Hook called when Sales Order is submitted"""
     doc.status = "Подтвержден"
-    doc.order_kind = "Rassrochka" if flt(doc.balance_amount) > 0 else "Naqd Savdo"
     doc.db_update()
 
 
@@ -237,7 +190,7 @@ def on_cancel(doc, method):
 
 @frappe.whitelist()
 def get_product_for_wizard(product):
-    """Return product fields needed by the sales wizard, bypassing get_value field validation."""
+    """Return product fields for the picked stock entry item, bypassing get_value field validation."""
     if not product:
         return {}
     rows = frappe.db.sql(

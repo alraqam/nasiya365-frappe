@@ -449,12 +449,7 @@ def process_row(row, default_branch, summary, skip_validation=False):
         installment_plan = create_installment_plan(
             so, customer, row, sale_date, total_amount, paid_amount, remaining_debt, summary
         )
-        
-        # Link installment plan back to sales order
-        if installment_plan:
-            so.installment_plan = installment_plan.name
-            so.db_update()
-    
+
     # 5. b3-merge: move Contract data into Installment Plan
     # In legacy flow we created a separate `Contract`. Now we populate contract-related
     # fields directly on the created `Installment Plan` (when BNPL/debt exists).

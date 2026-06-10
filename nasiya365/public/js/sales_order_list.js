@@ -1,12 +1,11 @@
 frappe.listview_settings["Sales Order"] = {
-	add_fields: ["order_kind", "balance_amount", "status"],
+	add_fields: ["balance_amount", "status"],
 	get_indicator(doc) {
-		// All sales are installment-based; distinguish outstanding vs no remaining balance on the order.
 		const open = (flt(doc.balance_amount) || 0) > 0;
-		if (open || doc.order_kind === "Rassrochka") {
-			return [__("В рассрочке"), "orange", "balance_amount,>,0"];
+		if (open) {
+			return [__("Не оплачен"), "orange", "balance_amount,>,0"];
 		}
-		return [__("Погашено"), "green", "balance_amount,<=,0"];
+		return [__("Оплачен"), "green", "balance_amount,<=,0"];
 	},
 	onload(listview) {
 		// Sales orders are loaded via Data Import Tool, not the desk list primary action.

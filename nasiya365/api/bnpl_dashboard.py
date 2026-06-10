@@ -55,7 +55,7 @@ _OPEN_SCHEDULE_STATUSES = ("Ожидает", "Частично", "Pending")
 
 # Collector lists: not only submitted (1); drafts often stay docstatus 0 until first payment flow.
 _COLLECTION_PLAN_WHERE = (
-    "ip.docstatus < 2 AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан')"
+    "ip.docstatus < 2 AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан', 'Отменен')"
 )
 
 
@@ -999,72 +999,6 @@ def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Налич�
     payment.submit()
     frappe.db.commit()
     return {"name": payment.name, "plan": plan_name}
-
-
-@frappe.whitelist()
-def create_sales_order_from_wizard(payload):
-    data = frappe.parse_json(payload) if isinstance(payload, str) else payload
-    if not data:
-        frappe.throw(_("Нет данных для оформления"))
-
-    required_fields = ["customer", "branch", "product", "months"]
-    for key in required_fields:
-        if not data.get(key):
-            frappe.throw(_("Поле {0} обязательно").format(key))
-
-    # Branch must be one the caller is assigned to (admins bypass).
-    from nasiya365.permissions import _get_user_branches, _is_unrestricted
-
-    user = frappe.session.user
-    if not _is_unrestricted(user):
-        if data["branch"] not in _get_user_branches(user):
-            frappe.throw(
-                _("Вы не назначены на филиал {0}").format(data["branch"]),
-                frappe.PermissionError,
-            )
-
-    price = _to_float(data.get("price") or frappe.db.get_value("Product", data["product"], "selling_price"))
-    qty = cint(data.get("qty") or 1)
-    down_payment = _to_float(data.get("down_payment") or 0)
-    interest_rate = _to_float(data.get("interest_rate") or 5)
-    months = cint(data.get("months") or 6)
-    principal_amount = round(price * qty - down_payment, 2)
-
-    # Use a savepoint so that if Installment Plan creation fails,
-    # the Sales Order is also rolled back (no orphaned SO).
-    frappe.db.savepoint("wizard_create")
-    try:
-        so = frappe.new_doc("Sales Order")
-        so.customer = data["customer"]
-        so.branch = data["branch"]
-        so.paid_amount = down_payment if down_payment > 0 else 0
-        so.append(
-            "items",
-            {
-                "product": data["product"],
-                "quantity": qty,
-                "unit_price": price,
-                "discount_percent": _to_float(data.get("discount_percent")),
-            },
-        )
-        so.insert(ignore_permissions=True)
-
-        plan = frappe.new_doc("Installment Plan")
-        plan.customer = data["customer"]
-        plan.branch = data["branch"]
-        plan.sales_order = so.name
-        plan.principal_amount = principal_amount
-        plan.down_payment = down_payment
-        plan.number_of_installments = months
-        plan.frequency = "Ежемесячно"
-        plan.interest_rate = interest_rate
-        plan.start_date = today()
-        plan.insert(ignore_permissions=True)
-    except Exception:
-        frappe.db.rollback(save_point="wizard_create")
-        raise
-
-    return {"so": so.name, "plan": plan.name}
 
 
 def _purchase_serial_tracks_consumed(serial_raw, exclude_installment_plan_name=""):

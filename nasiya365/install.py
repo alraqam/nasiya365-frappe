@@ -536,8 +536,7 @@ def repair_installment_plan_counts():
     Read installment_payments.csv (which has 'Количество платежей'),
     match to Sales Orders by po_no via installment_contracts.csv doc numbers,
     find the surviving Installment Plan (by sales_order field), update
-    number_of_installments, recalculate amounts, regenerate schedules,
-    and re-link SO → IP if the link was cleared by ghost deletion.
+    number_of_installments, recalculate amounts, and regenerate schedules.
     """
     frappe.only_for("System Manager")
     payments_csv = os.path.join(_import_data_dir(), "installment_payments.csv")
@@ -590,9 +589,6 @@ def repair_installment_plan_counts():
             and len(ip.schedule or []) == num_installments
         )
         if already_ok:
-            # Still ensure SO ↔ IP link is intact
-            if frappe.db.get_value("Sales Order", so_name, "installment_plan") != ip_name:
-                frappe.db.set_value("Sales Order", so_name, "installment_plan", ip_name, update_modified=False)
             skipped += 1
             continue
 
@@ -612,8 +608,6 @@ def repair_installment_plan_counts():
         ip.generate_schedule()
         ip.save(ignore_permissions=True)
 
-        # Re-establish SO → IP link
-        frappe.db.set_value("Sales Order", so_name, "installment_plan", ip_name, update_modified=False)
         fixed += 1
 
     frappe.db.commit()

@@ -62,20 +62,31 @@ def run_test():
             "discount_percent": 0
         })
         
-        so.paid_amount = 1000000 # 1M UZS Down payment
+        # Sales Order is cash-only: must be paid in full to submit.
+        so.paid_amount = so.subtotal or 5000000
         # Should calculate items and totals
         so.insert()
         so.submit()
-        
+
         print(f"Sales Order Total Amount: {so.total_amount}")
-        print(f"Sales Order Paid Amount (Down Payment): {so.paid_amount}")
-        
-        plan_name = getattr(so, "installment_plan", None)
-        if not plan_name:
-            print("ERROR: Installment Plan was not created for the Sales Order.")
-            return False
-            
-        plan = frappe.get_doc("Installment Plan", plan_name)
+        print(f"Sales Order Paid Amount: {so.paid_amount}")
+
+        # Installment Plan is created independently of the Sales Order.
+        down_payment = 1000000  # 1M UZS
+        plan = frappe.new_doc("Installment Plan")
+        plan.customer = customer.name
+        plan.sales_order = so.name
+        plan.principal_amount = so.total_amount
+        plan.down_payment = down_payment
+        plan.interest_rate = 5
+        plan.number_of_installments = 6
+        plan.frequency = "Ежемесячно (Monthly)"
+        plan.start_date = today()
+        plan.contract_type = "Рассрочка (BNPL)"
+        plan.contract_date = today()
+        plan.insert()
+        plan.submit()
+
         print(f"Plan Principal Amount: {plan.principal_amount}")
         print(f"Plan Financed Amount: {plan.financed_amount}")
         
