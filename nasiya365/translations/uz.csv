@@ -286,7 +286,6 @@
 "Касса {0} уже закрыта. Выберите открытую кассу или снимите привязку.","{0} kassa allaqachon yopiq. Ochiq kassani tanlang yoki bog'liqlikni olib tashlang."
 "Невозможно списать расход: касса {0} уже закрыта.","Xarajatni hisobdan chiqarib bo'lmaydi: {0} kassa allaqachon yopiq."
 "Оплачено не может быть отрицательным","To'langan miqdor manfiy bo'lishi mumkin emas"
-"Оплачено не может превышать общую сумму","To'langan miqdor umumiy summadan oshib ketishi mumkin emas"
 "Клиент не имеет права на рассрочку (BNPL)","Mijoz nasiya (BNPL) uchun huquqqa ega emas"
 "Сумма заказа превышает доступный кредитный лимит клиента","Buyurtma summasi mijozning mavjud kredit limitidan oshib ketmoqda"
 "Товар {0} недоступен для покупки в рассрочку","{0} mahsulot nasiyaga sotib olish uchun mavjud emas"

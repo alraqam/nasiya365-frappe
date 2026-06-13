@@ -1368,6 +1368,7 @@ def get_stock_entry_details_for_installment_plan(
             "amount": flt(item.amount),
             "color": (item.color or "").strip(),
             "storage": (item.storage or "").strip(),
+            "condition": (item.condition or "").strip(),
         })
 
     pref = (preferred_imei or "").strip()

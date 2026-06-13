@@ -81,8 +81,6 @@ class SalesOrder(Document):
     def validate_payment_rules(self):
         if flt(self.paid_amount) < 0:
             frappe.throw(_("Оплачено не может быть отрицательным"))
-        if flt(self.paid_amount) > flt(self.total_amount):
-            frappe.throw(_("Оплачено не может превышать общую сумму"))
 
     def validate_stock_available(self):
         """Ensure requested qty does not exceed on-hand stock."""
@@ -195,7 +193,8 @@ def get_product_for_wizard(product):
         return {}
     rows = frappe.db.sql(
         """SELECT selling_price, cost_price, product_name, allow_installment,
-                  min_down_payment_percent, max_installment_months
+                  min_down_payment_percent, max_installment_months,
+                  color, storage, `condition`
            FROM `tabProduct` WHERE name = %s LIMIT 1""",
         product,
         as_dict=True,
@@ -210,6 +209,9 @@ def get_product_for_wizard(product):
         "allow_installment": row.get("allow_installment"),
         "min_down_payment_percent": flt(row.get("min_down_payment_percent") or 0),
         "max_installment_months": row.get("max_installment_months"),
+        "color": row.get("color") or "",
+        "storage": row.get("storage") or "",
+        "condition": row.get("condition") or "",
     }
 
 
@@ -218,7 +220,9 @@ def get_product_stock_available(product, warehouse=None):
     if not product:
         return {"available_qty": 0}
     if not warehouse:
-        warehouse = frappe.db.get_value("Warehouse", {"is_group": 0}, "name")
+        warehouse = frappe.db.get_value("Warehouse", {"is_default": 1}, "name")
+        if not warehouse:
+            warehouse = frappe.db.get_value("Warehouse", {}, "name")
     qty = frappe.db.sql(
         """
         SELECT COALESCE(SUM(quantity_change), 0)

@@ -131,15 +131,20 @@ function so_apply_stock_item(frm, item) {
 		args: { product: item.product },
 		callback(r) {
 			so_remove_blank_item_rows(frm);
-			const selling_price = flt((r.message || {}).selling_price || item.amount || 0);
+			const product_info = r.message || {};
+			const selling_price = flt(product_info.selling_price || item.amount || 0);
 			const child = frm.add_child("items");
 			// Assign directly (synchronous) so `product` is on the row before any
 			// grid refresh or re-run of so_remove_blank_item_rows that frappe.model
 			// .set_value's async change events can trigger via frm.refresh().
+			// Stock entry item values take priority (per-unit); fall back to the
+			// Product master when the stock entry row left them blank.
 			child.product = item.product;
+			child.product_name = item.product_name || product_info.product_name || "";
 			child.imei = item.imei || "";
-			child.color = item.color || "";
-			child.storage = item.storage || "";
+			child.color = item.color || product_info.color || "";
+			child.storage = item.storage || product_info.storage || "";
+			child.condition = item.condition || product_info.condition || "";
 			child.unit_price = selling_price;
 			child.quantity = 1;
 			frm.refresh_field("items");
