@@ -26,6 +26,7 @@
         },
         {
             "fetch_from": "product.product_name",
+            "fetch_if_empty": 1,
             "fieldname": "product_name",
             "fieldtype": "Data",
             "in_list_view": 1,
@@ -34,6 +35,7 @@
         },
         {
             "fetch_from": "product.color",
+            "fetch_if_empty": 1,
             "fieldname": "color",
             "fieldtype": "Data",
             "in_list_view": 1,
@@ -41,6 +43,7 @@
         },
         {
             "fetch_from": "product.storage",
+            "fetch_if_empty": 1,
             "fieldname": "storage",
             "fieldtype": "Data",
             "in_list_view": 1,
@@ -48,6 +51,7 @@
         },
         {
             "fetch_from": "product.condition",
+            "fetch_if_empty": 1,
             "fieldname": "condition",
             "fieldtype": "Data",
             "in_list_view": 1,
@@ -63,6 +67,7 @@
         },
         {
             "fetch_from": "product.selling_price",
+            "fetch_if_empty": 1,
             "fieldname": "unit_price",
             "fieldtype": "Currency",
             "in_list_view": 1,
