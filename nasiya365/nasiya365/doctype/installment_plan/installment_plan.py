@@ -366,7 +366,9 @@ class InstallmentPlan(Document):
             return
         from nasiya365.api.bnpl_dashboard import assert_stock_entry_available_for_installment_plan
 
-        assert_stock_entry_available_for_installment_plan(self.stock_entry, self.name or "")
+        assert_stock_entry_available_for_installment_plan(
+            self.stock_entry, self.name or "", getattr(self, "sales_order", None) or ""
+        )
 
     def validate_unique_sales_order(self):
         """Prevent two Installment Plans from referencing the same Sales Order.

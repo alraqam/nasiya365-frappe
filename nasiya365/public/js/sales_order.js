@@ -11,6 +11,7 @@ frappe.ui.form.on("Sales Order", {
 		}
 		so_set_stock_entry_filter(frm);
 		show_stock_hint(frm);
+		so_apply_payment_method_options(frm);
 		// New SO opens with one empty starter row; drop it so the grid starts clean.
 		if (frm.is_new()) so_remove_blank_item_rows(frm);
 	},
@@ -26,7 +27,55 @@ frappe.ui.form.on("Sales Order", {
 		// receipt afterwards by selecting again (overwrites this value).
 		so_fetch_stock_entry_items(frm, frm.doc.stock_entry);
 	},
+	payment_method(frm) {
+		so_on_payment_method_change(frm);
+	},
+	paid_amount(frm) {
+		so_update_paid_amount_uzs(frm);
+	},
+	exchange_rate(frm) {
+		so_update_paid_amount_uzs(frm);
+	},
 });
+
+function so_apply_payment_method_options(frm) {
+	frappe.call({
+		method: "nasiya365.api.bnpl_dashboard.get_payment_methods",
+		callback(r) {
+			if (!r.message || !r.message.length) return;
+			const opts = r.message.join("\n");
+			frm.set_df_property("payment_method", "options", opts);
+			frm.refresh_field("payment_method");
+		},
+	});
+}
+
+function so_on_payment_method_change(frm) {
+	so_update_paid_amount_uzs(frm);
+	if (frm.doc.payment_method !== "Наличные UZS" || flt(frm.doc.exchange_rate)) return;
+	// Pre-fill the exchange rate from the branch's open cashbox.
+	frappe.call({
+		method: "nasiya365.nasiya365.doctype.cashbox.cashbox.get_master_cashbox",
+		args: { branch: frm.doc.branch || null },
+		callback(r) {
+			if (!r.message) return;
+			frappe.db.get_value("Cashbox", r.message, "default_exchange_rate", (v) => {
+				const rate = flt(v && v.default_exchange_rate);
+				if (rate > 0) {
+					frm.set_value("exchange_rate", rate);
+				}
+			});
+		},
+	});
+}
+
+function so_update_paid_amount_uzs(frm) {
+	if (frm.doc.payment_method !== "Наличные UZS") {
+		frm.set_value("paid_amount_uzs", 0);
+		return;
+	}
+	frm.set_value("paid_amount_uzs", flt(frm.doc.paid_amount) * flt(frm.doc.exchange_rate));
+}
 
 function so_set_stock_entry_filter(frm) {
 	frm.set_query("stock_entry", () => ({
@@ -38,7 +87,7 @@ function so_set_stock_entry_filter(frm) {
 function so_fetch_stock_entry_items(frm, stock_entry) {
 	frappe.call({
 		method: "nasiya365.api.bnpl_dashboard.get_stock_entry_details_for_installment_plan",
-		args: { stock_entry, installment_plan: "" },
+		args: { stock_entry, installment_plan: "", sales_order: frm.is_new() ? "" : frm.doc.name },
 		callback(r) {
 			if (!r.message) return;
 			const items = r.message.free_items || [];

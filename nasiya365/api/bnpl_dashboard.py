@@ -1001,9 +1001,10 @@ def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Налич�
     return {"name": payment.name, "plan": plan_name}
 
 
-def _purchase_serial_tracks_consumed(serial_raw, exclude_installment_plan_name=""):
+def _purchase_serial_tracks_consumed(serial_raw, exclude_installment_plan_name="", exclude_sales_order_name=""):
     """
-    Serial / IMEI already tied to a sale (SO), warehouse issue (Отпуск), or another open plan (import IMEI only).
+    Serial / IMEI already tied to a sale (SO, including drafts), warehouse issue (Отпуск),
+    or another open plan (import IMEI only).
     """
     s = (serial_raw or "").strip().replace(" ", "").upper()
     if not s:
@@ -1026,11 +1027,13 @@ def _purchase_serial_tracks_consumed(serial_raw, exclude_installment_plan_name="
     ):
         return True
 
+    so_excl = exclude_sales_order_name or ""
     if frappe.db.sql(
         """
         SELECT 1 FROM `tabSales Order Item` soi
         INNER JOIN `tabSales Order` so ON so.name = soi.parent
-        WHERE so.docstatus = 1
+        WHERE IFNULL(so.docstatus, 0) < 2
+          AND (%s = '' OR so.name != %s)
           AND NULLIF(TRIM(soi.imei), '') IS NOT NULL
           AND (
             REPLACE(UPPER(TRIM(soi.imei)), ' ', '') = %s
@@ -1039,7 +1042,7 @@ def _purchase_serial_tracks_consumed(serial_raw, exclude_installment_plan_name="
           )
         LIMIT 1
         """,
-        (s, tail6, tail6),
+        (so_excl, so_excl, s, tail6, tail6),
     ):
         return True
 
@@ -1103,10 +1106,10 @@ def installment_plan_taken_imei_rows_for_receipt(stock_ref, current_plan_name=No
     )
 
 
-def assert_stock_entry_available_for_installment_plan(stock_entry, current_plan_name=None):
+def assert_stock_entry_available_for_installment_plan(stock_entry, current_plan_name=None, current_sales_order_name=None):
     """
     Submitted Поступление only; positive stock in ledger; not marked sold/return;
-    serial not already sold (SO / Отпуск / other plan IMEI); not linked to another open plan.
+    serial not already sold (SO, including drafts / Отпуск / other plan IMEI); not linked to another open plan.
 
     `stock_entry` may be a Stock Entry name (legacy) or a Stock Entry Item row name (one line).
     """
@@ -1165,7 +1168,7 @@ def assert_stock_entry_available_for_installment_plan(stock_entry, current_plan_
             )
 
     if sei and sei.imei and str(sei.imei).strip():
-        if _purchase_serial_tracks_consumed(sei.imei, current_plan_name or ""):
+        if _purchase_serial_tracks_consumed(sei.imei, current_plan_name or "", current_sales_order_name or ""):
             frappe.throw(
                 _(
                     "Этот серийный номер уже в продаже (заказ), отпуске или другом плане рассрочки. Выберите другое поступление."
@@ -1197,7 +1200,7 @@ def _stock_entry_item_row_free_sql():
               OR EXISTS (
                   SELECT 1 FROM `tabSales Order Item` soi
                   INNER JOIN `tabSales Order` so_order ON so_order.name = soi.parent
-                  WHERE so_order.docstatus = 1
+                  WHERE IFNULL(so_order.docstatus, 0) < 2
                     AND NULLIF(TRIM(soi.imei), '') IS NOT NULL
                     AND (
                       REPLACE(UPPER(TRIM(soi.imei)), ' ', '') = REPLACE(UPPER(TRIM(sei.imei)), ' ', '')
@@ -1326,12 +1329,14 @@ def _imei_matches_preference(serial: str, preferred: str) -> bool:
 
 @frappe.whitelist()
 def get_stock_entry_details_for_installment_plan(
-    stock_entry, installment_plan=None, preferred_imei=None
+    stock_entry, installment_plan=None, preferred_imei=None, sales_order=None
 ):
     """
     Installment Plan form: auto-fill principal / product / serial from a submitted receipt.
     Implemented under api.* (not doctype controller) so desk RPC always resolves the method.
     If preferred_imei is set (e.g. user picked a specific line in the link search), narrow to that row.
+    `sales_order` (when called from the Sales Order form) excludes that draft's own picked
+    items from the "already taken" check, so re-selecting the same receipt doesn't self-block.
     """
     if not stock_entry:
         return {}
@@ -1343,21 +1348,25 @@ def get_stock_entry_details_for_installment_plan(
         return {}
     _require_doc_permission("Stock Entry", parent, "read")
     current_plan = installment_plan or ""
-    assert_stock_entry_available_for_installment_plan(stock_entry, current_plan)
+    current_so = sales_order or ""
+    assert_stock_entry_available_for_installment_plan(stock_entry, current_plan, current_so)
     ste = frappe.get_doc("Stock Entry", parent)
     is_line = installment_plan_stock_ref_is_sei_row(stock_entry)
 
     taken_rows = installment_plan_taken_imei_rows_for_receipt(stock_entry, current_plan)
     taken = {(r.imei or "").strip().upper().replace(" ", "")[-6:] for r in taken_rows if r.imei}
 
-    # Collect all free items (not yet taken by another plan)
+    # Collect all free items (not yet taken by another plan, draft Sales Order, or sale)
     free_items = []
     for item in ste.items:
         if is_line and item.name != stock_entry:
             continue
         serial = (item.imei or "").strip()
-        if serial and serial.upper().replace(" ", "")[-6:] in taken:
-            continue  # already linked to another plan
+        if serial:
+            if serial.upper().replace(" ", "")[-6:] in taken:
+                continue  # already linked to another plan
+            if _purchase_serial_tracks_consumed(serial, current_plan, current_so):
+                continue  # already sold, issued, or reserved by another order/plan
         product_name = (
             frappe.db.get_value("Product", item.product, "product_name") if item.product else None
         )

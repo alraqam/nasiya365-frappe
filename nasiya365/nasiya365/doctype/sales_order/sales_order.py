@@ -15,6 +15,7 @@ class SalesOrder(Document):
         self.calculate_totals()
         self.validate_payment_rules()
         self.validate_stock_available()
+        self.validate_imei_not_reserved()
 
     def before_insert(self):
         if not self.salesperson:
@@ -81,6 +82,13 @@ class SalesOrder(Document):
     def validate_payment_rules(self):
         if flt(self.paid_amount) < 0:
             frappe.throw(_("Оплачено не может быть отрицательным"))
+        if self.payment_method == "Наличные UZS":
+            if flt(self.exchange_rate) <= 0:
+                frappe.throw(_("Укажите курс обмена для оплаты в UZS"))
+            self.paid_amount_uzs = flt(self.paid_amount) * flt(self.exchange_rate)
+        else:
+            self.exchange_rate = 0
+            self.paid_amount_uzs = 0
 
     def validate_stock_available(self):
         """Ensure requested qty does not exceed on-hand stock."""
@@ -103,6 +111,23 @@ class SalesOrder(Document):
                     )
                 )
     
+    def validate_imei_not_reserved(self):
+        """Block saving if an item's IMEI is already taken by another draft/submitted
+        order, a warehouse issue (Отпуск), or an open installment plan."""
+        from nasiya365.api.bnpl_dashboard import _purchase_serial_tracks_consumed
+
+        for item in self.items:
+            imei = (item.imei or "").strip()
+            if not imei:
+                continue
+            if _purchase_serial_tracks_consumed(imei, "", self.name or ""):
+                pname = item.product_name or item.product
+                frappe.throw(
+                    _("Серийный номер {0} ({1}) уже используется в другом заказе или поступлении").format(
+                        imei, pname
+                    )
+                )
+
     def update_stock(self):
         """Reduce stock for sold items"""
         for item in self.items:
@@ -155,20 +180,30 @@ class SalesOrder(Document):
     
     def create_cash_receipt(self):
         """Create payment transaction for full cash payment"""
+        payment_method = self.payment_method or "Наличные USD"
         receipt = frappe.new_doc("Payment Transaction")
         receipt.customer = self.customer
-        receipt.payment_method = "Наличные USD"
+        receipt.payment_method = payment_method
         receipt.reference_doctype = "Sales Order"
         receipt.reference_name = self.name
         receipt.received_by = frappe.session.user
-        receipt.append(
-            "payment_lines",
-            {
-                "payment_method": "Наличные USD",
+
+        if payment_method == "Наличные UZS":
+            exchange_rate = flt(self.exchange_rate)
+            receipt.exchange_rate = exchange_rate
+            line = {
+                "payment_method": payment_method,
+                "currency": "UZS",
+                "amount": flt(self.paid_amount) * exchange_rate,
+                "exchange_rate": exchange_rate,
+            }
+        else:
+            line = {
+                "payment_method": payment_method,
                 "currency": "USD",
                 "amount": flt(self.paid_amount),
-            },
-        )
+            }
+        receipt.append("payment_lines", line)
         receipt.insert()
         # Submit so on_submit fires (status=Завершен, allocate, cashbox sync).
         receipt.submit()
