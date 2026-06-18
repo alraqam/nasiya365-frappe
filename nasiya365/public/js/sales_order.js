@@ -81,8 +81,9 @@ function so_apply_payment_method_options(frm) {
 			const opts = r.message.join("\n");
 			frm.set_df_property("payment_method", "options", opts);
 			frm.refresh_field("payment_method");
-			// Apply to child table rows too
-			frm.set_df_property("payment_lines", "payment_method", "options", opts);
+			// Apply to child table column
+			const grid = frm.fields_dict["payment_lines"] && frm.fields_dict["payment_lines"].grid;
+			if (grid) grid.update_docfield_property("payment_method", "options", opts);
 		},
 	});
 }
@@ -277,5 +278,5 @@ function so_update_split_total_hint(frm) {
 		: diff < -0.01
 		? __("Сумма способов оплаты: {0} USD. Превышение: {1} USD", [split_total.toFixed(2), Math.abs(diff).toFixed(2)])
 		: __("Сумма способов оплаты: {0} USD ✓", [split_total.toFixed(2)]);
-	frm.dashboard.set_headline_alert(msg, color);
+	frm.set_intro(msg, color);
 }
