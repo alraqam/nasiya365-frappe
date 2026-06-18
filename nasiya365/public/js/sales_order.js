@@ -14,6 +14,7 @@ frappe.ui.form.on("Sales Order", {
 		so_apply_payment_method_options(frm);
 		// New SO opens with one empty starter row; drop it so the grid starts clean.
 		if (frm.is_new()) so_remove_blank_item_rows(frm);
+		so_update_split_total_hint(frm);
 	},
 	warehouse(frm) {
 		show_stock_hint(frm);
@@ -32,9 +33,43 @@ frappe.ui.form.on("Sales Order", {
 	},
 	paid_amount(frm) {
 		so_update_paid_amount_uzs(frm);
+		so_update_split_total_hint(frm);
 	},
 	exchange_rate(frm) {
 		so_update_paid_amount_uzs(frm);
+	},
+	payment_lines_add(frm) {
+		so_update_split_total_hint(frm);
+	},
+	payment_lines_remove(frm) {
+		so_update_split_total_hint(frm);
+	},
+});
+
+frappe.ui.form.on("Sales Order Payment", {
+	payment_method(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		if (row.payment_method === "Наличные UZS" && !row.exchange_rate) {
+			frappe.call({
+				method: "nasiya365.nasiya365.doctype.cashbox.cashbox.get_master_cashbox",
+				args: { branch: frm.doc.branch || null },
+				callback(r) {
+					if (!r.message) return;
+					frappe.db.get_value("Cashbox", r.message, "default_exchange_rate", (v) => {
+						const rate = flt(v && v.default_exchange_rate);
+						if (rate > 0) frappe.model.set_value(cdt, cdn, "exchange_rate", rate);
+					});
+				},
+			});
+		}
+		so_update_split_total_hint(frm);
+	},
+	amount(frm, cdt, cdn) {
+		so_recalc_uzs_row(cdt, cdn);
+		so_update_split_total_hint(frm);
+	},
+	exchange_rate(frm, cdt, cdn) {
+		so_recalc_uzs_row(cdt, cdn);
 	},
 });
 
@@ -46,6 +81,8 @@ function so_apply_payment_method_options(frm) {
 			const opts = r.message.join("\n");
 			frm.set_df_property("payment_method", "options", opts);
 			frm.refresh_field("payment_method");
+			// Apply to child table rows too
+			frm.set_df_property("payment_lines", "payment_method", "options", opts);
 		},
 	});
 }
@@ -217,4 +254,28 @@ function show_stock_hint(frm) {
 			frm.set_intro(__("Остаток на складе по выбранному товару: {0}", [available]), color);
 		},
 	});
+}
+
+function so_recalc_uzs_row(cdt, cdn) {
+	const row = locals[cdt][cdn];
+	if (row.payment_method === "Наличные UZS" && row.exchange_rate) {
+		frappe.model.set_value(cdt, cdn, "amount_uzs", flt(row.amount) * flt(row.exchange_rate));
+	} else {
+		frappe.model.set_value(cdt, cdn, "amount_uzs", 0);
+	}
+}
+
+function so_update_split_total_hint(frm) {
+	const lines = (frm.doc.payment_lines || []).filter(r => flt(r.amount) > 0);
+	if (!lines.length) return;
+	const split_total = lines.reduce((s, r) => s + flt(r.amount), 0);
+	const order_total = flt(frm.doc.total_amount);
+	const diff = order_total - split_total;
+	const color = Math.abs(diff) < 0.01 ? "green" : "orange";
+	const msg = diff > 0.01
+		? __("Сумма способов оплаты: {0} USD. Не хватает: {1} USD", [split_total.toFixed(2), diff.toFixed(2)])
+		: diff < -0.01
+		? __("Сумма способов оплаты: {0} USD. Превышение: {1} USD", [split_total.toFixed(2), Math.abs(diff).toFixed(2)])
+		: __("Сумма способов оплаты: {0} USD ✓", [split_total.toFixed(2)]);
+	frm.dashboard.set_headline_alert(msg, color);
 }

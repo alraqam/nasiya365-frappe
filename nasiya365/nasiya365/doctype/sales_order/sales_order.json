@@ -31,6 +31,7 @@
   "exchange_rate",
   "paid_amount_uzs",
   "balance_amount",
+  "payment_lines",
   "delivery_section",
   "delivery_date",
   "delivery_address",
@@ -210,6 +211,13 @@
    "fieldtype": "Currency",
    "label": "Остаток",
    "read_only": 1
+  },
+  {
+   "fieldname": "payment_lines",
+   "fieldtype": "Table",
+   "label": "Способы оплаты",
+   "options": "Sales Order Payment",
+   "description": "Укажите 2-3 способа оплаты для разделения платежа. Если пусто — используется поле «Способ оплаты» выше."
   },
   {
    "fieldname": "delivery_section",

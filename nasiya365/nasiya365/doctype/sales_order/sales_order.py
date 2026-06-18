@@ -80,15 +80,35 @@ class SalesOrder(Document):
         self.balance_amount = self.total_amount - flt(self.paid_amount)
     
     def validate_payment_rules(self):
-        if flt(self.paid_amount) < 0:
-            frappe.throw(_("Оплачено не может быть отрицательным"))
-        if self.payment_method == "Наличные UZS":
-            if flt(self.exchange_rate) <= 0:
-                frappe.throw(_("Укажите курс обмена для оплаты в UZS"))
-            self.paid_amount_uzs = flt(self.paid_amount) * flt(self.exchange_rate)
+        split_lines = [r for r in (self.payment_lines or []) if flt(r.amount) > 0]
+        if split_lines:
+            # Validate split payment: sum must equal total_amount
+            split_total = sum(flt(r.amount) for r in split_lines)
+            if abs(split_total - flt(self.total_amount)) > 0.01:
+                frappe.throw(
+                    _("Сумма способов оплаты ({0} USD) не совпадает с суммой заказа ({1} USD)").format(
+                        frappe.utils.fmt_money(split_total), frappe.utils.fmt_money(flt(self.total_amount))
+                    )
+                )
+            self.paid_amount = flt(self.total_amount)
+            # Recalc UZS amounts per row
+            for row in split_lines:
+                if row.payment_method == "Наличные UZS" and flt(row.exchange_rate):
+                    row.amount_uzs = flt(row.amount) * flt(row.exchange_rate)
+                    row.currency = "UZS"
+                else:
+                    row.amount_uzs = 0
+                    row.currency = "USD"
         else:
-            self.exchange_rate = 0
-            self.paid_amount_uzs = 0
+            if flt(self.paid_amount) < 0:
+                frappe.throw(_("Оплачено не может быть отрицательным"))
+            if self.payment_method == "Наличные UZS":
+                if flt(self.exchange_rate) <= 0:
+                    frappe.throw(_("Укажите курс обмена для оплаты в UZS"))
+                self.paid_amount_uzs = flt(self.paid_amount) * flt(self.exchange_rate)
+            else:
+                self.exchange_rate = 0
+                self.paid_amount_uzs = 0
 
     def validate_stock_available(self):
         """Ensure requested qty does not exceed on-hand stock."""
@@ -179,31 +199,58 @@ class SalesOrder(Document):
         ledger.insert(ignore_permissions=True)
     
     def create_cash_receipt(self):
-        """Create payment transaction for full cash payment"""
-        payment_method = self.payment_method or "Наличные USD"
+        """Create payment transaction. Supports single method or split payment_lines."""
+        from nasiya365.nasiya365.doctype.payment_transaction.payment_transaction import (
+            _normalize_payment_line_method,
+        )
+
         receipt = frappe.new_doc("Payment Transaction")
         receipt.customer = self.customer
-        receipt.payment_method = payment_method
         receipt.reference_doctype = "Sales Order"
         receipt.reference_name = self.name
         receipt.received_by = frappe.session.user
 
-        if payment_method == "Наличные UZS":
-            exchange_rate = flt(self.exchange_rate)
-            receipt.exchange_rate = exchange_rate
-            line = {
-                "payment_method": payment_method,
-                "currency": "UZS",
-                "amount": flt(self.paid_amount) * exchange_rate,
-                "exchange_rate": exchange_rate,
-            }
+        split_lines = [r for r in (self.payment_lines or []) if flt(r.amount) > 0]
+
+        if split_lines:
+            # Split payment: iterate child table rows
+            receipt.payment_method = split_lines[0].payment_method
+            for row in split_lines:
+                method = _normalize_payment_line_method(row.payment_method)
+                if row.payment_method == "Наличные UZS":
+                    rate = flt(row.exchange_rate) or flt(self.exchange_rate) or 1
+                    receipt.append("payment_lines", {
+                        "payment_method": method,
+                        "currency": "UZS",
+                        "amount": flt(row.amount) * rate,
+                        "exchange_rate": rate,
+                    })
+                else:
+                    receipt.append("payment_lines", {
+                        "payment_method": method,
+                        "currency": "USD",
+                        "amount": flt(row.amount),
+                    })
         else:
-            line = {
-                "payment_method": payment_method,
-                "currency": "USD",
-                "amount": flt(self.paid_amount),
-            }
-        receipt.append("payment_lines", line)
+            # Single method (legacy / simple case)
+            payment_method = self.payment_method or "Наличные USD"
+            receipt.payment_method = payment_method
+            if payment_method == "Наличные UZS":
+                exchange_rate = flt(self.exchange_rate)
+                receipt.exchange_rate = exchange_rate
+                receipt.append("payment_lines", {
+                    "payment_method": payment_method,
+                    "currency": "UZS",
+                    "amount": flt(self.paid_amount) * exchange_rate,
+                    "exchange_rate": exchange_rate,
+                })
+            else:
+                receipt.append("payment_lines", {
+                    "payment_method": payment_method,
+                    "currency": "USD",
+                    "amount": flt(self.paid_amount),
+                })
+
         receipt.insert()
         # Submit so on_submit fires (status=Завершен, allocate, cashbox sync).
         receipt.submit()

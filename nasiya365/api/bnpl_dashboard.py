@@ -55,7 +55,9 @@ _OPEN_SCHEDULE_STATUSES = ("Ожидает", "Частично", "Pending")
 
 # Collector lists: not only submitted (1); drafts often stay docstatus 0 until first payment flow.
 _COLLECTION_PLAN_WHERE = (
-    "ip.docstatus < 2 AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан', 'Отменен')"
+    "ip.docstatus < 2"
+    " AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан', 'Отменен')"
+    " AND IFNULL(ip.contract_status, '') != 'Отменен'"
 )
 
 
