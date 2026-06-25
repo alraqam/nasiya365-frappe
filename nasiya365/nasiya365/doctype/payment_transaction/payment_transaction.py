@@ -682,6 +682,9 @@ def get_customer_installment_plans(customer):
         LEFT JOIN `tabSales Order Item` soi
             ON soi.parent = ip.sales_order AND soi.idx = 1
         WHERE ip.customer = %s
+          AND ip.docstatus < 2
+          AND IFNULL(ip.status, '') != 'Отменен'
+          AND IFNULL(ip.contract_status, '') != 'Отменен'
           {branch_clause}
         ORDER BY ip.modified DESC
         """,
