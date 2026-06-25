@@ -1,0 +1,54 @@
+{
+    "actions": [],
+    "creation": "2026-06-25 00:00:00.000000",
+    "doctype": "DocType",
+    "editable_grid": 1,
+    "engine": "InnoDB",
+    "field_order": [
+        "shareholder_name",
+        "is_active",
+        "share_percent",
+        "capital_contributed"
+    ],
+    "fields": [
+        {
+            "fieldname": "shareholder_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Акционер",
+            "reqd": 1
+        },
+        {
+            "default": "1",
+            "fieldname": "is_active",
+            "fieldtype": "Check",
+            "in_list_view": 1,
+            "label": "Активен"
+        },
+        {
+            "description": "Используется при модели «Фиксированный процент». Сумма всех активных долей должна быть 100%.",
+            "fieldname": "share_percent",
+            "fieldtype": "Percent",
+            "in_list_view": 1,
+            "label": "Доля %"
+        },
+        {
+            "description": "Используется при модели «Пропорционально капиталу».",
+            "fieldname": "capital_contributed",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Вклад капитала"
+        }
+    ],
+    "index_web_pages_for_search": 0,
+    "istable": 1,
+    "links": [],
+    "modified": "2026-06-25 00:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Shareholder",
+    "owner": "Administrator",
+    "permissions": [],
+    "sort_field": "modified",
+    "sort_order": "DESC"
+}

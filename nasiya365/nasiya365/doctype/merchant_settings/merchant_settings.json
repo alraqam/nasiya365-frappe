@@ -40,7 +40,14 @@
         "column_break_5",
         "enable_payme",
         "payme_merchant_id",
-        "payme_secret_key"
+        "payme_secret_key",
+        "profit_section",
+        "profit_basis",
+        "interest_recognition",
+        "column_break_profit",
+        "shareholder_split_model",
+        "shareholders_section",
+        "shareholders"
     ],
     "fields": [
         {
@@ -251,6 +258,50 @@
             "fieldname": "payme_secret_key",
             "fieldtype": "Password",
             "label": "Payme Secret Key"
+        },
+        {
+            "fieldname": "profit_section",
+            "fieldtype": "Section Break",
+            "label": "Прибыль и акционеры"
+        },
+        {
+            "default": "Чистая прибыль",
+            "description": "Что входит в прибыль: «Чистая» = маржа + проценты − расходы; «Валовая» = маржа + проценты; «Только маржа» = цена продажи − себестоимость.",
+            "fieldname": "profit_basis",
+            "fieldtype": "Select",
+            "label": "База прибыли",
+            "options": "Чистая прибыль\nВаловая прибыль\nТолько маржа"
+        },
+        {
+            "default": "При продаже",
+            "description": "«При продаже» = все проценты признаются в момент оформления рассрочки (начисление). «При оплате» = только фактически собранные проценты.",
+            "fieldname": "interest_recognition",
+            "fieldtype": "Select",
+            "label": "Признание процентов",
+            "options": "При продаже\nПри оплате"
+        },
+        {
+            "fieldname": "column_break_profit",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "Фиксированный процент",
+            "description": "«Фиксированный процент» — доли заданы вручную. «Пропорционально капиталу» — доли считаются от вклада капитала.",
+            "fieldname": "shareholder_split_model",
+            "fieldtype": "Select",
+            "label": "Модель распределения",
+            "options": "Фиксированный процент\nПропорционально капиталу"
+        },
+        {
+            "fieldname": "shareholders_section",
+            "fieldtype": "Section Break",
+            "label": "Акционеры"
+        },
+        {
+            "fieldname": "shareholders",
+            "fieldtype": "Table",
+            "label": "Акционеры",
+            "options": "Shareholder"
         }
     ],
     "index_web_pages_for_search": 1,

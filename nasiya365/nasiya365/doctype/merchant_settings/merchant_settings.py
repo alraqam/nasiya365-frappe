@@ -11,7 +11,25 @@ class MerchantSettings(Document):
     def validate(self):
         self.validate_installment_months()
         self.validate_percentages()
-    
+        self.validate_shareholders()
+
+    def validate_shareholders(self):
+        """When using fixed-percentage split, active shares should sum to 100%."""
+        if (self.shareholder_split_model or "Фиксированный процент") != "Фиксированный процент":
+            return
+        active = [s for s in (self.shareholders or []) if s.is_active]
+        if not active:
+            return
+        total = sum(frappe.utils.flt(s.share_percent) for s in active)
+        if abs(total - 100) > 0.01:
+            frappe.msgprint(
+                frappe._("Сумма долей активных акционеров = {0}%. Обычно должна быть 100%.").format(
+                    frappe.utils.flt(total, 2)
+                ),
+                indicator="orange",
+                title=frappe._("Проверьте доли акционеров"),
+            )
+
     def validate_installment_months(self):
         if self.min_installment_months and self.max_installment_months:
             if self.min_installment_months > self.max_installment_months:
