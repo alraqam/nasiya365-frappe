@@ -36,7 +36,8 @@ def execute(filters=None):
         row(_("Валовая прибыль"), p["gross_profit"], bold=1),
         row(_("Операционные расходы") + ("" if p["expenses_in_profit"] else " (не входят в базу)"),
             -p["expenses"], indent=1),
-        row(_("ЧИСТАЯ ПРИБЫЛЬ") + f" ({p['profit_basis']})", p["net_profit"], bold=1),
+        row(_("ЧИСТАЯ ПРИБЫЛЬ") + f" ({p['profit_basis']} · {p.get('profit_method', '')})",
+            p["net_profit"], bold=1),
     ]
 
     report_summary = [

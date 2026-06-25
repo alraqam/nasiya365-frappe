@@ -43,7 +43,7 @@
         "payme_secret_key",
         "profit_section",
         "profit_basis",
-        "interest_recognition",
+        "profit_method",
         "column_break_profit",
         "shareholder_split_model",
         "shareholders_section",
@@ -273,12 +273,12 @@
             "options": "Чистая прибыль\nВаловая прибыль\nТолько маржа"
         },
         {
-            "default": "При продаже",
-            "description": "«При продаже» = все проценты признаются в момент оформления рассрочки (начисление). «При оплате» = только фактически собранные проценты.",
-            "fieldname": "interest_recognition",
+            "default": "По оплате (касса)",
+            "description": "«По оплате (касса)» = прибыль признаётся по мере фактического поступления денег за период. «При продаже (начисление)» = вся прибыль сделки признаётся в момент продажи.",
+            "fieldname": "profit_method",
             "fieldtype": "Select",
-            "label": "Признание процентов",
-            "options": "При продаже\nПри оплате"
+            "label": "Метод признания прибыли",
+            "options": "По оплате (касса)\nПри продаже (начисление)"
         },
         {
             "fieldname": "column_break_profit",
