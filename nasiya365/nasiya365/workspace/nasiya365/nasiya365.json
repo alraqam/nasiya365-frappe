@@ -1,6 +1,6 @@
 {
     "charts": [],
-    "content": "[{\"id\": \"heading-main\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Nasiya365</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-dashboard\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Дашборд\", \"col\": 6}}, {\"id\": \"shortcut-collections\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Коллекции\", \"col\": 6}}, {\"id\": \"heading-actions\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Быстрые действия</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-data-import\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Наличные продажи\", \"col\": 4}}, {\"id\": \"shortcut-accept-pay\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Принять платеж\", \"col\": 4}}, {\"id\": \"shortcut-new-client\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Новый клиент\", \"col\": 4}}, {\"id\": \"shortcut-payment-transaction\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Платежи\", \"col\": 4}}, {\"id\": \"shortcut-product\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Товары\", \"col\": 4}}, {\"id\": \"shortcut-installment-plan\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Рассрочка\", \"col\": 4}}, {\"id\": \"shortcut-merchant-settings\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Настройки\", \"col\": 4}}]",
+    "content": "[{\"id\": \"heading-main\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Nasiya365</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-dashboard\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u0414\\u0430\\u0448\\u0431\\u043e\\u0440\\u0434\", \"col\": 6}}, {\"id\": \"shortcut-collections\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u041a\\u043e\\u043b\\u043b\\u0435\\u043a\\u0446\\u0438\\u0438\", \"col\": 6}}, {\"id\": \"heading-actions\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>\\u0411\\u044b\\u0441\\u0442\\u0440\\u044b\\u0435 \\u0434\\u0435\\u0439\\u0441\\u0442\\u0432\\u0438\\u044f</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-data-import\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u041d\\u0430\\u043b\\u0438\\u0447\\u043d\\u044b\\u0435 \\u043f\\u0440\\u043e\\u0434\\u0430\\u0436\\u0438\", \"col\": 4}}, {\"id\": \"shortcut-accept-pay\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u041f\\u0440\\u0438\\u043d\\u044f\\u0442\\u044c \\u043f\\u043b\\u0430\\u0442\\u0435\\u0436\", \"col\": 4}}, {\"id\": \"shortcut-new-client\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u041d\\u043e\\u0432\\u044b\\u0439 \\u043a\\u043b\\u0438\\u0435\\u043d\\u0442\", \"col\": 4}}, {\"id\": \"shortcut-payment-transaction\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u041f\\u043b\\u0430\\u0442\\u0435\\u0436\\u0438\", \"col\": 4}}, {\"id\": \"shortcut-product\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u0422\\u043e\\u0432\\u0430\\u0440\\u044b\", \"col\": 4}}, {\"id\": \"shortcut-installment-plan\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u0420\\u0430\\u0441\\u0441\\u0440\\u043e\\u0447\\u043a\\u0430\", \"col\": 4}}, {\"id\": \"shortcut-merchant-settings\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u041d\\u0430\\u0441\\u0442\\u0440\\u043e\\u0439\\u043a\\u0438\", \"col\": 4}}, {\"id\": \"heading-reports\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>\\ud83d\\udcca \\u041e\\u0442\\u0447\\u0451\\u0442\\u044b</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-rep-pl\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u041f\\u0440\\u0438\\u0431\\u044b\\u043b\\u044c \\u0438 \\u0443\\u0431\\u044b\\u0442\\u043a\\u0438\", \"col\": 3}}, {\"id\": \"shortcut-rep-share\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u0420\\u0430\\u0441\\u043f\\u0440\\u0435\\u0434\\u0435\\u043b\\u0435\\u043d\\u0438\\u0435 \\u043f\\u0440\\u0438\\u0431\\u044b\\u043b\\u0438\", \"col\": 3}}, {\"id\": \"shortcut-rep-sales\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u041e\\u0442\\u0447\\u0451\\u0442 \\u043f\\u043e \\u043f\\u0440\\u043e\\u0434\\u0430\\u0436\\u0430\\u043c\", \"col\": 3}}, {\"id\": \"shortcut-rep-coll\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"\\u0421\\u0431\\u043e\\u0440\\u044b \\u0438 \\u043f\\u0440\\u043e\\u0441\\u0440\\u043e\\u0447\\u043a\\u0430\", \"col\": 3}}]",
     "creation": "2026-01-07 02:02:00.000000",
     "custom_blocks": [],
     "docstatus": 0,
@@ -263,6 +263,30 @@
             "doc_view": "",
             "label": "Прибыль и убытки",
             "link_to": "Profit and Loss Summary",
+            "type": "Report",
+            "report_ref_doctype": "Installment Plan"
+        },
+        {
+            "color": "Purple",
+            "doc_view": "",
+            "label": "Распределение прибыли",
+            "link_to": "Shareholder Distribution",
+            "type": "Report",
+            "report_ref_doctype": "Installment Plan"
+        },
+        {
+            "color": "Blue",
+            "doc_view": "",
+            "label": "Отчёт по продажам",
+            "link_to": "Sales Report",
+            "type": "Report",
+            "report_ref_doctype": "Sales Order"
+        },
+        {
+            "color": "Red",
+            "doc_view": "",
+            "label": "Сборы и просрочка",
+            "link_to": "Collections and Overdue",
             "type": "Report",
             "report_ref_doctype": "Installment Plan"
         }
