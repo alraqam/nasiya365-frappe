@@ -35,12 +35,16 @@ class SalesOrder(Document):
             frappe.throw(_("Укажите склад перед проведением заказа"))
 
     def on_submit(self):
+        self.status = "Подтвержден"
+        self.db_update()
         self.update_stock()
         # Skip creating payment transaction during import (legacy data)
         if not frappe.flags.in_import:
             self.create_cash_receipt()
-    
+
     def on_cancel(self):
+        self.status = "Отменен"
+        self.db_update()
         self.reverse_stock()
 
     def on_trash(self):
@@ -292,18 +296,6 @@ def _product_has_serialized_stock(product):
             (product,),
         )
     )
-
-
-def on_submit(doc, method):
-    """Hook called when Sales Order is submitted"""
-    doc.status = "Подтвержден"
-    doc.db_update()
-
-
-def on_cancel(doc, method):
-    """Hook called when Sales Order is cancelled"""
-    doc.status = "Отменен"
-    doc.db_update()
 
 
 @frappe.whitelist()
