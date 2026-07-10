@@ -336,6 +336,8 @@ def _nasiya365_workspace_sidebar_items():
     section("📦 Операции")
     link("Товары", "DocType", "Product", child=1)
     link("Склад", "DocType", "Stock Entry", child=1)
+    link("Поставщики", "DocType", "Supplier", child=1)
+    link("Оплата поставщикам", "DocType", "Supplier Payment", child=1)
     section("⚙️ Финансы")
     link("Расходы", "DocType", "Expense", child=1)
     link("Касса", "DocType", "Cashbox", child=1)
@@ -348,6 +350,7 @@ def _nasiya365_workspace_sidebar_items():
     link("Распределение прибыли", "Report", "Shareholder Distribution", child=1)
     link("Отчёт по продажам", "Report", "Sales Report", child=1)
     link("Сборы и просрочка", "Report", "Collections and Overdue", child=1)
+    link("Долги поставщикам", "Report", "Suppliers Payable", child=1)
     return out
 
 
