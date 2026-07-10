@@ -83,6 +83,7 @@ class StockEntry(Document):
 		self.calculate_totals()
 		self.set_items_summary()
 		self.set_business_status()
+		self.set_payment_status()
 
 	def _has_business_status_field(self):
 		return bool(self.meta.get_field("business_status"))
@@ -206,6 +207,24 @@ class StockEntry(Document):
 		elif self.docstatus == 1 and not (getattr(self, "business_status", None) or "").strip():
 			self.business_status = "В наличии"
 	
+	def set_payment_status(self):
+		"""Recompute balance_due/payment_status from total_value - paid_amount.
+
+		paid_amount itself is only ever changed externally (by Supplier Payment
+		allocation, via frappe.db.set_value) -- never reset here, only read, so a
+		later edit that changes total_value (e.g. correcting an item's rate)
+		still nets correctly against whatever has already been paid.
+		"""
+		if self.entry_type != "Поступление" or not self.meta.get_field("balance_due"):
+			return
+		self.balance_due = flt(self.total_value) - flt(self.paid_amount)
+		if flt(self.paid_amount) <= 0:
+			self.payment_status = "Не оплачено"
+		elif self.balance_due <= 0.001:
+			self.payment_status = "Оплачено"
+		else:
+			self.payment_status = "Частично оплачено"
+
 	def update_stock_ledger(self, cancel=False):
 		"""Create stock ledger entries"""
 		for item in self.items:

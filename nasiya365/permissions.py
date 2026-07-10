@@ -323,6 +323,16 @@ def stock_entry_query(user: str = None) -> str:
     )
 
 
+def supplier_payment_query(user: str = None) -> str:
+    user = user or frappe.session.user
+    if _is_unrestricted(user):
+        return ""
+    branches = _get_user_branches(user)
+    if not branches:
+        return "1=0"
+    return _branch_in("Supplier Payment", branches)
+
+
 # ---------------------------------------------------------------------------
 # has_permission — document-level checks
 # ---------------------------------------------------------------------------
@@ -427,3 +437,7 @@ def has_stock_entry_permission(doc, ptype: str, user: str) -> bool:
         return False
     wh_branch = frappe.db.get_value("Warehouse", doc.warehouse, "branch")
     return bool(wh_branch) and wh_branch in branches
+
+
+def has_supplier_payment_permission(doc, ptype: str, user: str) -> bool:
+    return _check_branch(doc, user)

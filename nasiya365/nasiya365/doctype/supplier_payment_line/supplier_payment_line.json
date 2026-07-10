@@ -1,0 +1,62 @@
+{
+    "actions": [],
+    "creation": "2026-07-10 11:01:48.538512",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "payment_method",
+        "currency",
+        "amount",
+        "exchange_rate"
+    ],
+    "fields": [
+        {
+            "default": "Наличные USD",
+            "fieldname": "payment_method",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Метод оплаты",
+            "options": "Наличные USD\nАкксессуар касса\nНаличные UZS\nКарта\nClick\nPayme\nПеревод\nТерминал",
+            "reqd": 1
+        },
+        {
+            "default": "USD",
+            "fieldname": "currency",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "label": "Валюта",
+            "options": "USD\nUZS",
+            "reqd": 1
+        },
+        {
+            "fieldname": "amount",
+            "fieldtype": "Float",
+            "in_list_view": 1,
+            "label": "Сумма",
+            "non_negative": 1,
+            "precision": "2",
+            "reqd": 1
+        },
+        {
+            "description": "Для строк UZS: UZS за 1 USD",
+            "fieldname": "exchange_rate",
+            "fieldtype": "Float",
+            "label": "Курс",
+            "non_negative": 1,
+            "precision": "2"
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "istable": 1,
+    "links": [],
+    "modified": "2026-07-10 11:01:48.538512",
+    "modified_by": "Administrator",
+    "module": "nasiya365",
+    "name": "Supplier Payment Line",
+    "owner": "Administrator",
+    "permissions": [],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": [],
+    "track_changes": 1
+}

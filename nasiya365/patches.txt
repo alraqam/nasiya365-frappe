@@ -1,3 +1,4 @@
+[pre_model_sync]
 nasiya365.patches.v1_0_0.migrate_installment_plan_stock_entry_to_sei.execute
 nasiya365.patches.v1_0_0.run_repair_all_prod
 nasiya365.patches.v1_0_0.rebuild_stock_entry_items_summary
@@ -9,3 +10,6 @@ nasiya365.patches.v1_0_0.migrate_installment_plans_to_submittable.execute
 nasiya365.patches.v1_0_0.migrate_payment_transactions_to_submittable.execute
 nasiya365.patches.v1_0_0.sync_branch_user_system_roles.execute
 nasiya365.patches.v1_0_0.backfill_sales_order_status.execute
+
+[post_model_sync]
+nasiya365.patches.v1_0_0.backfill_stock_entry_supplier_balance.execute

@@ -47,6 +47,7 @@ doctype_js = {
     "Installment Plan": "public/js/installment_plan.js",
     "Cashbox": "public/js/cashbox.js",
     "Cash Handover": "public/js/cash_handover.js",
+    "Supplier": "public/js/supplier.js",
 }
 
 doctype_list_js = {
@@ -207,6 +208,7 @@ permission_query_conditions = {
     "Customer Profile": "nasiya365.permissions.customer_profile_query",
     "Stock Entry": "nasiya365.permissions.stock_entry_query",
     "Trade In": "nasiya365.permissions.trade_in_query",
+    "Supplier Payment": "nasiya365.permissions.supplier_payment_query",
 }
 
 has_permission = {
@@ -221,6 +223,7 @@ has_permission = {
     "Customer Profile": "nasiya365.permissions.has_customer_profile_permission",
     "Stock Entry": "nasiya365.permissions.has_stock_entry_permission",
     "Trade In": "nasiya365.permissions.has_trade_in_permission",
+    "Supplier Payment": "nasiya365.permissions.has_supplier_payment_permission",
 }
 
 # DocType User Permissions
