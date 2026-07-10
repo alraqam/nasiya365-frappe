@@ -157,14 +157,18 @@ class StockEntry(Document):
 	
 	def on_submit(self):
 		"""Update stock ledger when submitted"""
-		if self._has_business_status_field():
+		# Only apply the default when the operator never picked a real status —
+		# "Черновик" is the draft-time default, not a deliberate choice, so it
+		# still needs replacing; anything else (e.g. a manually corrected value)
+		# is respected instead of being silently overwritten.
+		if self._has_business_status_field() and (self.business_status or "").strip() in ("", "Черновик"):
 			self.business_status = "В наличии"
 			self.db_update()
 		self.update_stock_ledger()
-	
+
 	def on_cancel(self):
 		"""Reverse stock ledger entries when cancelled"""
-		if self._has_business_status_field():
+		if self._has_business_status_field() and (self.business_status or "").strip() in ("", "Черновик"):
 			self.business_status = "Возврат"
 			self.db_update()
 		self.update_stock_ledger(cancel=True)

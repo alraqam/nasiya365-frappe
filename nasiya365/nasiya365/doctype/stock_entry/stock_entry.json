@@ -35,12 +35,12 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "business_status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Бизнес статус",
-   "options": "Черновик\nВ наличии\nЧастично продан\nНаличные\nРассрочка\nВозврат",
-   "read_only_depends_on": "eval:doc.docstatus!==0"
+   "options": "Черновик\nВ наличии\nЧастично продан\nНаличные\nРассрочка\nВозврат"
   },
   {
    "default": "Today",
@@ -148,7 +148,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-02-14 15:11:00.000000",
+ "modified": "2026-07-10 10:41:15.592034",
  "modified_by": "Administrator",
  "module": "nasiya365",
  "name": "Stock Entry",
