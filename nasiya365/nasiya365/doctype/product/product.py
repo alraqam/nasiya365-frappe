@@ -80,14 +80,14 @@ def get_stock_balance(product, warehouse=None):
     Get current stock balance for a product
     Returns: {'quantity': int, 'value': float}
     """
-    filters = {"product": product}
-    if warehouse:
-        filters["warehouse"] = warehouse
-    
+    # Net movement (quantity_change), not SUM(balance_quantity) -- the latter is a
+    # cumulative running-balance snapshot stored on each row, so summing it across
+    # rows re-adds every past balance instead of netting the actual stock movement,
+    # inflating "available" quantity for any product with more than one ledger entry.
     result = frappe.db.sql("""
-        SELECT 
-            COALESCE(SUM(balance_quantity), 0) as quantity,
-            COALESCE(SUM(balance_quantity * valuation_rate), 0) as value
+        SELECT
+            COALESCE(SUM(quantity_change), 0) as quantity,
+            COALESCE(SUM(quantity_change * valuation_rate), 0) as value
         FROM `tabStock Ledger`
         WHERE product = %s
         {warehouse_filter}
@@ -95,7 +95,7 @@ def get_stock_balance(product, warehouse=None):
     """.format(
         warehouse_filter="AND warehouse = %s" if warehouse else ""
     ), (product, warehouse) if warehouse else (product,), as_dict=True)
-    
+
     if result:
         return result[0]
     return {"quantity": 0, "value": 0}
