@@ -133,12 +133,32 @@ class SalesOrder(Document):
     
     def validate_imei_not_reserved(self):
         """Block saving if an item's IMEI is already taken by another draft/submitted
-        order, a warehouse issue (Отпуск), or an open installment plan."""
+        order, a warehouse issue (Отпуск), or an open installment plan.
+
+        Also requires an IMEI for products that are stocked with serial numbers —
+        without this, a sale with a blank IMEI is invisible to every "already sold"
+        check (they all match on the IMEI string), so the specific unit that was
+        shipped keeps showing up as available in the stock picker as long as other
+        units of the same product remain in stock.
+        """
         from nasiya365.api.bnpl_dashboard import _purchase_serial_tracks_consumed
 
         for item in self.items:
             imei = (item.imei or "").strip()
             if not imei:
+                if (
+                    not frappe.flags.in_import
+                    and item.product
+                    and self.warehouse
+                    and _product_has_serialized_stock(item.product)
+                ):
+                    pname = item.product_name or item.product
+                    frappe.throw(
+                        _(
+                            "Укажите IMEI для {0} — товар отслеживается по серийному номеру. "
+                            "Выберите конкретную единицу через «Поступление на склад»."
+                        ).format(pname)
+                    )
                 continue
             if _purchase_serial_tracks_consumed(imei, "", self.name or ""):
                 pname = item.product_name or item.product
@@ -197,7 +217,7 @@ class SalesOrder(Document):
         ledger.reference_name = reference
         ledger.posting_date = today()
         ledger.insert(ignore_permissions=True)
-    
+
     def create_cash_receipt(self):
         """Create payment transaction. Supports single method or split payment_lines."""
         from nasiya365.nasiya365.doctype.payment_transaction.payment_transaction import (
@@ -254,6 +274,19 @@ class SalesOrder(Document):
         receipt.insert()
         # Submit so on_submit fires (status=Завершен, allocate, cashbox sync).
         receipt.submit()
+
+
+def _product_has_serialized_stock(product):
+    """True if this product has ever been received with an IMEI — i.e. it's a
+    unit tracked by serial number, not bulk/accessory stock."""
+    return bool(
+        frappe.db.sql(
+            """SELECT 1 FROM `tabStock Entry Item`
+               WHERE product = %s AND NULLIF(TRIM(imei), '') IS NOT NULL
+               LIMIT 1""",
+            (product,),
+        )
+    )
 
 
 def on_submit(doc, method):
