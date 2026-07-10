@@ -28,6 +28,11 @@ class SalesOrder(Document):
             return
         if flt(self.balance_amount) > 0:
             frappe.throw(_("Заказ должен быть полностью оплачен перед проведением (продажа только за наличные)"))
+        if not self.warehouse:
+            # update_stock() writes ledger rows keyed on self.warehouse; a blank
+            # warehouse writes a row no future balance check will ever match,
+            # so the sold item stays "in stock" forever for its real warehouse.
+            frappe.throw(_("Укажите склад перед проведением заказа"))
 
     def on_submit(self):
         self.update_stock()
