@@ -48,6 +48,7 @@ doctype_js = {
     "Cashbox": "public/js/cashbox.js",
     "Cash Handover": "public/js/cash_handover.js",
     "Supplier": "public/js/supplier.js",
+    "Supplier Payment": "public/js/supplier_payment.js",
 }
 
 doctype_list_js = {
