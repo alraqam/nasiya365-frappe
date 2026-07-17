@@ -1003,71 +1003,100 @@ def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Налич�
     return {"name": payment.name, "plan": plan_name}
 
 
+def _norm_imei_sql(col):
+    """Normalized IMEI SQL expression (trim, upper, strip spaces) for exact matching."""
+    return f"REPLACE(UPPER(TRIM({col})), ' ', '')"
+
+
+def _serial_reserved_sql(imei_expr, so_excl_sql="''", plan_excl_sql="''"):
+    """
+    SQL boolean that is TRUE when the serial `imei_expr` is currently RESERVED — i.e.
+    sold / issued and NOT bought back.
+
+    Rule: the serial is reserved iff there is a CONSUMPTION (submitted-or-draft Sales
+    Order, open Installment Plan, or warehouse issue «Отпуск») that has NO later
+    ACQUISITION («Поступление»/«Корректировка», docstatus=1) of the same serial. A
+    buy-back (acquisition dated after the sale) therefore frees the serial again, while
+    a mere duplicate receipt (dated before the sale) does not — so a phone can never be
+    sold twice without a real re-acquisition in between.
+
+    Fail-safe on dirty data: a consumption with a missing date is treated as the most
+    recent event (stays reserved); an acquisition with a missing date never frees it.
+    Matching is exact on the normalized IMEI (no last-6 fuzz), so a different phone that
+    happens to share the last six digits never interferes.
+
+      imei_expr     : SQL for the target normalized IMEI ('%(imei)s' or NORM(col)).
+      so_excl_sql   : SQL for the Sales Order name to exclude ('%(so)s' or "''").
+      plan_excl_sql : SQL for the Installment Plan name to exclude.
+    """
+    ni = imei_expr
+
+    def _no_later_acquisition(cons_date_sql):
+        # No «Поступление»/«Корректировка» of this serial dated after the consumption.
+        # NULL acquisition date never frees; NULL consumption date stays reserved.
+        return f"""NOT EXISTS (
+            SELECT 1 FROM `tabStock Entry Item` a_i
+            JOIN `tabStock Entry` a_e ON a_e.name = a_i.parent
+            WHERE a_e.docstatus = 1
+              AND a_e.entry_type IN ('Поступление', 'Корректировка')
+              AND NULLIF(TRIM(a_i.imei), '') IS NOT NULL
+              AND {_norm_imei_sql('a_i.imei')} = {ni}
+              AND COALESCE(a_e.posting_date, '0001-01-01') > COALESCE({cons_date_sql}, '9999-12-31')
+        )"""
+
+    # Correlated EXISTS (no derived table -> works without LATERAL). Reserved iff some
+    # consumption of the serial has no later acquisition.
+    return f"""
+    (
+        EXISTS (
+            SELECT 1 FROM `tabSales Order Item` soi
+            JOIN `tabSales Order` so ON so.name = soi.parent
+            WHERE IFNULL(so.docstatus, 0) < 2
+              AND ({so_excl_sql} = '' OR so.name != {so_excl_sql})
+              AND NULLIF(TRIM(soi.imei), '') IS NOT NULL
+              AND {_norm_imei_sql('soi.imei')} = {ni}
+              AND {_no_later_acquisition('so.order_date')}
+        )
+        OR EXISTS (
+            SELECT 1 FROM `tabInstallment Plan` ip
+            WHERE IFNULL(ip.docstatus, 0) < 2
+              AND IFNULL(ip.contract_status, '') != 'Отменен'
+              AND ({plan_excl_sql} = '' OR ip.name != {plan_excl_sql})
+              AND NULLIF(TRIM(ip.imei), '') IS NOT NULL
+              AND {_norm_imei_sql('ip.imei')} = {ni}
+              AND {_no_later_acquisition('ip.start_date')}
+        )
+        OR EXISTS (
+            SELECT 1 FROM `tabStock Entry Item` oxi
+            JOIN `tabStock Entry` ox ON ox.name = oxi.parent
+            WHERE ox.docstatus = 1 AND ox.entry_type = 'Отпуск'
+              AND NULLIF(TRIM(oxi.imei), '') IS NOT NULL
+              AND {_norm_imei_sql('oxi.imei')} = {ni}
+              AND {_no_later_acquisition('ox.posting_date')}
+        )
+    )
+    """
+
+
 def _purchase_serial_tracks_consumed(serial_raw, exclude_installment_plan_name="", exclude_sales_order_name=""):
     """
-    Serial / IMEI already tied to a sale (SO, including drafts), warehouse issue (Отпуск),
-    or another open plan (import IMEI only).
+    TRUE when the serial is currently RESERVED (sold / issued and not bought back), so a
+    new sale of it must be blocked. Kept name + signature so all callers stay unchanged.
+    See _serial_reserved_sql for the exact rule (buy-back-aware, fail-safe, exact IMEI).
     """
     s = (serial_raw or "").strip().replace(" ", "").upper()
     if not s:
         return False
-    tail6 = s[-6:] if len(s) >= 6 else s
-
-    if frappe.db.sql(
-        """
-        SELECT 1 FROM `tabStock Entry Item` oxi
-        INNER JOIN `tabStock Entry` ox ON ox.name = oxi.parent
-        WHERE ox.docstatus = 1 AND ox.entry_type = 'Отпуск'
-          AND NULLIF(TRIM(oxi.imei), '') IS NOT NULL
-          AND (
-            REPLACE(UPPER(TRIM(oxi.imei)), ' ', '') = %s
-            OR RIGHT(REPLACE(UPPER(TRIM(oxi.imei)), ' ', ''), 6) = %s
-          )
-        LIMIT 1
-        """,
-        (s, tail6),
-    ):
-        return True
-
-    so_excl = exclude_sales_order_name or ""
-    if frappe.db.sql(
-        """
-        SELECT 1 FROM `tabSales Order Item` soi
-        INNER JOIN `tabSales Order` so ON so.name = soi.parent
-        WHERE IFNULL(so.docstatus, 0) < 2
-          AND (%s = '' OR so.name != %s)
-          AND NULLIF(TRIM(soi.imei), '') IS NOT NULL
-          AND (
-            REPLACE(UPPER(TRIM(soi.imei)), ' ', '') = %s
-            OR REPLACE(UPPER(TRIM(soi.imei)), ' ', '') = %s
-            OR RIGHT(REPLACE(UPPER(TRIM(soi.imei)), ' ', ''), 6) = %s
-          )
-        LIMIT 1
-        """,
-        (so_excl, so_excl, s, tail6, tail6),
-    ):
-        return True
-
-    plan = exclude_installment_plan_name or ""
-    if frappe.db.sql(
-        """
-        SELECT 1 FROM `tabInstallment Plan` ip
-        WHERE IFNULL(ip.docstatus, 0) < 2
-          AND (%s = '' OR ip.name != %s)
-          AND NULLIF(TRIM(ip.imei), '') IS NOT NULL
-          AND IFNULL(TRIM(ip.stock_entry), '') = ''
-          AND (
-            REPLACE(UPPER(TRIM(ip.imei)), ' ', '') = %s
-            OR REPLACE(UPPER(TRIM(ip.imei)), ' ', '') = %s
-            OR RIGHT(REPLACE(UPPER(TRIM(ip.imei)), ' ', ''), 6) = %s
-          )
-        LIMIT 1
-        """,
-        (plan, plan, s, tail6, tail6),
-    ):
-        return True
-
-    return False
+    sql = "SELECT " + _serial_reserved_sql("%(imei)s", "%(so)s", "%(plan)s")
+    res = frappe.db.sql(
+        sql,
+        {
+            "imei": s,
+            "so": exclude_sales_order_name or "",
+            "plan": exclude_installment_plan_name or "",
+        },
+    )
+    return bool(res and res[0][0])
 
 
 def installment_plan_stock_ref_to_parent(ref: str | None) -> str | None:
@@ -1179,53 +1208,25 @@ def assert_stock_entry_available_for_installment_plan(stock_entry, current_plan_
 
 
 def _stock_entry_item_row_free_sql():
-    """SQL fragment: one `sei` row is still available for a BNPL link (same rules as before, per line)."""
-    return """
+    """
+    SQL fragment: one `sei` row is still available for a BNPL link.
+
+    Available = product has positive stock in the ledger, the serial is not currently
+    reserved (sold/issued and not bought back — see _serial_reserved_sql, buy-back aware),
+    and this exact row is not already linked to another open plan. Kept consistent with
+    the Python `_purchase_serial_tracks_consumed` so the picker and save-validation agree.
+    The two `%s` from the reserved fragment and the two from the per-row check are all the
+    same plan name, so their order in the args tuple does not matter.
+    """
+    reserved = _serial_reserved_sql(_norm_imei_sql("sei.imei"), so_excl_sql="''", plan_excl_sql="%s")
+    return f"""
       IFNULL((
           SELECT SUM(sl.quantity_change) FROM `tabStock Ledger` sl
           WHERE sl.product = sei.product AND sl.warehouse = se.warehouse
       ), 0) > 0
-      AND NOT (
-          NULLIF(TRIM(sei.imei), '') IS NOT NULL
-          AND (
-              EXISTS (
-                  SELECT 1 FROM `tabStock Entry Item` oxi
-                  INNER JOIN `tabStock Entry` ox ON ox.name = oxi.parent
-                  WHERE ox.docstatus = 1 AND ox.entry_type = 'Отпуск'
-                    AND NULLIF(TRIM(oxi.imei), '') IS NOT NULL
-                    AND (
-                      REPLACE(UPPER(TRIM(oxi.imei)), ' ', '') = REPLACE(UPPER(TRIM(sei.imei)), ' ', '')
-                      OR RIGHT(REPLACE(UPPER(TRIM(oxi.imei)), ' ', ''), 6)
-                       = RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6)
-                    )
-              )
-              OR EXISTS (
-                  SELECT 1 FROM `tabSales Order Item` soi
-                  INNER JOIN `tabSales Order` so_order ON so_order.name = soi.parent
-                  WHERE IFNULL(so_order.docstatus, 0) < 2
-                    AND NULLIF(TRIM(soi.imei), '') IS NOT NULL
-                    AND (
-                      REPLACE(UPPER(TRIM(soi.imei)), ' ', '') = REPLACE(UPPER(TRIM(sei.imei)), ' ', '')
-                      OR REPLACE(UPPER(TRIM(soi.imei)), ' ', '')
-                       = RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6)
-                      OR RIGHT(REPLACE(UPPER(TRIM(soi.imei)), ' ', ''), 6)
-                       = RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6)
-                    )
-              )
-              OR EXISTS (
-                  SELECT 1 FROM `tabInstallment Plan` ip2
-                  WHERE IFNULL(ip2.docstatus, 0) < 2
-                    AND (%s = '' OR ip2.name != %s)
-                    AND NULLIF(TRIM(ip2.imei), '') IS NOT NULL
-                    AND (
-                      REPLACE(UPPER(TRIM(ip2.imei)), ' ', '') = REPLACE(UPPER(TRIM(sei.imei)), ' ', '')
-                      OR REPLACE(UPPER(TRIM(ip2.imei)), ' ', '')
-                       = RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6)
-                      OR RIGHT(REPLACE(UPPER(TRIM(ip2.imei)), ' ', ''), 6)
-                       = RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6)
-                    )
-              )
-          )
+      AND (
+          NULLIF(TRIM(sei.imei), '') IS NULL
+          OR NOT ({reserved})
       )
       AND NOT EXISTS (
           SELECT 1 FROM `tabInstallment Plan` ipx
@@ -1237,11 +1238,7 @@ def _stock_entry_item_row_free_sql():
               ipx.stock_entry = sei.name
               OR (
                 ipx.stock_entry = se.name
-                AND (
-                  REPLACE(UPPER(TRIM(ipx.imei)), ' ', '') = REPLACE(UPPER(TRIM(sei.imei)), ' ', '')
-                  OR RIGHT(REPLACE(UPPER(TRIM(ipx.imei)), ' ', ''), 6)
-                   = RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6)
-                )
+                AND {_norm_imei_sql('ipx.imei')} = {_norm_imei_sql('sei.imei')}
               )
             )
       )
