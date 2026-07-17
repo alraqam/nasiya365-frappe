@@ -28,6 +28,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Bypass the frappe v16 base-image entrypoint. It runs `rm -rf sites/assets`
+    # and re-symlinks it to the baked assets. That fails with "Device or resource
+    # busy" because we mount the `assets` volume at sites/assets, and it would also
+    # replace our built nasiya365 assets with the stale baked ones. Run cmd directly.
+    entrypoint: ["/bin/bash", "-c", "exec \"$@\"", "--"]
     command: |
       sh -c "
       # Create site if it does not exist (creates DB, installs nasiya365, sets default_site)
@@ -70,6 +75,9 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: always
+    # Bypass the v16 base-image entrypoint (see `setup` service) so it does not try
+    # to `rm -rf` the mounted assets volume on start.
+    entrypoint: ["/bin/bash", "-c", "exec \"$@\"", "--"]
     command: >
       sh -c "cd sites && ../env/bin/gunicorn -b 0.0.0.0:8000 -w 4 -t 120 frappe.app:application --preload"
     depends_on:
@@ -97,6 +105,9 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: always
+    # Bypass the v16 base-image entrypoint (see `setup` service) so it does not try
+    # to `rm -rf` the mounted assets volume before nginx starts.
+    entrypoint: ["/bin/bash", "-c", "exec \"$@\"", "--"]
     command:
       - nginx-entrypoint.sh
     volumes:

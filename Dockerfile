@@ -45,6 +45,14 @@ RUN mkdir -p /home/frappe/assets_cache && \
     cp -r sites/assets/* /home/frappe/assets_cache/ && \
     chown -R frappe:frappe /home/frappe/assets_cache
 
+# Sync the freshly-built assets into the v16 "baked" path that the base-image
+# entrypoint symlinks `sites/assets` -> at runtime, and from which the backend
+# reads assets.json. Without this it keeps the STALE base-image build, so the
+# HTML references CSS hashes that don't exist on disk -> 404 -> unstyled site.
+RUN rm -rf /home/frappe/frappe-bench/assets && \
+    cp -a /home/frappe/frappe-bench/sites/assets /home/frappe/frappe-bench/assets && \
+    chown -R frappe:frappe /home/frappe/frappe-bench/assets
+
 USER frappe
 # Copy init script
 COPY --chown=frappe:frappe init-site.sh /home/frappe/init-site.sh
