@@ -42,31 +42,118 @@ def _normalize_imei(imei):
     return (imei or "").strip().replace(" ", "").upper()
 
 
-def _cogs_for_imei(imei):
-    """Cost of goods for a single device, located by IMEI in Stock Entry Item."""
+def _cogs_for_imei(imei, as_of_date=None):
+    """
+    Cost of goods for a single device, located by IMEI in Stock Entry Item.
+
+    When the same IMEI was purchased more than once (device bought -> sold ->
+    bought again), the two cycles must NOT collapse. So:
+      - prefer an exact full-IMEI match over the fuzzy last-6-digits match;
+      - among matches, pick the most recent purchase on/before the sale date
+        (`as_of_date`) -- the lot the device was actually bought into for THAT
+        sale -- instead of an arbitrary `LIMIT 1` row.
+    Falls back to the most recent purchase overall when no dated match exists.
+    """
     s = _normalize_imei(imei)
     if not s:
         return 0.0
     tail6 = s[-6:] if len(s) >= 6 else s
-    row = frappe.db.sql(
-        """
-        SELECT COALESCE(sei.amount, 0) + COALESCE(sei.expense, 0) AS cost
-        FROM `tabStock Entry Item` sei
-        WHERE REPLACE(UPPER(TRIM(sei.imei)), ' ', '') = %s
-           OR RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6) = %s
-        LIMIT 1
-        """,
-        (s, tail6),
-    )
+
+    def _lookup(with_date):
+        date_clause = "AND se.posting_date <= %s" if with_date else ""
+        params = [s, s, tail6]
+        if with_date:
+            params.append(with_date)
+        return frappe.db.sql(
+            f"""
+            SELECT COALESCE(sei.amount, 0) + COALESCE(sei.expense, 0) AS cost,
+                   CASE WHEN REPLACE(UPPER(TRIM(sei.imei)), ' ', '') = %s
+                        THEN 0 ELSE 1 END AS match_rank
+            FROM `tabStock Entry Item` sei
+            JOIN `tabStock Entry` se ON se.name = sei.parent
+            WHERE se.docstatus < 2
+              AND (
+                    REPLACE(UPPER(TRIM(sei.imei)), ' ', '') = %s
+                    OR RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6) = %s
+                  )
+              {date_clause}
+            ORDER BY match_rank ASC, se.posting_date DESC, se.posting_time DESC, sei.idx DESC
+            LIMIT 1
+            """,
+            params,
+        )
+
+    row = _lookup(getdate(as_of_date)) if as_of_date else _lookup(None)
+    if not row and as_of_date:
+        # No purchase on/before the sale date -> fall back to the latest overall.
+        row = _lookup(None)
     return flt(row[0][0]) if row else 0.0
 
 
-def _cogs_for_sales_order(so_name):
-    """Sum COGS across all items on a cash Sales Order, by each item's IMEI."""
+def _cogs_from_stock_ref(ref, imei=None):
+    """
+    Precise COGS from an explicit purchase reference (the sale's `stock_entry`),
+    which pins the sale to the exact lot it was sold from -- unambiguous even
+    when the same IMEI was bought several times. Returns None when it cannot
+    resolve, so callers fall back to the IMEI lookup.
+
+    `ref` may be a Stock Entry Item row name (preferred) or a parent Stock Entry.
+    """
+    if not ref:
+        return None
+    if frappe.db.exists("Stock Entry Item", ref):
+        r = frappe.db.get_value(
+            "Stock Entry Item", ref, ["amount", "expense"], as_dict=True
+        )
+        if r:
+            return flt(r.amount) + flt(r.expense)
+    if frappe.db.exists("Stock Entry", ref):
+        items = frappe.db.get_all(
+            "Stock Entry Item", filters={"parent": ref},
+            fields=["imei", "amount", "expense"], order_by="idx asc",
+        )
+        if items:
+            if imei:
+                s = _normalize_imei(imei)
+                tail6 = s[-6:] if len(s) >= 6 else s
+                for it in items:
+                    n = _normalize_imei(it.imei)
+                    if n and (n == s or (len(n) >= 6 and n[-6:] == tail6)):
+                        return flt(it.amount) + flt(it.expense)
+            if len(items) == 1:
+                return flt(items[0].amount) + flt(items[0].expense)
+    return None
+
+
+def _cogs_for_sale_item(imei, stock_ref=None, as_of_date=None):
+    """
+    COGS for one sold unit -- the single entry point used across the engine.
+      A) exact purchase via the sale's `stock_entry` link, when present;
+      B) otherwise a date-aware IMEI match (nearest purchase on/before the sale).
+    """
+    cost = _cogs_from_stock_ref(stock_ref, imei)
+    if cost is not None:
+        return cost
+    return _cogs_for_imei(imei, as_of_date)
+
+
+def _cogs_for_sales_order(so_name, as_of_date=None):
+    """
+    Sum COGS across all items on a cash Sales Order.
+
+    Uses the order's own `stock_entry` link for single-line orders (exact lot),
+    and a date-aware IMEI match otherwise, so repeated purchases of the same
+    IMEI resolve to the correct buy/sell cycle.
+    """
+    so = frappe.db.get_value(
+        "Sales Order", so_name, ["stock_entry", "order_date"], as_dict=True
+    ) or frappe._dict()
+    as_of = as_of_date or so.get("order_date")
     items = frappe.db.get_all(
         "Sales Order Item", filters={"parent": so_name}, fields=["imei"]
     )
-    return sum(_cogs_for_imei(it.imei) for it in items)
+    single_ref = so.get("stock_entry") if len(items) == 1 else None
+    return sum(_cogs_for_sale_item(it.imei, single_ref, as_of) for it in items)
 
 
 def _branch_clause_for(alias):
@@ -107,7 +194,7 @@ def _plan_profit(plan):
     Returns (embedded_margin, total_interest, denominator).
     denominator = total contract value the customer pays (principal + interest).
     """
-    cogs = _cogs_for_imei(plan.imei)
+    cogs = _cogs_for_sale_item(plan.imei, plan.get("stock_entry"), plan.get("start_date"))
     revenue = flt(plan.principal_amount) or flt(plan.financed_amount)
     embedded_margin = revenue - cogs
     interest = flt(plan.total_interest)
@@ -244,7 +331,8 @@ def _compute_cash(from_date, to_date, branch):
                 plan = frappe.db.get_value(
                     "Installment Plan", pay.rn,
                     ["imei", "principal_amount", "financed_amount", "total_interest",
-                     "total_amount", "status", "contract_status"],
+                     "total_amount", "status", "contract_status",
+                     "stock_entry", "start_date"],
                     as_dict=True,
                 )
                 plan_cache[pay.rn] = plan
@@ -297,7 +385,7 @@ def _compute_accrual(from_date, to_date, branch):
     plans = frappe.db.sql(
         f"""
         SELECT ip.name, ip.imei, ip.principal_amount, ip.total_interest,
-               ip.financed_amount, ip.total_amount
+               ip.financed_amount, ip.total_amount, ip.stock_entry, ip.start_date
         FROM `tabInstallment Plan` ip
         WHERE ip.docstatus = 1
           AND IFNULL(ip.status, '') IN ({in_status})
@@ -313,7 +401,7 @@ def _compute_accrual(from_date, to_date, branch):
     for p in plans:
         revenue = flt(p.principal_amount) or flt(p.financed_amount)
         financed_revenue += revenue
-        financed_cogs += _cogs_for_imei(p.imei)
+        financed_cogs += _cogs_for_sale_item(p.imei, p.get("stock_entry"), p.get("start_date"))
         interest_income += flt(p.total_interest)
     financed_margin = financed_revenue - financed_cogs
 

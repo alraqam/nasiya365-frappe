@@ -4,7 +4,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, today, add_months
 
-from nasiya365.api.profit import _cogs_for_imei, _cogs_for_sales_order
+from nasiya365.api.profit import _cogs_for_sale_item, _cogs_for_sales_order
 from nasiya365.api.profit import _sales_order_user_clause, _branch_clause_for
 
 _LIVE_PLAN_STATUSES = ("Активный", "Просрочен", "Завершен")
@@ -62,7 +62,7 @@ def execute(filters=None):
                 "Sales Order Item", {"parent": so.name, "idx": 1}, "product_name"
             )
             revenue = flt(so.total_amount)
-            cogs = _cogs_for_sales_order(so.name)
+            cogs = _cogs_for_sales_order(so.name, so.order_date)
             data.append({
                 "sale_date": so.order_date,
                 "sale_type": _("Наличные"),
@@ -87,7 +87,7 @@ def execute(filters=None):
             f"""
             SELECT ip.name, ip.start_date, ip.customer_name, ip.imei,
                    ip.product_name, ip.principal_amount, ip.financed_amount,
-                   ip.sales_order,
+                   ip.sales_order, ip.stock_entry,
                    (SELECT branch FROM `tabSales Order` so WHERE so.name = ip.sales_order) AS branch,
                    (SELECT salesperson FROM `tabSales Order` so WHERE so.name = ip.sales_order) AS salesperson
             FROM `tabInstallment Plan` ip
@@ -104,7 +104,7 @@ def execute(filters=None):
         )
         for p in plans:
             revenue = flt(p.principal_amount) or flt(p.financed_amount)
-            cogs = _cogs_for_imei(p.imei)
+            cogs = _cogs_for_sale_item(p.imei, p.stock_entry, p.start_date)
             data.append({
                 "sale_date": p.start_date,
                 "sale_type": _("Рассрочка"),
