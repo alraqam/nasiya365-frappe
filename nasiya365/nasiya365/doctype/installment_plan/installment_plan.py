@@ -650,10 +650,12 @@ class InstallmentPlan(Document):
             # Contract auto-creation must never block plan submission.
             frappe.log_error(frappe.get_traceback(), "Installment Plan: create_contract")
     
-    def apply_payment(self, amount, payment_transaction=None):
+    def apply_payment(self, amount, payment_transaction=None, payment_date=None):
         """
         Apply a payment to this installment plan
         Automatically allocates to oldest pending/overdue installments first
+        payment_date — дата фактической оплаты (проставляется в paid_date закрываемых
+        взносов); если не передана, используется сегодняшняя.
         """
         if cint(getattr(self, "docstatus", 0)) == 2:
             frappe.throw(_("Платёж нельзя применить к отменённому плану рассрочки."))
@@ -667,7 +669,10 @@ class InstallmentPlan(Document):
             )
 
         remaining_payment = flt(amount)
-        
+
+        # Дата закрытия взноса = дата фактической оплаты (не «сегодня»).
+        paid_stamp = getdate(payment_date) if payment_date else today()
+
         # Sort schedule by due date (normalize: DB/doc may use date or str)
         sorted_schedule = sorted(
             self.schedule,
@@ -688,7 +693,7 @@ class InstallmentPlan(Document):
                     # Full (or within-tolerance) payment for this installment
                     installment.paid_amount = installment.amount
                     installment.status = "Оплачен"
-                    installment.paid_date = today()
+                    installment.paid_date = paid_stamp
                     if payment_transaction and hasattr(installment, "payment_transaction"):
                         installment.payment_transaction = payment_transaction
                     remaining_payment = max(0.0, flt(remaining_payment) - flt(due_amount))

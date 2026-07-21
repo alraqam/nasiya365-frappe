@@ -958,7 +958,7 @@ def get_control_center_snapshot(date=None):
 
 
 @frappe.whitelist()
-def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Наличные USD"):
+def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Наличные USD", payment_date=None):
     if not customer_or_plan:
         frappe.throw(_("Укажите клиента или план"))
     amount = _to_float(amount)
@@ -984,7 +984,7 @@ def accept_overdue_payment(customer_or_plan=None, amount=None, mode="Налич�
     payment = frappe.new_doc("Payment Transaction")
     payment.customer = customer
     payment.payment_method = _normalize_payment_line_method(mode)
-    payment.payment_date = nowdate()
+    payment.payment_date = payment_date or nowdate()
     payment.reference_doctype = "Installment Plan"
     payment.reference_name = plan_name
     payment.received_by = frappe.session.user

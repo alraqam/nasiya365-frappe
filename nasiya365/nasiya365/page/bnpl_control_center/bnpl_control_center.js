@@ -624,12 +624,19 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 						options: methodOptions,
 						default: defaultMethod,
 					},
+					{
+						fieldname: "payment_date",
+						fieldtype: "Date",
+						label: __("Дата платежа"),
+						reqd: 1,
+						default: frappe.datetime.get_today(),
+					},
 				],
 				primary_action_label: __("Сохранить"),
 				primary_action: (values) => {
 					frappe.call({
 						method: "nasiya365.api.bnpl_dashboard.accept_overdue_payment",
-						args: { customer_or_plan: row.installment_plan, amount: values.amount, mode: values.mode },
+						args: { customer_or_plan: row.installment_plan, amount: values.amount, mode: values.mode, payment_date: values.payment_date },
 						callback: () => {
 							dialog.hide();
 							frappe.show_alert({ message: __("Платеж принят"), indicator: "green" });

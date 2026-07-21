@@ -5,7 +5,7 @@ Payment Transaction DocType Controller
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint, flt
+from frappe.utils import cint, flt, getdate, nowdate
 
 _FALLBACK_METHODS = frozenset((
     "Наличные USD", "Акксессуар касса", "Наличные UZS",
@@ -203,7 +203,7 @@ def allocate_payment_transaction_to_installment_plan(doc):
 
     plan = _get_installment_plan_for_payment(plan_name)
     try:
-        excess = plan.apply_payment(amt, payment_transaction=doc.name)
+        excess = plan.apply_payment(amt, payment_transaction=doc.name, payment_date=doc.payment_date)
     except Exception:
         frappe.log_error(frappe.get_traceback(), "Payment Transaction: allocate to Installment Plan")
         raise
@@ -499,6 +499,15 @@ class PaymentTransaction(Document):
     def validate(self):
         self.autolink_single_open_installment_plan()
         self.apply_payment_totals()
+        self._validate_payment_date()
+
+    def _validate_payment_date(self):
+        """Дата платежа = когда клиент реально заплатил (может быть в прошлом).
+        Запрещаем только будущую дату; пустую подставляем сегодняшней."""
+        if not self.payment_date:
+            self.payment_date = nowdate()
+        elif getdate(self.payment_date) > getdate(nowdate()):
+            frappe.throw(_("Дата платежа не может быть в будущем."))
 
     def before_insert(self):
         if not self.received_by:
