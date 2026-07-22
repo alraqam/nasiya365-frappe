@@ -52,6 +52,7 @@
         {
             "fieldname": "paid_date",
             "fieldtype": "Date",
+            "in_list_view": 1,
             "label": "Дата оплаты"
         },
         {
