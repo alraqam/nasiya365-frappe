@@ -75,6 +75,12 @@ services:
         bench --site my.nasiya365.uz set-config redis_queue redis://redis-queue:6379
         echo 'Configuration updated!'
       fi
+
+      # Применяем изменения схемы к базе (новые поля, доктайпы, отчёты, патчи).
+      # Идемпотентно: если менять нечего — ничего не делает.
+      # Стоит после fi, чтобы отработать и для нового сайта, и для существующего.
+      echo 'Running migrations...'
+      bench --site my.nasiya365.uz migrate
       "
     depends_on:
       mariadb:
