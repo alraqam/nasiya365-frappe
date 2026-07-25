@@ -26,5 +26,10 @@ frappe.query_reports["Sales Report"] = {
             fieldtype: "Select",
             options: ["", "Наличные", "Рассрочка"],
         },
+        {
+            fieldname: "imei",
+            label: __("IMEI"),
+            fieldtype: "Data",
+        },
     ],
 };

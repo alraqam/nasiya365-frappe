@@ -16,6 +16,8 @@ def execute(filters=None):
     to_date = filters.get("to_date") or today()
     branch = filters.get("branch")
     sale_type = filters.get("sale_type")  # "", "Наличные", "Рассрочка"
+    imei = (filters.get("imei") or "").strip()
+    imei_like = f"%{imei}%"
 
     columns = [
         {"label": _("Дата"), "fieldname": "sale_date", "fieldtype": "Date", "width": 100},
@@ -25,6 +27,7 @@ def execute(filters=None):
         {"label": _("Тип документа"), "fieldname": "doc_type", "fieldtype": "Data", "width": 1, "hidden": 1},
         {"label": _("Клиент"), "fieldname": "customer_name", "fieldtype": "Data", "width": 180},
         {"label": _("Товар"), "fieldname": "product_name", "fieldtype": "Data", "width": 200},
+        {"label": _("IMEI"), "fieldname": "imei", "fieldtype": "Data", "width": 140},
         {"label": _("Филиал"), "fieldname": "branch", "fieldtype": "Data", "width": 120},
         {"label": _("Продавец"), "fieldname": "salesperson", "fieldtype": "Data", "width": 130},
         {"label": _("Выручка"), "fieldname": "revenue", "fieldtype": "Currency", "width": 130},
@@ -39,6 +42,10 @@ def execute(filters=None):
         so_branch = " AND so.branch = %s" if branch else ""
         so_branch_params = [branch] if branch else []
         user_clause, user_params = _sales_order_user_clause("so")
+        cash_imei = (
+            " AND EXISTS (SELECT 1 FROM `tabSales Order Item` soi"
+            " WHERE soi.parent = so.name AND soi.imei LIKE %s)"
+        ) if imei else ""
         cash = frappe.db.sql(
             f"""
             SELECT so.name, so.order_date, so.customer_name, so.branch,
@@ -51,16 +58,18 @@ def execute(filters=None):
                   WHERE ip2.sales_order = so.name AND ip2.docstatus < 2
               )
               {so_branch}
+              {cash_imei}
               {user_clause}
             ORDER BY so.order_date DESC
             """,
-            (from_date, to_date, *so_branch_params, *user_params),
+            (from_date, to_date, *so_branch_params, *([imei_like] if imei else []), *user_params),
             as_dict=True,
         )
         for so in cash:
-            product = frappe.db.get_value(
-                "Sales Order Item", {"parent": so.name, "idx": 1}, "product_name"
-            )
+            product, item_imei = frappe.db.get_value(
+                "Sales Order Item", {"parent": so.name, "idx": 1},
+                ["product_name", "imei"],
+            ) or (None, None)
             revenue = flt(so.total_amount)
             cogs = _cogs_for_sales_order(so.name, so.order_date)
             data.append({
@@ -70,6 +79,7 @@ def execute(filters=None):
                 "doc_type": "Sales Order",
                 "customer_name": so.customer_name,
                 "product_name": product or "—",
+                "imei": item_imei or "",
                 "branch": so.branch,
                 "salesperson": so.salesperson,
                 "revenue": revenue,
@@ -83,6 +93,7 @@ def execute(filters=None):
         plan_branch_clause, plan_branch_params = _branch_clause_for("ip")
         expl = " AND ip.sales_order IN (SELECT name FROM `tabSales Order` WHERE branch = %s)" if branch else ""
         expl_params = [branch] if branch else []
+        imei_sql = " AND ip.imei LIKE %s" if imei else ""
         plans = frappe.db.sql(
             f"""
             SELECT ip.name, ip.start_date, ip.customer_name, ip.imei,
@@ -97,9 +108,10 @@ def execute(filters=None):
               AND DATE(ip.start_date) BETWEEN %s AND %s
               {plan_branch_clause}
               {expl}
+              {imei_sql}
             ORDER BY ip.start_date DESC
             """,
-            (*_LIVE_PLAN_STATUSES, from_date, to_date, *plan_branch_params, *expl_params),
+            (*_LIVE_PLAN_STATUSES, from_date, to_date, *plan_branch_params, *expl_params, *([imei_like] if imei else [])),
             as_dict=True,
         )
         for p in plans:
@@ -112,6 +124,7 @@ def execute(filters=None):
                 "doc_type": "Installment Plan",
                 "customer_name": p.customer_name,
                 "product_name": p.product_name or "—",
+                "imei": p.imei or "",
                 "branch": p.branch,
                 "salesperson": p.salesperson,
                 "revenue": revenue,

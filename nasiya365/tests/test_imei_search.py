@@ -75,3 +75,26 @@ class TestSearchPlansByImei(FrappeTestCase):
         for key in ("name", "customer", "customer_name", "status",
                     "remaining_balance", "product_name", "imei"):
             self.assertIn(key, row)
+
+
+from nasiya365.nasiya365.report.sales_report.sales_report import execute as sales_report_execute
+
+
+class TestSalesReportImeiFilter(FrappeTestCase):
+    def _live_plan(self, imei):
+        return _make_plan(imei, docstatus=1, status="Активный",
+                          start_date=frappe.utils.today())
+
+    def test_filter_keeps_matching_plan(self):
+        match = self._live_plan("356938035643809")
+        other = self._live_plan("351756051523700")
+        data = sales_report_execute({"imei": "643809", "sale_type": "Рассрочка"})[1]
+        names = [r["doc_name"] for r in data]
+        self.assertIn(match, names)
+        self.assertNotIn(other, names)
+
+    def test_column_includes_imei(self):
+        name = self._live_plan("356938035643809")
+        data = sales_report_execute({"imei": "643809", "sale_type": "Рассрочка"})[1]
+        row = next(r for r in data if r["doc_name"] == name)
+        self.assertEqual(row["imei"], "356938035643809")
