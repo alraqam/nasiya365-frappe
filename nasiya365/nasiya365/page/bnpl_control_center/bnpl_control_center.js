@@ -127,7 +127,7 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 					</div>
 					<div class="bnpl-imei-card-money">
 						<div class="bnpl-imei-money-label">${__("Остаток")}</div>
-						<div class="bnpl-imei-money-val">${nasiya365._fmt_money(flt(row.remaining_balance))}</div>
+						<div class="bnpl-imei-money-val">${format_currency(flt(row.remaining_balance))}</div>
 					</div>
 					<div class="bnpl-imei-card-actions">
 						<button class="btn btn-default btn-sm btn-open">${__("Открыть план")}</button>
