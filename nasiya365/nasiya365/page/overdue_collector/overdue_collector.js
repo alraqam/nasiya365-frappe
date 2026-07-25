@@ -30,7 +30,7 @@ nasiya365.OverdueCollector = class OverdueCollector {
 		this.root = $(`
 			<div class="bnpl-overdue-screen">
 				<div class="bnpl-overdue-toolbar">
-					<input class="form-control" placeholder="Поиск клиента..." />
+					<input class="form-control" placeholder="Поиск: клиент или IMEI" />
 					<button class="btn btn-default btn-refresh">Обновить</button>
 				</div>
 				<div class="bnpl-overdue-list"></div>
@@ -63,7 +63,11 @@ nasiya365.OverdueCollector = class OverdueCollector {
 				}
 				let rows = r.message || [];
 				if (this.query) {
-					rows = rows.filter((row) => (row.customer_name || row.customer || "").toLowerCase().includes(this.query));
+					rows = rows.filter((row) =>
+						((row.customer_name || row.customer || "") + " " + (row.imei || ""))
+							.toLowerCase()
+							.includes(this.query),
+					);
 				}
 				this.renderRows(rows, ".bnpl-overdue-list", __("Платежи на сегодня"));
 			},
@@ -81,7 +85,11 @@ nasiya365.OverdueCollector = class OverdueCollector {
 				}
 				let rows = r.message || [];
 				if (this.query) {
-					rows = rows.filter((row) => (row.customer_name || row.customer || "").toLowerCase().includes(this.query));
+					rows = rows.filter((row) =>
+						((row.customer_name || row.customer || "") + " " + (row.imei || ""))
+							.toLowerCase()
+							.includes(this.query),
+					);
 				}
 				this.renderRows(rows, ".bnpl-overdue-list-late", __("Просроченные"));
 			},

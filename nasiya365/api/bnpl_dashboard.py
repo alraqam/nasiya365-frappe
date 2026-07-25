@@ -335,6 +335,7 @@ def get_overdue_list(limit=20, branch=None, collector=None):
             ip.customer,
             {_collection_customer_select()},
             COALESCE(NULLIF(TRIM(ip.product_name), ''), '') AS product_name,
+            ip.imei AS imei,
             MIN(isc.due_date) AS due_date,
             SUM(CASE WHEN COALESCE(isc.installment_number, 0) = 0
                      THEN (isc.amount - COALESCE(isc.paid_amount, 0))
@@ -369,7 +370,7 @@ def get_overdue_list(limit=20, branch=None, collector=None):
           )
           {collector_clause}
           {branch_clause}
-        GROUP BY ip.name, ip.customer, cp.full_name, ip.product_name
+        GROUP BY ip.name, ip.customer, cp.full_name, ip.product_name, ip.imei
         ORDER BY days_overdue DESC, amount_due DESC
         LIMIT {query_limit}
     """,
@@ -471,6 +472,7 @@ def get_due_today_list(limit=20, branch=None):
             ip.customer,
             {_collection_customer_select()},
             COALESCE(NULLIF(TRIM(ip.product_name), ''), '') AS product_name,
+            ip.imei AS imei,
             MIN(isc.due_date) AS due_date,
             SUM(CASE WHEN COALESCE(isc.installment_number, 0) = 0
                      THEN (isc.amount - COALESCE(isc.paid_amount, 0))
@@ -503,7 +505,7 @@ def get_due_today_list(limit=20, branch=None):
           AND isc.due_date = %s
           {filters}
           {branch_clause}
-        GROUP BY ip.name, ip.customer, cp.full_name, ip.product_name
+        GROUP BY ip.name, ip.customer, cp.full_name, ip.product_name, ip.imei
         ORDER BY has_partial DESC, amount_due DESC, down_payment_due DESC
         LIMIT {query_limit}
     """,
