@@ -1,4 +1,5 @@
 import json
+import re
 
 import frappe
 from frappe import _
@@ -85,6 +86,22 @@ def _safe_limit(value, default_value=10, max_value=100):
     if limit <= 0:
         return default_value
     return min(limit, max_value)
+
+
+_IMEI_MIN_DIGITS = 3
+
+
+def _sanitize_imei_term(imei):
+    """Digits-only IMEI search term, or None when too short to search.
+
+    Cashiers paste spaces/labels and only remember a tail of the IMEI, so we
+    keep just the digits. Terms under 3 digits are refused (too broad). Because
+    the result is digits-only, it can never contain LIKE wildcards.
+    """
+    digits = re.sub(r"\D", "", imei or "")
+    if len(digits) < _IMEI_MIN_DIGITS:
+        return None
+    return digits
 
 
 def _risk_level_from_score(score):
