@@ -593,7 +593,7 @@
    "role": "Collector"
   }
  ],
- "search_fields": "customer,customer_name",
+ "search_fields": "customer,customer_name,imei",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
