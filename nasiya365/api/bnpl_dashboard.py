@@ -524,6 +524,34 @@ def get_due_today_list(limit=20, branch=None):
     return rows
 
 
+@frappe.whitelist()
+def search_plans_by_imei(imei, limit=20):
+    """Installment plans whose IMEI contains the given digits (partial match).
+
+    Digits-only, minimum 3 digits, branch-scoped, read-only. Used by the BNPL
+    panel's «Найти по IMEI» box.
+    """
+    term = _sanitize_imei_term(imei)
+    if not term:
+        return []
+
+    branch_clause, branch_params = _user_branch_clause("ip")
+    like = f"%{term}%"
+    return frappe.db.sql(
+        f"""
+        SELECT ip.name, ip.customer, ip.customer_name, ip.status,
+               ip.remaining_balance, ip.product_name, ip.imei
+        FROM `tabInstallment Plan` ip
+        WHERE ip.imei LIKE %s
+          {branch_clause}
+        ORDER BY ip.modified DESC
+        LIMIT %s
+        """,
+        (like, *branch_params, _safe_limit(limit, 20, 50)),
+        as_dict=True,
+    )
+
+
 _DEFAULT_PAYMENT_METHODS = [
     "Наличные USD", "Акксессуар касса", "Наличные UZS",
     "Карта", "Click", "Payme", "Перевод", "Терминал",
