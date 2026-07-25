@@ -24,6 +24,7 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 		this.container = $(`
 			<div class="bnpl-dashboard">
 				<div class="bnpl-cta-row"></div>
+				<div class="bnpl-imei-search"></div>
 				<div class="bnpl-needs-attention"></div>
 				<div class="bnpl-kpi-grid"></div>
 				<div class="bnpl-cashflow"></div>
@@ -38,6 +39,7 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 
 	render() {
 		this.renderCtaRow();
+		this.renderImeiSearch();
 		this.refreshAll();
 	}
 
@@ -68,6 +70,78 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 			$(`<button type="button" class="btn btn-default ${b.cssClass}">${frappe.utils.escape_html(b.label)}</button>`)
 				.appendTo(secWrap)
 				.on("click", b.handler);
+		});
+	}
+
+	renderImeiSearch() {
+		const wrap = this.container.find(".bnpl-imei-search").empty();
+		const box = $(`
+			<div class="bnpl-imei-block">
+				<div class="bnpl-imei-head">
+					<span class="bnpl-imei-title">${__("Найти по IMEI")}</span>
+					<span class="bnpl-imei-hint-top">${__("частичный поиск · минимум 3 цифры")}</span>
+				</div>
+				<div class="bnpl-imei-field">
+					<input type="text" class="form-control bnpl-imei-input" inputmode="numeric"
+						autocomplete="off" placeholder="${__("Введите IMEI или его часть")}" />
+				</div>
+				<div class="bnpl-imei-results"></div>
+			</div>
+		`).appendTo(wrap);
+
+		const input = box.find(".bnpl-imei-input");
+		const results = box.find(".bnpl-imei-results");
+
+		const run = frappe.utils.debounce(() => {
+			const term = (input.val() || "").replace(/\D/g, "");
+			if (term.length < 3) {
+				results.html(`<div class="bnpl-empty">${__("Введите минимум 3 цифры IMEI.")}</div>`);
+				return;
+			}
+			frappe.call({
+				method: "nasiya365.api.bnpl_dashboard.search_plans_by_imei",
+				args: { imei: term },
+				callback: (r) => this.renderImeiResults(results, r.message || []),
+			});
+		}, 300);
+
+		input.on("input", run);
+	}
+
+	renderImeiResults(results, rows) {
+		results.empty();
+		if (!rows.length) {
+			results.html(`<div class="bnpl-empty">${__("По этому IMEI рассрочек не найдено.")}</div>`);
+			return;
+		}
+		rows.forEach((row) => {
+			const node = $(`
+				<div class="bnpl-imei-card">
+					<div class="bnpl-imei-card-main">
+						<div class="bnpl-imei-card-title">
+							<span>${frappe.utils.escape_html(row.customer_name || row.customer || "—")}</span>
+							<span class="bnpl-imei-status">${frappe.utils.escape_html(row.status || "")}</span>
+							<span class="bnpl-imei-plan">${frappe.utils.escape_html(row.name)}</span>
+						</div>
+						<div class="bnpl-imei-card-sub">${frappe.utils.escape_html(row.product_name || "")} · IMEI ${frappe.utils.escape_html(row.imei || "")}</div>
+					</div>
+					<div class="bnpl-imei-card-money">
+						<div class="bnpl-imei-money-label">${__("Остаток")}</div>
+						<div class="bnpl-imei-money-val">${nasiya365._fmt_money(flt(row.remaining_balance))}</div>
+					</div>
+					<div class="bnpl-imei-card-actions">
+						<button class="btn btn-default btn-sm btn-open">${__("Открыть план")}</button>
+						<button class="btn btn-primary btn-sm btn-pay">${__("Принять платёж")}</button>
+					</div>
+				</div>
+			`).appendTo(results);
+			node.find(".btn-open").on("click", () =>
+				frappe.set_route("Form", "Installment Plan", row.name));
+			node.find(".btn-pay").on("click", () => this.openPaymentDialog({
+				customer: row.customer,
+				installment_plan: row.name,
+				amount_due: flt(row.remaining_balance),
+			}));
 		});
 	}
 
