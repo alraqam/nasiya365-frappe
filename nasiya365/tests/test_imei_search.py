@@ -1,7 +1,8 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from nasiya365.api.bnpl_dashboard import _sanitize_imei_term
+from nasiya365.api.bnpl_dashboard import _sanitize_imei_term, search_plans_by_imei
+from nasiya365.nasiya365.report.sales_report.sales_report import execute as sales_report_execute
 
 
 class TestSanitizeImeiTerm(FrappeTestCase):
@@ -25,9 +26,6 @@ class TestSanitizeImeiTerm(FrappeTestCase):
         self.assertEqual(_sanitize_imei_term("35%_69\\3"), "35693")
 
 
-from nasiya365.api.bnpl_dashboard import search_plans_by_imei
-
-
 def _make_plan(imei, customer_name="Тест Клиент", status="Активный",
                product_name="iPhone 13 Test", remaining_balance=420, docstatus=0,
                start_date=None):
@@ -47,7 +45,7 @@ def _make_plan(imei, customer_name="Тест Клиент", status="Активн
         "principal_amount": 1000,
         "start_date": start_date or frappe.utils.today(),
     })
-    plan.name = frappe.generate_hash("imei-test", 10)
+    plan.name = frappe.generate_hash(length=10)
     plan.db_insert()
     return plan.name
 
@@ -75,9 +73,6 @@ class TestSearchPlansByImei(FrappeTestCase):
         for key in ("name", "customer", "customer_name", "status",
                     "remaining_balance", "product_name", "imei"):
             self.assertIn(key, row)
-
-
-from nasiya365.nasiya365.report.sales_report.sales_report import execute as sales_report_execute
 
 
 class TestSalesReportImeiFilter(FrappeTestCase):

@@ -545,6 +545,7 @@ def search_plans_by_imei(imei, limit=20):
                ip.remaining_balance, ip.product_name, ip.imei
         FROM `tabInstallment Plan` ip
         WHERE ip.imei LIKE %s
+          AND ip.docstatus < 2
           {branch_clause}
         ORDER BY ip.modified DESC
         LIMIT %s

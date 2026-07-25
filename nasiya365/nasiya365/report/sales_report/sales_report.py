@@ -17,7 +17,9 @@ def execute(filters=None):
     branch = filters.get("branch")
     sale_type = filters.get("sale_type")  # "", "Наличные", "Рассрочка"
     imei = (filters.get("imei") or "").strip()
-    imei_like = f"%{imei}%"
+    # Escape LIKE wildcards so a literal % or _ in the term isn't treated as a pattern.
+    imei_escaped = imei.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    imei_like = f"%{imei_escaped}%"
 
     columns = [
         {"label": _("Дата"), "fieldname": "sale_date", "fieldtype": "Date", "width": 100},
