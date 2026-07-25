@@ -569,38 +569,85 @@
 
 /* ——— IMEI quick search ——— */
 .bnpl-imei-block {
-	border: 1px solid rgba(59, 130, 246, 0.28);
-	border-radius: 14px;
-	background: linear-gradient(135deg, rgba(59, 130, 246, 0.06) 0%, var(--card-bg) 60%);
-	padding: 16px;
+	background: var(--card-bg);
+	border: 1px solid var(--border-color);
+	border-radius: 16px;
+	box-shadow: 0 4px 16px rgba(16, 24, 40, 0.06);
 	margin-bottom: 16px;
-	box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+	overflow: hidden;
 }
-.bnpl-imei-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.bnpl-imei-head { display: flex; align-items: center; gap: 10px; padding: 15px 18px 0; }
+.bnpl-imei-icon {
+	width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+	display: flex; align-items: center; justify-content: center;
+	background: rgba(59, 130, 246, 0.12); color: #3b82f6;
+}
+.bnpl-imei-icon svg { width: 17px; height: 17px; }
 .bnpl-imei-title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
-.bnpl-imei-hint-top { font-size: 12px; opacity: 0.7; margin-left: auto; }
+.bnpl-imei-subhint { font-size: 12px; opacity: 0.65; margin-top: 1px; }
+.bnpl-imei-body { padding: 12px 18px 18px; }
+.bnpl-imei-field { position: relative; display: flex; align-items: center; }
+.bnpl-imei-mag {
+	position: absolute; left: 15px; width: 18px; height: 18px;
+	opacity: 0.4; pointer-events: none; display: flex;
+}
+.bnpl-imei-mag svg { width: 18px; height: 18px; }
 .bnpl-imei-input {
-	font-size: 16px; font-weight: 600; letter-spacing: 0.03em;
-	font-variant-numeric: tabular-nums;
+	width: 100%; font-family: inherit; font-size: 16px; font-weight: 600;
+	letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+	padding: 12px 44px; border-radius: 12px;
+	border: 1.5px solid var(--border-color); background: var(--card-bg); color: var(--text-color);
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.bnpl-imei-results { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.bnpl-imei-input::placeholder { opacity: 0.55; font-weight: 500; letter-spacing: 0; }
+.bnpl-imei-input:focus {
+	outline: none; border-color: #3b82f6;
+	box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.14);
+}
+.bnpl-imei-clear {
+	position: absolute; right: 8px; border: none; background: transparent;
+	font-size: 20px; line-height: 1; cursor: pointer; padding: 5px 9px; border-radius: 8px;
+	opacity: 0.5; display: none;
+}
+.bnpl-imei-clear:hover { opacity: 1; background: var(--border-color); }
+.bnpl-imei-results { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.bnpl-imei-results:empty { margin-top: 0; }
+.bnpl-imei-count { font-size: 11.5px; opacity: 0.6; font-weight: 600; padding: 0 2px; }
 .bnpl-imei-card {
-	display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-	border: 1px solid var(--border-color); border-radius: 10px;
-	background: var(--card-bg); padding: 12px 14px;
-	box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+	position: relative; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+	border: 1px solid var(--border-color); border-radius: 12px; background: var(--card-bg);
+	padding: 12px 14px 12px 16px; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+	transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
-.bnpl-imei-card-main { flex: 1 1 260px; min-width: 220px; }
-.bnpl-imei-card-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 700; font-size: 15px; }
-.bnpl-imei-status { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: rgba(59, 130, 246, 0.1); color: #2563eb; }
-.bnpl-imei-plan { font-size: 11.5px; opacity: 0.6; font-weight: 600; font-variant-numeric: tabular-nums; }
-.bnpl-imei-card-sub { font-size: 12.5px; opacity: 0.8; margin-top: 4px; font-variant-numeric: tabular-nums; }
-.bnpl-imei-card-money { text-align: right; }
-.bnpl-imei-money-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
-.bnpl-imei-money-val { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.bnpl-imei-card-actions { display: flex; gap: 7px; flex-shrink: 0; }
+.bnpl-imei-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(16, 24, 40, 0.09); }
+.bnpl-imei-card::before {
+	content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px;
+	border-radius: 0 3px 3px 0; background: #3b82f6;
+}
+.bnpl-imei-card--overdue::before { background: #ef4444; }
+.bnpl-imei-card--done::before { background: #10b981; }
+.bnpl-imei-card-main { flex: 1 1 250px; min-width: 200px; }
+.bnpl-imei-line1 { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.bnpl-imei-name { font-weight: 700; font-size: 14.5px; }
+.bnpl-imei-id { font-size: 11px; opacity: 0.5; font-variant-numeric: tabular-nums; }
+.bnpl-imei-status {
+	font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+	background: rgba(59, 130, 246, 0.12); color: #2563eb;
+}
+.bnpl-imei-status--overdue { background: rgba(239, 68, 68, 0.13); color: #dc2626; }
+.bnpl-imei-status--done { background: rgba(16, 185, 129, 0.13); color: #059669; }
+.bnpl-imei-cardsub { font-size: 12px; opacity: 0.8; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.bnpl-imei-num mark { background: rgba(245, 158, 11, 0.22); color: inherit; border-radius: 3px; padding: 0 2px; font-weight: 800; }
+.bnpl-imei-money { text-align: right; padding: 0 2px; }
+.bnpl-imei-money-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; }
+.bnpl-imei-money-val { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.bnpl-imei-actions { display: flex; gap: 7px; flex-shrink: 0; }
+.bnpl-imei-state {
+	padding: 20px 14px; text-align: center; opacity: 0.7; font-size: 13px;
+	border: 1px dashed var(--border-color); border-radius: 12px;
+}
 @media (max-width: 640px) {
-	.bnpl-imei-card-money { text-align: left; }
-	.bnpl-imei-card-actions { width: 100%; }
-	.bnpl-imei-card-actions .btn { flex: 1; }
+	.bnpl-imei-money { text-align: left; }
+	.bnpl-imei-actions { width: 100%; }
+	.bnpl-imei-actions .btn { flex: 1; }
 }

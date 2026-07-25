@@ -75,61 +75,97 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 
 	renderImeiSearch() {
 		const wrap = this.container.find(".bnpl-imei-search").empty();
+		const mag = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`;
 		const box = $(`
 			<div class="bnpl-imei-block">
 				<div class="bnpl-imei-head">
-					<span class="bnpl-imei-title">${__("Найти по IMEI")}</span>
-					<span class="bnpl-imei-hint-top">${__("частичный поиск · минимум 3 цифры")}</span>
+					<span class="bnpl-imei-icon">${mag}</span>
+					<div>
+						<div class="bnpl-imei-title">${__("Найти по IMEI")}</div>
+						<div class="bnpl-imei-subhint">${__("частичный поиск · минимум 3 цифры")}</div>
+					</div>
 				</div>
-				<div class="bnpl-imei-field">
-					<input type="text" class="form-control bnpl-imei-input" inputmode="numeric"
-						autocomplete="off" placeholder="${__("Введите IMEI или его часть")}" />
+				<div class="bnpl-imei-body">
+					<div class="bnpl-imei-field">
+						<span class="bnpl-imei-mag">${mag}</span>
+						<input type="text" class="bnpl-imei-input" inputmode="numeric" autocomplete="off"
+							placeholder="${__("Введите IMEI или последние цифры")}" />
+						<button type="button" class="bnpl-imei-clear" title="${__("Очистить")}">&times;</button>
+					</div>
+					<div class="bnpl-imei-results"></div>
 				</div>
-				<div class="bnpl-imei-results"></div>
 			</div>
 		`).appendTo(wrap);
 
 		const input = box.find(".bnpl-imei-input");
 		const results = box.find(".bnpl-imei-results");
+		const clearBtn = box.find(".bnpl-imei-clear");
 
 		const run = frappe.utils.debounce(() => {
-			const term = (input.val() || "").replace(/\D/g, "");
+			const raw = input.val() || "";
+			const term = raw.replace(/\D/g, "");
+			clearBtn.toggle(!!raw);
+			if (!term.length) {
+				results.empty();
+				return;
+			}
 			if (term.length < 3) {
-				results.html(`<div class="bnpl-empty">${__("Введите минимум 3 цифры IMEI.")}</div>`);
+				results.html(`<div class="bnpl-imei-state">${__("Введите минимум 3 цифры IMEI.")}</div>`);
 				return;
 			}
 			frappe.call({
 				method: "nasiya365.api.bnpl_dashboard.search_plans_by_imei",
 				args: { imei: term },
-				callback: (r) => this.renderImeiResults(results, r.message || []),
+				callback: (r) => this.renderImeiResults(results, r.message || [], term),
 			});
 		}, 300);
 
 		input.on("input", run);
+		clearBtn.on("click", () => {
+			input.val("");
+			clearBtn.hide();
+			results.empty();
+			input.trigger("focus");
+		});
 	}
 
-	renderImeiResults(results, rows) {
+	renderImeiResults(results, rows, term) {
 		results.empty();
 		if (!rows.length) {
-			results.html(`<div class="bnpl-empty">${__("По этому IMEI рассрочек не найдено.")}</div>`);
+			results.html(`<div class="bnpl-imei-state">${__("По этому IMEI рассрочек не найдено.")}</div>`);
 			return;
 		}
+		const esc = frappe.utils.escape_html;
+		const cardMod = (s) =>
+			s === "Просрочен" ? "bnpl-imei-card--overdue"
+				: (s === "Завершен" || s === "Завершён") ? "bnpl-imei-card--done" : "";
+		const pillMod = (s) =>
+			s === "Просрочен" ? "bnpl-imei-status--overdue"
+				: (s === "Завершен" || s === "Завершён") ? "bnpl-imei-status--done" : "";
+		const highlight = (imei, t) => {
+			imei = String(imei || "");
+			const i = imei.indexOf(t);
+			if (i < 0) return esc(imei);
+			return esc(imei.slice(0, i)) + "<mark>" + esc(imei.slice(i, i + t.length)) + "</mark>" + esc(imei.slice(i + t.length));
+		};
+
+		$(`<div class="bnpl-imei-count">${__("Найдено")}: ${rows.length}</div>`).appendTo(results);
 		rows.forEach((row) => {
 			const node = $(`
-				<div class="bnpl-imei-card">
+				<div class="bnpl-imei-card ${cardMod(row.status)}">
 					<div class="bnpl-imei-card-main">
-						<div class="bnpl-imei-card-title">
-							<span>${frappe.utils.escape_html(row.customer_name || row.customer || "—")}</span>
-							<span class="bnpl-imei-status">${frappe.utils.escape_html(row.status || "")}</span>
-							<span class="bnpl-imei-plan">${frappe.utils.escape_html(row.name)}</span>
+						<div class="bnpl-imei-line1">
+							<span class="bnpl-imei-name">${esc(row.customer_name || row.customer || "—")}</span>
+							<span class="bnpl-imei-status ${pillMod(row.status)}">${esc(row.status || "")}</span>
+							<span class="bnpl-imei-id">${esc(row.name)}</span>
 						</div>
-						<div class="bnpl-imei-card-sub">${frappe.utils.escape_html(row.product_name || "")} · IMEI ${frappe.utils.escape_html(row.imei || "")}</div>
+						<div class="bnpl-imei-cardsub">${esc(row.product_name || "")} · IMEI <span class="bnpl-imei-num">${highlight(row.imei, term)}</span></div>
 					</div>
-					<div class="bnpl-imei-card-money">
+					<div class="bnpl-imei-money">
 						<div class="bnpl-imei-money-label">${__("Остаток")}</div>
 						<div class="bnpl-imei-money-val">${format_currency(flt(row.remaining_balance))}</div>
 					</div>
-					<div class="bnpl-imei-card-actions">
+					<div class="bnpl-imei-actions">
 						<button class="btn btn-default btn-sm btn-open">${__("Открыть план")}</button>
 						<button class="btn btn-primary btn-sm btn-pay">${__("Принять платёж")}</button>
 					</div>
