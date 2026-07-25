@@ -89,8 +89,7 @@ Expected: completes; no `ALTER TABLE` on `tabInstallment Plan` (field already ex
 
 Run:
 ```bash
-docker compose exec backend bench --site my.nasiya365.uz execute frappe.client.get_value --kwargs "{}" 2>/dev/null; \
-docker compose exec backend bench --site my.nasiya365.uz console <<'PY'
+docker compose exec -T backend bench --site my.nasiya365.uz console <<'PY'
 print(frappe.get_meta("Installment Plan").search_fields)
 PY
 ```
