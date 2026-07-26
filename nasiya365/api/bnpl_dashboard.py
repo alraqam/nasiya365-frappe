@@ -555,6 +555,130 @@ def search_plans_by_imei(imei, limit=20):
     )
 
 
+def _product_name_of(product):
+    """Display name for a Product link, falling back to the code."""
+    if not product:
+        return ""
+    return frappe.db.get_value("Product", product, "product_name") or product
+
+
+def _branch_in(branch_expr, is_unrestricted, branches):
+    """Branch filter for an arbitrary branch expression; empty when unrestricted."""
+    if is_unrestricted:
+        return ("", ())
+    if not branches:
+        return (" AND 1=0", ())
+    placeholders = ",".join(["%s"] * len(branches))
+    return (f" AND {branch_expr} IN ({placeholders})", tuple(branches))
+
+
+@frappe.whitelist()
+def search_by_imei(imei, limit=20):
+    """Global IMEI lookup for the BNPL panel — installment plans, cash sales,
+    stock receipts and trade-ins in one typed result list.
+
+    Digits-only, minimum 3 digits, branch-scoped, read-only. Each row carries a
+    `kind` ("Рассрочка" / "Продажа" / "Склад" / "Trade-in") plus `doctype`/`name`
+    so the panel can open the source document.
+    """
+    from nasiya365.api.profit import _sales_order_user_clause
+
+    term = _sanitize_imei_term(imei)
+    if not term:
+        return []
+
+    like = f"%{term}%"
+    lim = _safe_limit(limit, 20, 50)
+    is_unrestricted, branches = _user_branch_list()
+    out = []
+
+    # 1) Installment plans
+    plan_clause, pp = _user_branch_clause("ip")
+    for r in frappe.db.sql(
+        f"""
+        SELECT ip.name, ip.customer, ip.customer_name, ip.status,
+               ip.remaining_balance, ip.product_name, ip.imei, ip.start_date
+        FROM `tabInstallment Plan` ip
+        WHERE ip.imei LIKE %s AND ip.docstatus < 2 {plan_clause}
+        ORDER BY ip.modified DESC LIMIT %s
+        """,
+        (like, *pp, lim), as_dict=True,
+    ):
+        out.append({
+            "kind": "Рассрочка", "doctype": "Installment Plan", "name": r.name,
+            "party": r.customer_name or r.customer, "customer": r.customer,
+            "status": r.status, "amount": r.remaining_balance, "date": r.start_date,
+            "product_name": r.product_name, "imei": r.imei,
+        })
+
+    # 2) Cash sales (Sales Orders not backed by a plan)
+    so_clause, sp = _sales_order_user_clause("so")
+    for r in frappe.db.sql(
+        f"""
+        SELECT so.name, so.customer, so.customer_name, so.order_date,
+               so.total_amount, soi.imei, soi.product
+        FROM `tabSales Order Item` soi
+        JOIN `tabSales Order` so ON so.name = soi.parent
+        WHERE soi.imei LIKE %s AND so.docstatus < 2
+          AND NOT EXISTS (
+              SELECT 1 FROM `tabInstallment Plan` ip2
+              WHERE ip2.sales_order = so.name AND ip2.docstatus < 2
+          )
+          {so_clause}
+        ORDER BY so.order_date DESC LIMIT %s
+        """,
+        (like, *sp, lim), as_dict=True,
+    ):
+        out.append({
+            "kind": "Продажа", "doctype": "Sales Order", "name": r.name,
+            "party": r.customer_name or r.customer, "customer": r.customer,
+            "status": "Наличная продажа", "amount": r.total_amount, "date": r.order_date,
+            "product_name": _product_name_of(r.product), "imei": r.imei,
+        })
+
+    # 3) Stock receipts
+    st_clause, stp = _branch_in(
+        "(SELECT wh.branch FROM `tabWarehouse` wh WHERE wh.name = se.warehouse)",
+        is_unrestricted, branches,
+    )
+    for r in frappe.db.sql(
+        f"""
+        SELECT se.name, se.entry_type, se.posting_date, se.supplier, sei.imei, sei.product
+        FROM `tabStock Entry Item` sei
+        JOIN `tabStock Entry` se ON se.name = sei.parent
+        WHERE sei.imei LIKE %s AND se.docstatus < 2 {st_clause}
+        ORDER BY se.posting_date DESC LIMIT %s
+        """,
+        (like, *stp, lim), as_dict=True,
+    ):
+        out.append({
+            "kind": "Склад", "doctype": "Stock Entry", "name": r.name,
+            "party": r.supplier, "status": r.entry_type, "amount": None,
+            "date": r.posting_date, "product_name": _product_name_of(r.product), "imei": r.imei,
+        })
+
+    # 4) Trade-ins
+    ti_clause, tip = _branch_in("ti.branch", is_unrestricted, branches)
+    for r in frappe.db.sql(
+        f"""
+        SELECT ti.name, ti.customer, ti.customer_name, ti.trade_in_date,
+               ti.appraisal_amount, ti.status, ti.product_name, ti.imei
+        FROM `tabTrade In` ti
+        WHERE ti.imei LIKE %s AND ti.docstatus < 2 {ti_clause}
+        ORDER BY ti.trade_in_date DESC LIMIT %s
+        """,
+        (like, *tip, lim), as_dict=True,
+    ):
+        out.append({
+            "kind": "Trade-in", "doctype": "Trade In", "name": r.name,
+            "party": r.customer_name or r.customer, "customer": r.customer,
+            "status": r.status, "amount": r.appraisal_amount, "date": r.trade_in_date,
+            "product_name": r.product_name, "imei": r.imei,
+        })
+
+    return out
+
+
 _DEFAULT_PAYMENT_METHODS = [
     "Наличные USD", "Акксессуар касса", "Наличные UZS",
     "Карта", "Click", "Payme", "Перевод", "Терминал",

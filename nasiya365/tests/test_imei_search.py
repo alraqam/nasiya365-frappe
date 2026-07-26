@@ -1,7 +1,7 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from nasiya365.api.bnpl_dashboard import _sanitize_imei_term, search_plans_by_imei
+from nasiya365.api.bnpl_dashboard import _sanitize_imei_term, search_by_imei, search_plans_by_imei
 from nasiya365.nasiya365.report.sales_report.sales_report import execute as sales_report_execute
 
 
@@ -93,3 +93,18 @@ class TestSalesReportImeiFilter(FrappeTestCase):
         data = sales_report_execute({"imei": "643809", "sale_type": "Рассрочка"})[1]
         row = next(r for r in data if r["doc_name"] == name)
         self.assertEqual(row["imei"], "356938035643809")
+
+
+class TestSearchByImei(FrappeTestCase):
+    def test_plan_appears_as_rassrochka(self):
+        name = _make_plan("356938035643809")
+        match = [r for r in search_by_imei("643809") if r["name"] == name]
+        self.assertTrue(match)
+        self.assertEqual(match[0]["kind"], "Рассрочка")
+        self.assertEqual(match[0]["doctype"], "Installment Plan")
+        for key in ("kind", "doctype", "name", "party", "imei"):
+            self.assertIn(key, match[0])
+
+    def test_short_term_returns_empty(self):
+        _make_plan("356938035643809")
+        self.assertEqual(search_by_imei("12"), [])

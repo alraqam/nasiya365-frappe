@@ -82,7 +82,7 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 					<span class="bnpl-imei-icon">${mag}</span>
 					<div>
 						<div class="bnpl-imei-title">${__("Найти по IMEI")}</div>
-						<div class="bnpl-imei-subhint">${__("частичный поиск · минимум 3 цифры")}</div>
+						<div class="bnpl-imei-subhint">${__("по всем разделам · минимум 3 цифры")}</div>
 					</div>
 				</div>
 				<div class="bnpl-imei-body">
@@ -114,7 +114,7 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 				return;
 			}
 			frappe.call({
-				method: "nasiya365.api.bnpl_dashboard.search_plans_by_imei",
+				method: "nasiya365.api.bnpl_dashboard.search_by_imei",
 				args: { imei: term },
 				callback: (r) => this.renderImeiResults(results, r.message || [], term),
 			});
@@ -132,52 +132,63 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 	renderImeiResults(results, rows, term) {
 		results.empty();
 		if (!rows.length) {
-			results.html(`<div class="bnpl-imei-state">${__("По этому IMEI рассрочек не найдено.")}</div>`);
+			results.html(`<div class="bnpl-imei-state">${__("По этому IMEI ничего не найдено.")}</div>`);
 			return;
 		}
 		const esc = frappe.utils.escape_html;
-		const cardMod = (s) =>
-			s === "Просрочен" ? "bnpl-imei-card--overdue"
-				: (s === "Завершен" || s === "Завершён") ? "bnpl-imei-card--done" : "";
-		const pillMod = (s) =>
-			s === "Просрочен" ? "bnpl-imei-status--overdue"
-				: (s === "Завершен" || s === "Завершён") ? "bnpl-imei-status--done" : "";
+		const KIND = {
+			"Рассрочка": { card: "", badge: "bnpl-imei-kind--plan" },
+			"Продажа": { card: "bnpl-imei-card--sale", badge: "bnpl-imei-kind--sale" },
+			"Склад": { card: "bnpl-imei-card--stock", badge: "bnpl-imei-kind--stock" },
+			"Trade-in": { card: "bnpl-imei-card--trade", badge: "bnpl-imei-kind--trade" },
+		};
+		const moneyLabel = { "Рассрочка": __("Остаток"), "Продажа": __("Сумма"), "Trade-in": __("Оценка") };
 		const highlight = (imei, t) => {
 			imei = String(imei || "");
 			const i = imei.indexOf(t);
 			if (i < 0) return esc(imei);
 			return esc(imei.slice(0, i)) + "<mark>" + esc(imei.slice(i, i + t.length)) + "</mark>" + esc(imei.slice(i + t.length));
 		};
+		const dt = (d) => (d ? frappe.datetime.str_to_user(d) : "");
 
 		$(`<div class="bnpl-imei-count">${__("Найдено")}: ${rows.length}</div>`).appendTo(results);
 		rows.forEach((row) => {
+			const k = KIND[row.kind] || { card: "", badge: "" };
+			const hasMoney = row.amount != null && row.kind !== "Склад";
+			const right = hasMoney
+				? `<div class="bnpl-imei-money-label">${esc(moneyLabel[row.kind] || __("Сумма"))}</div>
+				   <div class="bnpl-imei-money-val">${format_currency(flt(row.amount))}</div>`
+				: `<div class="bnpl-imei-money-label">${__("Дата")}</div>
+				   <div class="bnpl-imei-datev">${esc(dt(row.date))}</div>`;
+			const payBtn = row.kind === "Рассрочка"
+				? `<button class="btn btn-primary btn-sm btn-pay">${__("Принять платёж")}</button>` : "";
+			const statusText = row.status ? ` · ${esc(row.status)}` : "";
 			const node = $(`
-				<div class="bnpl-imei-card ${cardMod(row.status)}">
+				<div class="bnpl-imei-card ${k.card}">
 					<div class="bnpl-imei-card-main">
 						<div class="bnpl-imei-line1">
-							<span class="bnpl-imei-name">${esc(row.customer_name || row.customer || "—")}</span>
-							<span class="bnpl-imei-status ${pillMod(row.status)}">${esc(row.status || "")}</span>
+							<span class="bnpl-imei-kind ${k.badge}">${esc(row.kind)}</span>
+							<span class="bnpl-imei-name">${esc(row.party || "—")}</span>
 							<span class="bnpl-imei-id">${esc(row.name)}</span>
 						</div>
-						<div class="bnpl-imei-cardsub">${esc(row.product_name || "")} · IMEI <span class="bnpl-imei-num">${highlight(row.imei, term)}</span></div>
+						<div class="bnpl-imei-cardsub">${esc(row.product_name || "")} · IMEI <span class="bnpl-imei-num">${highlight(row.imei, term)}</span>${statusText}</div>
 					</div>
-					<div class="bnpl-imei-money">
-						<div class="bnpl-imei-money-label">${__("Остаток")}</div>
-						<div class="bnpl-imei-money-val">${format_currency(flt(row.remaining_balance))}</div>
-					</div>
+					<div class="bnpl-imei-money">${right}</div>
 					<div class="bnpl-imei-actions">
-						<button class="btn btn-default btn-sm btn-open">${__("Открыть план")}</button>
-						<button class="btn btn-primary btn-sm btn-pay">${__("Принять платёж")}</button>
+						<button class="btn btn-default btn-sm btn-open">${__("Открыть")}</button>
+						${payBtn}
 					</div>
 				</div>
 			`).appendTo(results);
 			node.find(".btn-open").on("click", () =>
-				frappe.set_route("Form", "Installment Plan", row.name));
-			node.find(".btn-pay").on("click", () => this.openPaymentDialog({
-				customer: row.customer,
-				installment_plan: row.name,
-				amount_due: flt(row.remaining_balance),
-			}));
+				frappe.set_route("Form", row.doctype, row.name));
+			if (row.kind === "Рассрочка") {
+				node.find(".btn-pay").on("click", () => this.openPaymentDialog({
+					customer: row.customer,
+					installment_plan: row.name,
+					amount_due: flt(row.amount),
+				}));
+			}
 		});
 	}
 

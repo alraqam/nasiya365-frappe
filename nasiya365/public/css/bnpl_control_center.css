@@ -626,6 +626,28 @@
 }
 .bnpl-imei-card--overdue::before { background: #ef4444; }
 .bnpl-imei-card--done::before { background: #10b981; }
+.bnpl-imei-card--sale::before { background: #10b981; }
+.bnpl-imei-card--stock::before { background: #f59e0b; }
+.bnpl-imei-card--trade::before { background: #8b5cf6; }
+.bnpl-imei-kind {
+	font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em;
+	padding: 2px 7px; border-radius: 6px; white-space: nowrap;
+}
+.bnpl-imei-kind--plan { background: rgba(59, 130, 246, 0.14); color: #2563eb; }
+.bnpl-imei-kind--sale { background: rgba(16, 185, 129, 0.15); color: #059669; }
+.bnpl-imei-kind--stock { background: rgba(245, 158, 11, 0.16); color: #b45309; }
+.bnpl-imei-kind--trade { background: rgba(139, 92, 246, 0.16); color: #7c3aed; }
+.bnpl-imei-datev { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (prefers-color-scheme: dark) {
+	.bnpl-imei-kind--plan { color: #60a5fa; }
+	.bnpl-imei-kind--sale { color: #34d399; }
+	.bnpl-imei-kind--stock { color: #fbbf24; }
+	.bnpl-imei-kind--trade { color: #a78bfa; }
+}
+:root[data-theme="dark"] .bnpl-imei-kind--plan { color: #60a5fa; }
+:root[data-theme="dark"] .bnpl-imei-kind--sale { color: #34d399; }
+:root[data-theme="dark"] .bnpl-imei-kind--stock { color: #fbbf24; }
+:root[data-theme="dark"] .bnpl-imei-kind--trade { color: #a78bfa; }
 .bnpl-imei-card-main { flex: 1 1 250px; min-width: 200px; }
 .bnpl-imei-line1 { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .bnpl-imei-name { font-weight: 700; font-size: 14.5px; }
