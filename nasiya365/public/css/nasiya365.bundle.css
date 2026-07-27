@@ -1,11 +1,767 @@
 /**
- * App-wide CSS bundle entry point.
+ * App-wide CSS bundle — SINGLE source of truth for global styles.
  *
  * Compiled by Frappe's esbuild into a content-hashed file
- * (nasiya365.bundle.<HASH>.css, recorded in assets.json). A new hash every build
- * means browsers pick up style changes after a deploy without a cache clear.
+ * (nasiya365.bundle.<HASH>.css, recorded in assets.json) so a new hash every
+ * build busts the browser cache after a deploy. hooks.py references it by
+ * logical name: app_include_css = ["nasiya365.bundle.css"].
  *
- * hooks.py references it by logical name: app_include_css = ["nasiya365.bundle.css"].
+ * NOTE: content is INLINED here (not @import-ed). Frappe's esbuild/postcss
+ * cannot resolve `@import "./sibling.css"` (it processes the entry file in an
+ * isolated temp dir), and this app's dev image has no node to compile a
+ * .bundle.scss — so a single self-contained .css is the one form that builds
+ * on prod AND is served raw on dev. Formerly: bnpl_control_center.css +
+ * installment_plan_wizard.css.
  */
-@import "./bnpl_control_center.css";
-@import "./installment_plan_wizard.css";
+
+/* ===================== bnpl_control_center ===================== */
+/* Nasiya365 BNPL financial control center — Desk page + global hooks */
+
+.bnpl-dashboard,
+.bnpl-overdue-screen {
+	padding: 12px 12px 24px;
+	max-width: 1400px;
+	margin: 0 auto;
+}
+
+.bnpl-banner {
+	border-radius: 10px;
+	padding: 10px 14px;
+	margin-bottom: 12px;
+	font-weight: 600;
+	border: 1px solid var(--border-color);
+}
+
+.bnpl-banner--risk {
+	background: rgba(239, 68, 68, 0.15);
+	color: var(--text-color);
+	border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* ——— CTA hierarchy ——— */
+.bnpl-cta-row {
+	position: sticky;
+	top: 0;
+	z-index: 6;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: stretch;
+	gap: 12px;
+	margin-bottom: 16px;
+	background: var(--bg-color);
+	padding: 10px 0;
+	border-bottom: 1px solid var(--border-color);
+}
+
+.bnpl-cta-main {
+	flex: 1 1 220px;
+	min-height: 48px;
+	font-weight: 700;
+	font-size: 15px;
+	box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
+}
+
+.bnpl-cta-secondaries {
+	display: flex;
+	flex: 2 1 280px;
+	gap: 8px;
+}
+
+.bnpl-cta-secondaries .btn {
+	flex: 1;
+	min-height: 48px;
+	font-weight: 600;
+}
+
+/* ——— Needs attention ——— */
+.bnpl-needs-attention {
+	border-radius: 14px;
+	padding: 16px;
+	margin-bottom: 16px;
+	border: 1px solid rgba(239, 68, 68, 0.35);
+	background: linear-gradient(
+		135deg,
+		rgba(239, 68, 68, 0.08) 0%,
+		var(--card-bg) 55%
+	);
+	box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+}
+
+.bnpl-attention-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 14px;
+}
+
+.bnpl-attention-title {
+	font-size: 18px;
+	font-weight: 800;
+	letter-spacing: -0.02em;
+}
+
+.bnpl-attention-sub {
+	font-size: 13px;
+	opacity: 0.8;
+	margin-top: 4px;
+}
+
+.bnpl-attention-stats {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+	margin-bottom: 14px;
+}
+
+.bnpl-attention-stat {
+	border-radius: 10px;
+	padding: 10px 12px;
+	border: 1px solid var(--border-color);
+	background: var(--card-bg);
+}
+
+.bnpl-attention-stat--risk {
+	border-color: rgba(239, 68, 68, 0.25);
+	background: rgba(239, 68, 68, 0.06);
+}
+
+.bnpl-attention-stat-label {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	opacity: 0.75;
+}
+
+.bnpl-attention-stat-value {
+	font-size: 20px;
+	font-weight: 800;
+	margin-top: 4px;
+}
+
+.bnpl-attention-list-title {
+	font-weight: 700;
+	font-size: 14px;
+	margin-bottom: 8px;
+}
+
+.bnpl-attention-list {
+	border-radius: 10px;
+	border: 1px solid var(--border-color);
+	overflow: hidden;
+	background: var(--card-bg);
+}
+
+.bnpl-attention-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 12px 14px;
+	border-top: 1px solid var(--border-color);
+}
+
+.bnpl-attention-row:first-child {
+	border-top: 0;
+}
+
+.bnpl-attention-row:hover {
+	background: rgba(59, 130, 246, 0.06);
+}
+
+/* ——— KPI grid (6) ——— */
+.bnpl-kpi-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.bnpl-kpi-card {
+	padding: 14px 16px;
+	border-radius: 14px;
+	cursor: default;
+	border: 1px solid var(--border-color);
+	background: var(--card-bg);
+	box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+	transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.bnpl-kpi-card[role="button"] {
+	cursor: pointer;
+}
+
+.bnpl-kpi-card[role="button"]:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+}
+
+.bnpl-kpi-card--neutral {
+	border-color: rgba(59, 130, 246, 0.22);
+	background: rgba(59, 130, 246, 0.06);
+}
+
+.bnpl-kpi-card--success {
+	border-color: rgba(16, 185, 129, 0.28);
+	background: rgba(16, 185, 129, 0.08);
+}
+
+.bnpl-kpi-card--pending {
+	border-color: rgba(245, 158, 11, 0.35);
+	background: rgba(245, 158, 11, 0.1);
+}
+
+.bnpl-kpi-card--risk {
+	border-color: rgba(239, 68, 68, 0.35);
+	background: rgba(239, 68, 68, 0.08);
+}
+
+.bnpl-kpi-label {
+	font-size: 12px;
+	opacity: 0.78;
+	margin-bottom: 6px;
+	font-weight: 600;
+}
+
+.bnpl-kpi-value-row {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.bnpl-kpi-value {
+	font-size: 22px;
+	font-weight: 800;
+	letter-spacing: -0.02em;
+}
+
+.bnpl-kpi-sub {
+	font-size: 11px;
+	opacity: 0.72;
+	margin-top: 6px;
+}
+
+.bnpl-trend {
+	font-size: 12px;
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.bnpl-trend--up {
+	color: #10b981;
+}
+
+.bnpl-trend--down {
+	color: #ef4444;
+}
+
+.bnpl-trend--flat {
+	opacity: 0.45;
+	font-weight: 600;
+}
+
+/* ——— Cashflow ——— */
+.bnpl-cashflow {
+	margin-bottom: 16px;
+	border-radius: 14px;
+	border: 1px solid var(--border-color);
+	padding: 14px 16px;
+	background: var(--card-bg);
+	box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+}
+
+.bnpl-cashflow-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+
+.bnpl-cashflow-title {
+	font-weight: 800;
+	font-size: 15px;
+}
+
+.bnpl-cashflow-pct {
+	font-size: 13px;
+	font-weight: 700;
+	color: #10b981;
+}
+
+.bnpl-cashflow-bar {
+	height: 10px;
+	border-radius: 999px;
+	background: rgba(245, 158, 11, 0.2);
+	overflow: hidden;
+	margin-bottom: 12px;
+}
+
+.bnpl-cashflow-bar-fill {
+	height: 100%;
+	border-radius: 999px;
+	background: linear-gradient(90deg, #10b981, #34d399);
+	transition: width 0.35s ease;
+}
+
+.bnpl-cashflow-compare {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	font-size: 13px;
+	flex-wrap: wrap;
+}
+
+.bnpl-cf-label {
+	opacity: 0.65;
+	margin-right: 6px;
+}
+
+/* ——— Split: actions + future ——— */
+.bnpl-split-grid {
+	display: grid;
+	grid-template-columns: 1.4fr 0.9fr;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.bnpl-panel {
+	border: 1px solid var(--border-color);
+	border-radius: 14px;
+	padding: 14px;
+	background: var(--card-bg);
+	box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+}
+
+.bnpl-panel-title {
+	font-size: 16px;
+	font-weight: 800;
+	margin-bottom: 6px;
+	letter-spacing: -0.02em;
+}
+
+.bnpl-panel-hint {
+	font-size: 12px;
+	opacity: 0.72;
+	margin-bottom: 10px;
+}
+
+.bnpl-list-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 10px 0;
+	border-top: 1px solid var(--border-color);
+}
+
+.bnpl-list-row:first-of-type {
+	border-top: 0;
+}
+
+.bnpl-due-row {
+	flex-wrap: wrap;
+}
+
+.bnpl-due-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+
+.bnpl-urgency {
+	font-size: 11px;
+	padding: 3px 8px;
+	border-radius: 999px;
+	font-weight: 700;
+}
+
+.bnpl-urgency--high {
+	background: rgba(239, 68, 68, 0.18);
+	color: #b91c1c;
+}
+
+.bnpl-urgency--normal {
+	background: rgba(245, 158, 11, 0.2);
+	color: #b45309;
+}
+
+.bnpl-row-title {
+	font-weight: 600;
+}
+
+.bnpl-row-sub {
+	font-size: 12px;
+	opacity: 0.8;
+}
+
+.bnpl-row-actions {
+	display: flex;
+	gap: 6px;
+	flex-shrink: 0;
+}
+
+/* ——— Future chips ——— */
+.bnpl-future-chip {
+	display: flex;
+	gap: 10px;
+	padding: 10px 0;
+	border-top: 1px dashed var(--border-color);
+}
+
+.bnpl-future-chip:first-of-type {
+	border-top: 0;
+	padding-top: 0;
+}
+
+.bnpl-future-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	margin-top: 6px;
+	background: #3b82f6;
+	flex-shrink: 0;
+	opacity: 0.7;
+}
+
+.bnpl-future-name {
+	font-weight: 700;
+	font-size: 13px;
+}
+
+.bnpl-future-hint {
+	font-size: 12px;
+	opacity: 0.72;
+	margin-top: 2px;
+}
+
+/* ——— Timeline ——— */
+.bnpl-timeline {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+}
+
+.bnpl-timeline-row {
+	display: flex;
+	gap: 12px;
+	padding: 12px 8px;
+	border-radius: 10px;
+	cursor: pointer;
+	border: 1px solid transparent;
+}
+
+.bnpl-timeline-row:hover {
+	background: rgba(128, 128, 128, 0.06);
+	border-color: var(--border-color);
+}
+
+.bnpl-timeline-icon {
+	width: 36px;
+	height: 36px;
+	border-radius: 10px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	font-size: 16px;
+}
+
+.bnpl-timeline-row--success .bnpl-timeline-icon {
+	background: rgba(16, 185, 129, 0.15);
+	color: #059669;
+}
+
+.bnpl-timeline-row--neutral .bnpl-timeline-icon {
+	background: rgba(59, 130, 246, 0.12);
+	color: #2563eb;
+}
+
+.bnpl-timeline-row--info .bnpl-timeline-icon {
+	background: rgba(59, 130, 246, 0.1);
+	color: #3b82f6;
+}
+
+.bnpl-timeline-row--risk .bnpl-timeline-icon {
+	background: rgba(239, 68, 68, 0.15);
+	color: #dc2626;
+}
+
+.bnpl-timeline-title {
+	font-weight: 700;
+	font-size: 13px;
+}
+
+.bnpl-timeline-detail {
+	font-size: 13px;
+	opacity: 0.85;
+	margin-top: 2px;
+}
+
+.bnpl-timeline-ts {
+	font-size: 11px;
+	opacity: 0.55;
+	margin-top: 4px;
+}
+
+/* ——— Empty / onboarding ——— */
+.bnpl-empty {
+	padding: 14px;
+	border: 1px dashed var(--border-color);
+	border-radius: 10px;
+	font-size: 13px;
+	opacity: 0.85;
+}
+
+.bnpl-onboarding {
+	padding: 16px;
+	border-radius: 12px;
+	border: 1px solid var(--border-color);
+	background: var(--card-bg);
+}
+
+.bnpl-onboarding-title {
+	font-weight: 800;
+	margin-bottom: 10px;
+	font-size: 15px;
+}
+
+.bnpl-onboarding-steps {
+	padding-left: 18px;
+	margin: 0 0 12px;
+	font-size: 13px;
+	opacity: 0.9;
+}
+
+.bnpl-onboarding-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.bnpl-overdue-toolbar {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 10px;
+}
+
+@media (max-width: 1100px) {
+	.bnpl-kpi-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 992px) {
+	.bnpl-attention-stats {
+		grid-template-columns: 1fr;
+	}
+	.bnpl-split-grid,
+	.bnpl-kpi-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+@media (max-width: 640px) {
+	.bnpl-cta-row {
+		flex-direction: column;
+	}
+	.bnpl-cta-secondaries {
+		flex-direction: column;
+	}
+	.bnpl-row-actions,
+	.bnpl-due-actions {
+		width: 100%;
+		justify-content: flex-start;
+	}
+	.bnpl-row-actions .btn,
+	.bnpl-due-actions .btn {
+		flex: 1;
+		min-height: 40px;
+	}
+}
+
+/* ——— IMEI quick search ——— */
+.bnpl-imei-block {
+	background: var(--card-bg);
+	border: 1px solid var(--border-color);
+	border-radius: 16px;
+	box-shadow: 0 4px 16px rgba(16, 24, 40, 0.06);
+	margin-bottom: 16px;
+	overflow: hidden;
+}
+.bnpl-imei-head { display: flex; align-items: center; gap: 10px; padding: 15px 18px 0; }
+.bnpl-imei-icon {
+	width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+	display: flex; align-items: center; justify-content: center;
+	background: rgba(59, 130, 246, 0.12); color: #3b82f6;
+}
+.bnpl-imei-icon svg { width: 17px; height: 17px; }
+.bnpl-imei-title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+.bnpl-imei-subhint { font-size: 12px; opacity: 0.65; margin-top: 1px; }
+.bnpl-imei-body { padding: 12px 18px 18px; }
+.bnpl-imei-field { position: relative; display: flex; align-items: center; }
+.bnpl-imei-mag {
+	position: absolute; left: 15px; width: 18px; height: 18px;
+	opacity: 0.4; pointer-events: none; display: flex;
+}
+.bnpl-imei-mag svg { width: 18px; height: 18px; }
+.bnpl-imei-input {
+	width: 100%; font-family: inherit; font-size: 16px; font-weight: 600;
+	letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+	padding: 12px 44px; border-radius: 12px;
+	border: 1.5px solid var(--border-color); background: var(--card-bg); color: var(--text-color);
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.bnpl-imei-input::placeholder { opacity: 0.55; font-weight: 500; letter-spacing: 0; }
+.bnpl-imei-input:focus {
+	outline: none; border-color: #3b82f6;
+	box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.14);
+}
+.bnpl-imei-clear {
+	position: absolute; right: 8px; border: none; background: transparent;
+	font-size: 20px; line-height: 1; cursor: pointer; padding: 5px 9px; border-radius: 8px;
+	opacity: 0.5; display: none;
+}
+.bnpl-imei-clear:hover { opacity: 1; background: var(--border-color); }
+.bnpl-imei-results { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.bnpl-imei-results:empty { margin-top: 0; }
+.bnpl-imei-count { font-size: 11.5px; opacity: 0.6; font-weight: 600; padding: 0 2px; }
+.bnpl-imei-card {
+	position: relative; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+	border: 1px solid var(--border-color); border-radius: 12px; background: var(--card-bg);
+	padding: 12px 14px 12px 16px; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+	transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.bnpl-imei-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(16, 24, 40, 0.09); }
+.bnpl-imei-card::before {
+	content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px;
+	border-radius: 0 3px 3px 0; background: #3b82f6;
+}
+.bnpl-imei-card--overdue::before { background: #ef4444; }
+.bnpl-imei-card--done::before { background: #10b981; }
+.bnpl-imei-card--sale::before { background: #10b981; }
+.bnpl-imei-card--stock::before { background: #f59e0b; }
+.bnpl-imei-card--trade::before { background: #8b5cf6; }
+.bnpl-imei-kind {
+	font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em;
+	padding: 2px 7px; border-radius: 6px; white-space: nowrap;
+}
+.bnpl-imei-kind--plan { background: rgba(59, 130, 246, 0.14); color: #2563eb; }
+.bnpl-imei-kind--sale { background: rgba(16, 185, 129, 0.15); color: #059669; }
+.bnpl-imei-kind--stock { background: rgba(245, 158, 11, 0.16); color: #b45309; }
+.bnpl-imei-kind--trade { background: rgba(139, 92, 246, 0.16); color: #7c3aed; }
+.bnpl-imei-datev { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (prefers-color-scheme: dark) {
+	.bnpl-imei-kind--plan { color: #60a5fa; }
+	.bnpl-imei-kind--sale { color: #34d399; }
+	.bnpl-imei-kind--stock { color: #fbbf24; }
+	.bnpl-imei-kind--trade { color: #a78bfa; }
+}
+:root[data-theme="dark"] .bnpl-imei-kind--plan { color: #60a5fa; }
+:root[data-theme="dark"] .bnpl-imei-kind--sale { color: #34d399; }
+:root[data-theme="dark"] .bnpl-imei-kind--stock { color: #fbbf24; }
+:root[data-theme="dark"] .bnpl-imei-kind--trade { color: #a78bfa; }
+.bnpl-imei-card-main { flex: 1 1 250px; min-width: 200px; }
+.bnpl-imei-line1 { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.bnpl-imei-name { font-weight: 700; font-size: 14.5px; }
+.bnpl-imei-id { font-size: 11px; opacity: 0.5; font-variant-numeric: tabular-nums; }
+.bnpl-imei-status {
+	font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+	background: rgba(59, 130, 246, 0.12); color: #2563eb;
+}
+.bnpl-imei-status--overdue { background: rgba(239, 68, 68, 0.13); color: #dc2626; }
+.bnpl-imei-status--done { background: rgba(16, 185, 129, 0.13); color: #059669; }
+.bnpl-imei-cardsub { font-size: 12px; opacity: 0.8; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.bnpl-imei-num mark { background: rgba(245, 158, 11, 0.22); color: inherit; border-radius: 3px; padding: 0 2px; font-weight: 800; }
+.bnpl-imei-money { text-align: right; padding: 0 2px; }
+.bnpl-imei-money-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.55; }
+.bnpl-imei-money-val { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.bnpl-imei-actions { display: flex; gap: 7px; flex-shrink: 0; }
+.bnpl-imei-state {
+	padding: 20px 14px; text-align: center; opacity: 0.7; font-size: 13px;
+	border: 1px dashed var(--border-color); border-radius: 12px;
+}
+@media (max-width: 640px) {
+	.bnpl-imei-money { text-align: left; }
+	.bnpl-imei-actions { width: 100%; }
+	.bnpl-imei-actions .btn { flex: 1; }
+}
+
+/* ===================== installment_plan_wizard ===================== */
+/* Installment Plan — operator BNPL form */
+.nasiya-ip-wizard .nasiya-ip-preview-card {
+	background: var(--fg-color, #fff);
+	border: 1px solid var(--border-color, #e2e6ea);
+	border-radius: 12px;
+	padding: 1rem 1.25rem;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.nasiya-ip-wizard .nasiya-ip-preview-card .nasiya-ip-kicker {
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-muted, #6c757d);
+	margin-bottom: 0.25rem;
+}
+.nasiya-ip-wizard .nasiya-ip-preview-card .nasiya-ip-hero {
+	font-size: 1.85rem;
+	font-weight: 700;
+	line-height: 1.2;
+	color: var(--text-color, #212529);
+	margin-bottom: 1rem;
+}
+.nasiya-ip-wizard .nasiya-ip-preview-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.75rem 1rem;
+}
+@media (max-width: 576px) {
+	.nasiya-ip-wizard .nasiya-ip-preview-grid {
+		grid-template-columns: 1fr;
+	}
+}
+.nasiya-ip-wizard .nasiya-ip-preview-grid .label {
+	font-size: 0.72rem;
+	color: var(--text-muted, #6c757d);
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+.nasiya-ip-wizard .nasiya-ip-preview-grid .value {
+	font-weight: 600;
+	font-size: 0.95rem;
+}
+.nasiya-ip-wizard .nasiya-ip-risk-card {
+	background: linear-gradient(145deg, #1e293b 0%, #334155 100%);
+	color: #f8fafc;
+	border-radius: 12px;
+	padding: 1rem 1.15rem;
+	min-height: 200px;
+}
+.nasiya-ip-wizard .nasiya-ip-risk-card .title {
+	font-size: 0.8rem;
+	font-weight: 600;
+	opacity: 0.9;
+	margin-bottom: 0.75rem;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+	padding-bottom: 0.5rem;
+}
+.nasiya-ip-wizard .nasiya-ip-risk-card .row {
+	display: flex;
+	justify-content: space-between;
+	gap: 0.5rem;
+	font-size: 0.85rem;
+	margin-bottom: 0.45rem;
+}
+.nasiya-ip-wizard .nasiya-ip-risk-card .row span:last-child {
+	font-weight: 600;
+}
+.nasiya-ip-wizard .nasiya-ip-risk-card .nasiya-ip-risk-warn {
+	color: #fca5a5;
+	font-weight: 700;
+}
+
+.bnpl-row-disputed td { background: var(--yellow-highlight, #fff9e6) !important; }
