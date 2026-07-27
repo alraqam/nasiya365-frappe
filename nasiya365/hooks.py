@@ -22,17 +22,14 @@ required_apps = ["frappe"]
 # ------------------
 
 # Include JS in all pages
-app_include_js = [
-    "/assets/nasiya365/js/installment_calculator.js",
-    "/assets/nasiya365/js/pwa_register.js",
-    "/assets/nasiya365/js/list_column_picker.js",
-]
+# Bundled (content-hashed) so a new deploy changes the asset URL and browsers
+# fetch fresh code without a manual cache clear. Source files are imported from
+# public/js/nasiya365.bundle.js.
+app_include_js = ["nasiya365.bundle.js"]
 
 # Include CSS in all pages
-app_include_css = [
-    "/assets/nasiya365/css/bnpl_control_center.css",
-    "/assets/nasiya365/css/installment_plan_wizard.css",
-]
+# Bundled for the same cache-busting reason; entry: public/css/nasiya365.bundle.css.
+app_include_css = ["nasiya365.bundle.css"]
 
 # Include JS in web pages (login, portal) so PWA manifest/SW are available before desk
 web_include_js = ["/assets/nasiya365/js/pwa_register.js"]

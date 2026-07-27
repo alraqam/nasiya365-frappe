@@ -1,0 +1,11 @@
+/**
+ * App-wide CSS bundle entry point.
+ *
+ * Compiled by Frappe's esbuild into a content-hashed file
+ * (nasiya365.bundle.<HASH>.css, recorded in assets.json). A new hash every build
+ * means browsers pick up style changes after a deploy without a cache clear.
+ *
+ * hooks.py references it by logical name: app_include_css = ["nasiya365.bundle.css"].
+ */
+@import "./bnpl_control_center.css";
+@import "./installment_plan_wizard.css";
