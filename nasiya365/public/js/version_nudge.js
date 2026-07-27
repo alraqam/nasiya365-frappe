@@ -4,8 +4,8 @@
  * The desk is a single-page app: an open tab keeps running the JS it loaded until
  * a full reload. Hashed bundles fix the cache layer, but a tab that is never
  * reloaded still runs old code. This polls a cheap, never-cached endpoint for the
- * current bundle hash and, when it differs from the loaded one, shows a dismissible
- * toast with a Reload button. It never auto-reloads — that could drop an unsaved
+ * current JS + CSS bundle hashes and, when either differs from the loaded one, shows a
+ * dismissible toast with a Reload button. It never auto-reloads — that could drop an unsaved
  * form (e.g. a half-entered payment).
  *
  * Bundled into nasiya365.bundle.js; runs only on the desk (where `frappe` exists).
@@ -27,18 +27,27 @@
 		return String(url).split("?")[0].split("#")[0].split("/").pop();
 	}
 
-	function loadedVersion() {
-		var el = document.querySelector('script[src*="nasiya365.bundle"]');
-		if (el && el.src) return basename(el.src);
+	// Basename of the first element matching `selector` read from its `attr`.
+	function loadedFrom(selector, attr) {
+		var el = document.querySelector(selector);
+		return el && el[attr] ? basename(el[attr]) : "";
+	}
+
+	function loadedJs() {
+		var v = loadedFrom('script[src*="nasiya365.bundle"]', "src");
+		if (v) return v;
 		if (document.currentScript && document.currentScript.src) {
 			return basename(document.currentScript.src);
 		}
 		return "";
 	}
 
-	var LOADED = loadedVersion();
-	// Unhashed/dev builds (no dist bundle on the page) give us nothing to compare — skip quietly.
-	if (!LOADED || LOADED.indexOf("nasiya365.bundle") !== 0) return;
+	// Loaded bundle basenames (JS via <script>, CSS via <link>). The server reports the
+	// current ones so a JS *or* CSS deploy triggers the nudge.
+	var LOADED_JS = loadedJs();
+	var LOADED_CSS = loadedFrom('link[href*="nasiya365.bundle"]', "href");
+	// Nothing bundled on the page — nothing to compare, skip quietly.
+	if (!LOADED_JS && !LOADED_CSS) return;
 
 	function showToast() {
 		if (shown) return;
@@ -96,8 +105,10 @@
 		frappe.call({
 			method: "nasiya365.api.app_meta.asset_version",
 			callback: function (r) {
-				var server = basename(r && r.message);
-				if (server && server.indexOf("nasiya365.bundle") === 0 && server !== LOADED) {
+				var m = (r && r.message) || {};
+				var jsChanged = LOADED_JS && basename(m.js) && basename(m.js) !== LOADED_JS;
+				var cssChanged = LOADED_CSS && basename(m.css) && basename(m.css) !== LOADED_CSS;
+				if (jsChanged || cssChanged) {
 					showToast();
 				}
 			},
