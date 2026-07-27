@@ -142,7 +142,7 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 			"Склад": { card: "bnpl-imei-card--stock", badge: "bnpl-imei-kind--stock" },
 			"Trade-in": { card: "bnpl-imei-card--trade", badge: "bnpl-imei-kind--trade" },
 		};
-		const moneyLabel = { "Рассрочка": __("Остаток"), "Продажа": __("Сумма"), "Trade-in": __("Оценка") };
+		const moneyLabel = { "Рассрочка": __("Остаток"), "Продажа": __("Сумма"), "Склад": __("Цена прихода"), "Trade-in": __("Оценка") };
 		const highlight = (imei, t) => {
 			imei = String(imei || "");
 			const i = imei.indexOf(t);
@@ -154,8 +154,7 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 		$(`<div class="bnpl-imei-count">${__("Найдено")}: ${rows.length}</div>`).appendTo(results);
 		rows.forEach((row) => {
 			const k = KIND[row.kind] || { card: "", badge: "" };
-			const hasMoney = row.amount != null && row.kind !== "Склад";
-			const right = hasMoney
+			const right = row.amount != null
 				? `<div class="bnpl-imei-money-label">${esc(moneyLabel[row.kind] || __("Сумма"))}</div>
 				   <div class="bnpl-imei-money-val">${format_currency(flt(row.amount))}</div>`
 				: `<div class="bnpl-imei-money-label">${__("Дата")}</div>
@@ -163,6 +162,7 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 			const payBtn = row.kind === "Рассрочка"
 				? `<button class="btn btn-primary btn-sm btn-pay">${__("Принять платёж")}</button>` : "";
 			const statusText = row.status ? ` · ${esc(row.status)}` : "";
+			const dateText = row.date ? ` · ${esc(dt(row.date))}` : "";
 			const node = $(`
 				<div class="bnpl-imei-card ${k.card}">
 					<div class="bnpl-imei-card-main">
@@ -171,7 +171,7 @@ nasiya365.BnplControlCenter = class BnplControlCenter {
 							<span class="bnpl-imei-name">${esc(row.party || "—")}</span>
 							<span class="bnpl-imei-id">${esc(row.name)}</span>
 						</div>
-						<div class="bnpl-imei-cardsub">${esc(row.product_name || "")} · IMEI <span class="bnpl-imei-num">${highlight(row.imei, term)}</span>${statusText}</div>
+						<div class="bnpl-imei-cardsub">${esc(row.product_name || "")} · IMEI <span class="bnpl-imei-num">${highlight(row.imei, term)}</span>${statusText}${dateText}</div>
 					</div>
 					<div class="bnpl-imei-money">${right}</div>
 					<div class="bnpl-imei-actions">

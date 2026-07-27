@@ -643,7 +643,7 @@ def search_by_imei(imei, limit=20):
     )
     for r in frappe.db.sql(
         f"""
-        SELECT se.name, se.entry_type, se.posting_date, se.supplier, sei.imei, sei.product
+        SELECT se.name, se.entry_type, se.posting_date, se.supplier, sei.imei, sei.product, sei.rate
         FROM `tabStock Entry Item` sei
         JOIN `tabStock Entry` se ON se.name = sei.parent
         WHERE sei.imei LIKE %s AND se.docstatus < 2 {st_clause}
@@ -653,7 +653,7 @@ def search_by_imei(imei, limit=20):
     ):
         out.append({
             "kind": "Склад", "doctype": "Stock Entry", "name": r.name,
-            "party": r.supplier, "status": r.entry_type, "amount": None,
+            "party": r.supplier, "status": r.entry_type, "amount": r.rate,
             "date": r.posting_date, "product_name": _product_name_of(r.product), "imei": r.imei,
         })
 
