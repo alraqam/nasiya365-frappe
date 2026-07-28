@@ -30,6 +30,7 @@ import frappe
 from frappe.utils import flt, getdate
 
 from nasiya365.api.bnpl_dashboard import _user_branch_clause
+from nasiya365.api.recognition import recognized_delta, split_recognized
 
 _LIVE_PLAN_STATUSES = ("Активный", "Просрочен", "Завершен")
 
@@ -217,7 +218,9 @@ def compute_profit(from_date, to_date, branch=None):
     settings = _settings()
     method = settings.profit_method or "По оплате (касса)"
 
-    if method.startswith("При продаже"):
+    if method.startswith("Возмещение"):
+        comp = _compute_cost_recovery(from_date, to_date, branch)
+    elif method.startswith("При продаже"):
         comp = _compute_accrual(from_date, to_date, branch)
     else:
         comp = _compute_cash(from_date, to_date, branch)
@@ -441,6 +444,132 @@ def _compute_accrual(from_date, to_date, branch):
         "financed_margin": financed_margin,
         "interest_income": interest_income,
     }
+
+
+# ── COST RECOVERY BASIS ──────────────────────────────────────────────────────
+
+def _plan_cogs(plan):
+    return _cogs_for_sale_item(plan.imei, plan.get("stock_entry"), plan.get("start_date"))
+
+
+def _collected_before(rdt, rn, from_date):
+    """Sum of completed payments on a deal strictly before the period start."""
+    return flt(frappe.db.sql(
+        """SELECT COALESCE(SUM(amount), 0) FROM `tabPayment Transaction`
+           WHERE docstatus < 2 AND status = 'Завершен'
+             AND reference_doctype = %s AND reference_name = %s
+             AND DATE(payment_date) < %s""",
+        (rdt, rn, from_date))[0][0])
+
+
+def _compute_cost_recovery(from_date, to_date, branch):
+    """Cost-recovery recognition. Раздел 1 (sales/potential) reuses accrual;
+    Раздел 2 (recognized) is driven by cumulative collections vs COGS per deal."""
+    unrestricted, user_branches = _user_branches()
+
+    # ── Раздел 1: sales made in the period (potential) — reuse accrual as-is.
+    sales = _compute_accrual(from_date, to_date, branch)
+
+    # ── Раздел 2: recognition from collections.
+    # Deals with >= 1 completed payment inside the window, with each deal's
+    # branch resolved the same way as _compute_cash.
+    window = frappe.db.sql(
+        """
+        SELECT pt.reference_doctype AS rdt, pt.reference_name AS rn,
+               SUM(pt.amount) AS win,
+               CASE
+                 WHEN pt.reference_doctype = 'Installment Plan' THEN (
+                     SELECT so.branch FROM `tabSales Order` so
+                     JOIN `tabInstallment Plan` ip ON ip.sales_order = so.name
+                     WHERE ip.name = pt.reference_name LIMIT 1)
+                 WHEN pt.reference_doctype = 'Sales Order' THEN (
+                     SELECT branch FROM `tabSales Order` WHERE name = pt.reference_name LIMIT 1)
+               END AS branch
+        FROM `tabPayment Transaction` pt
+        WHERE pt.docstatus < 2 AND pt.status = 'Завершен'
+          AND pt.reference_name IS NOT NULL
+          AND DATE(pt.payment_date) BETWEEN %s AND %s
+        GROUP BY pt.reference_doctype, pt.reference_name
+        """,
+        (from_date, to_date), as_dict=True,
+    )
+
+    rec_margin_cash = rec_margin_fin = rec_interest = 0.0
+    collected_total = 0.0
+    plan_cache, so_cache = {}, {}
+
+    for w in window:
+        b = w.branch
+        if branch and b != branch:
+            continue
+        if not unrestricted and (b not in user_branches):
+            continue
+
+        before = _collected_before(w.rdt, w.rn, from_date)
+        after = before + flt(w.win)
+
+        if w.rdt == "Installment Plan":
+            plan = plan_cache.get(w.rn)
+            if plan is None:
+                plan = frappe.db.get_value(
+                    "Installment Plan", w.rn,
+                    ["imei", "principal_amount", "financed_amount", "total_interest",
+                     "total_amount", "contract_status", "stock_entry", "start_date"],
+                    as_dict=True)
+                plan_cache[w.rn] = plan
+            if not plan or plan.contract_status == "Отменен":
+                continue
+            cogs = _plan_cogs(plan)
+            margin = (flt(plan.principal_amount) or flt(plan.financed_amount)) - cogs
+            interest = flt(plan.total_interest)
+            total_profit = margin + interest
+            delta = recognized_delta(before, after, cogs, total_profit)
+            m_part, i_part = split_recognized(delta, margin, total_profit)
+            rec_margin_fin += m_part
+            rec_interest += i_part
+            collected_total += flt(w.win)
+
+        elif w.rdt == "Sales Order":
+            so = so_cache.get(w.rn)
+            if so is None:
+                so = frappe.db.get_value(
+                    "Sales Order", w.rn, ["name", "total_amount"], as_dict=True)
+                so_cache[w.rn] = so
+            if not so:
+                continue
+            cogs = _cogs_for_sales_order(so.name)
+            margin = flt(so.total_amount) - cogs
+            total_profit = margin  # cash sale: no interest
+            delta = recognized_delta(before, after, cogs, total_profit)
+            m_part, _ = split_recognized(delta, margin, total_profit)
+            rec_margin_cash += m_part
+            collected_total += flt(w.win)
+
+    # potential (Раздел 1) totals derived from accrual
+    sales_total_margin = flt(sales["cash_margin"]) + flt(sales["financed_margin"])
+    sales_interest = flt(sales["interest_income"])
+
+    comp = dict(sales)  # carry cash/financed revenue+cogs (sales side)
+    comp.update({
+        "from_date": str(from_date),
+        "to_date": str(to_date),
+        # Раздел 1 (potential)
+        "sales_cash_revenue": flt(sales["cash_revenue"]),
+        "sales_cash_cogs": flt(sales["cash_cogs"]),
+        "sales_cash_margin": flt(sales["cash_margin"]),
+        "sales_financed_revenue": flt(sales["financed_revenue"]),
+        "sales_financed_cogs": flt(sales["financed_cogs"]),
+        "sales_financed_margin": flt(sales["financed_margin"]),
+        "sales_total_margin": sales_total_margin,
+        "sales_interest": sales_interest,
+        "potential_profit": sales_total_margin + sales_interest,
+        # Раздел 2 (recognized) — these DRIVE _apply_basis / net_profit
+        "cash_margin": rec_margin_cash,
+        "financed_margin": rec_margin_fin,
+        "interest_income": rec_interest,
+        "collected": collected_total,
+    })
+    return comp
 
 
 # ── Shareholders ────────────────────────────────────────────────────────────
