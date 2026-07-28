@@ -34,6 +34,18 @@ from nasiya365.api.recognition import recognized_delta, split_recognized
 
 _LIVE_PLAN_STATUSES = ("Активный", "Просрочен", "Завершен")
 
+# Static SQL fragment (no user input -- safe to interpolate via f-string) shared
+# verbatim between _compute_cash and _compute_cost_recovery to resolve a
+# Payment Transaction's branch from its reference (Installment Plan / Sales Order).
+_PAYMENT_BRANCH_CASE = """CASE
+                 WHEN pt.reference_doctype = 'Installment Plan' THEN (
+                     SELECT so.branch FROM `tabSales Order` so
+                     JOIN `tabInstallment Plan` ip ON ip.sales_order = so.name
+                     WHERE ip.name = pt.reference_name LIMIT 1)
+                 WHEN pt.reference_doctype = 'Sales Order' THEN (
+                     SELECT branch FROM `tabSales Order` WHERE name = pt.reference_name LIMIT 1)
+               END"""
+
 
 def _settings():
     return frappe.get_single("Merchant Settings")
@@ -292,18 +304,11 @@ def _compute_cash(from_date, to_date, branch):
     unrestricted, user_branches = _user_branches()
 
     payments = frappe.db.sql(
-        """
+        f"""
         SELECT pt.reference_doctype AS rdt,
                pt.reference_name   AS rn,
                pt.amount           AS amount,
-               CASE
-                 WHEN pt.reference_doctype = 'Installment Plan' THEN (
-                     SELECT so.branch FROM `tabSales Order` so
-                     JOIN `tabInstallment Plan` ip ON ip.sales_order = so.name
-                     WHERE ip.name = pt.reference_name LIMIT 1)
-                 WHEN pt.reference_doctype = 'Sales Order' THEN (
-                     SELECT branch FROM `tabSales Order` WHERE name = pt.reference_name LIMIT 1)
-               END AS branch
+               {_PAYMENT_BRANCH_CASE} AS branch
         FROM `tabPayment Transaction` pt
         WHERE pt.docstatus < 2
           AND pt.status = 'Завершен'
@@ -474,17 +479,10 @@ def _compute_cost_recovery(from_date, to_date, branch):
     # Deals with >= 1 completed payment inside the window, with each deal's
     # branch resolved the same way as _compute_cash.
     window = frappe.db.sql(
-        """
+        f"""
         SELECT pt.reference_doctype AS rdt, pt.reference_name AS rn,
                SUM(pt.amount) AS win,
-               CASE
-                 WHEN pt.reference_doctype = 'Installment Plan' THEN (
-                     SELECT so.branch FROM `tabSales Order` so
-                     JOIN `tabInstallment Plan` ip ON ip.sales_order = so.name
-                     WHERE ip.name = pt.reference_name LIMIT 1)
-                 WHEN pt.reference_doctype = 'Sales Order' THEN (
-                     SELECT branch FROM `tabSales Order` WHERE name = pt.reference_name LIMIT 1)
-               END AS branch
+               {_PAYMENT_BRANCH_CASE} AS branch
         FROM `tabPayment Transaction` pt
         WHERE pt.docstatus < 2 AND pt.status = 'Завершен'
           AND pt.reference_name IS NOT NULL
