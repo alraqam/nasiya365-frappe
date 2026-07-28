@@ -15,3 +15,4 @@ import "./installment_calculator.js";
 import "./pwa_register.js";
 import "./list_column_picker.js";
 import "./version_nudge.js";
+import "./idle_logout.js";
