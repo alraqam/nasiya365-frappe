@@ -478,6 +478,9 @@ def _compute_cost_recovery(from_date, to_date, branch):
     # ── Раздел 2: recognition from collections.
     # Deals with >= 1 completed payment inside the window, with each deal's
     # branch resolved the same way as _compute_cash.
+    # NOTE: unlike _compute_cash (which skips amount <= 0), cost recovery lets
+    # negative payments (refunds) flow through: a refund correctly REVERSES prior
+    # recognition via a negative recognized_delta. Intentional divergence.
     window = frappe.db.sql(
         f"""
         SELECT pt.reference_doctype AS rdt, pt.reference_name AS rn,

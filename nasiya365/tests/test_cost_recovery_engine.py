@@ -139,8 +139,8 @@ class TestCostRecoveryEngine(unittest.TestCase):
 
     def test_down_payment_below_cost_recognizes_zero(self):
         # phone: principal 650, cogs 620, interest 90 -> total profit 120
-        # down 350 collected today < 620 -> recognized 0
-        d = frappe.utils.today()
+        # down 350 collected < 620 -> recognized 0
+        d = f"{_SAFE_YEAR}-05-25"
         self._seed_plan_with_payment(650, 300, 90, 620, 350, d)
         comp = _compute_cost_recovery(d, d, None)
         self.assertAlmostEqual(comp["financed_margin"], 0.0, places=2)

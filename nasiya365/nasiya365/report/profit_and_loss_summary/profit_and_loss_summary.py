@@ -7,13 +7,20 @@ from frappe.utils import flt, today, add_months
 from nasiya365.api.profit import compute_profit
 
 
+def _header_row(label):
+    return {"metric": label, "amount": None, "bold": 1}
+
+
 def _cost_recovery_rows(p, row):
     recognized_margin = flt(p["cash_margin"]) + flt(p["financed_margin"])
     recognized_interest = flt(p["interest_income"])
-    recognized_profit = recognized_margin + recognized_interest
-    cogs_recovered = flt(p["collected"]) - recognized_profit
+    recognized_gross = recognized_margin + recognized_interest   # cash collected above COGS
+    cogs_recovered = flt(p["collected"]) - recognized_gross
+    interest_note = " (учтён)" if p.get("interest_in_profit") else " (не входит в базу)"
+    expense_note = "" if p.get("expenses_in_profit") else " (не входят в базу)"
+    net_suffix = f" ({p.get('profit_basis', '')} · {p.get('profit_method', '')})"
     return [
-        row(_("РАЗДЕЛ 1. Продажи за период (по факту продажи)"), 0, bold=1),
+        _header_row(_("РАЗДЕЛ 1. Продажи за период (по факту продажи)")),
         row(_("Наличные — продажа"), p["sales_cash_revenue"], indent=1),
         row(_("Наличные — себестоимость"), -p["sales_cash_cogs"], indent=1),
         row(_("Наличные — маржа"), p["sales_cash_margin"], indent=1),
@@ -23,14 +30,14 @@ def _cost_recovery_rows(p, row):
         row(_("Итого маржа товара"), p["sales_total_margin"], bold=1),
         row(_("Процентный доход (потенциальный)"), p["sales_interest"], indent=1),
         row(_("Потенциальная прибыль сделок"), p["potential_profit"], bold=1),
-        row(_("РАЗДЕЛ 2. Признано за период (возмещение затрат)"), 0, bold=1),
+        _header_row(_("РАЗДЕЛ 2. Признано за период (возмещение затрат)")),
         row(_("Собрано денег"), p["collected"], indent=1),
         row(_("Возмещение себестоимости"), -cogs_recovered, indent=1),
-        row(_("Признанная прибыль"), recognized_profit, bold=1),
-        row(_("    в т.ч. маржа"), recognized_margin, indent=1),
-        row(_("    в т.ч. проценты"), recognized_interest, indent=1),
-        row(_("Операционные расходы"), -p["expenses"], indent=1),
-        row(_("ЧИСТАЯ ПРИБЫЛЬ (признанная)"), p["net_profit"], bold=1),
+        row(_("Признанная маржа"), recognized_margin, indent=1),
+        row(_("Признанный процентный доход") + interest_note, recognized_interest, indent=1),
+        row(_("Признанная валовая прибыль"), p["gross_profit"], bold=1),
+        row(_("Операционные расходы") + expense_note, -p["expenses"], indent=1),
+        row(_("ЧИСТАЯ ПРИБЫЛЬ (признанная)") + net_suffix, p["net_profit"], bold=1),
     ]
 
 
@@ -53,7 +60,7 @@ def execute(filters=None):
     if (p.get("profit_method") or "").startswith("Возмещение"):
         data = _cost_recovery_rows(p, row)
         report_summary = [
-            {"label": _("Признанная прибыль"),
+            {"label": _("Чистая прибыль (признанная)"),
              "value": frappe.utils.fmt_money(p["net_profit"], currency="USD"),
              "indicator": "Green" if p["net_profit"] >= 0 else "Red"},
             {"label": _("Потенциал сделок периода"),
