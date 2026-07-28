@@ -43,4 +43,26 @@ assert.strictEqual(formatMoney(3510), "$3 510.00");
 assert.strictEqual(formatMoney(-120), "−$120.00");
 assert.strictEqual(formatMoney(95), "$95.00");
 
+// 7. basis flags — coerced to real booleans (raw.interest_in_profit=0, raw.expenses_in_profit=1)
+assert.strictEqual(vm.basis.profitBasis, "Чистая прибыль");
+assert.strictEqual(vm.basis.interestInProfit, false);
+assert.strictEqual(typeof vm.basis.interestInProfit, "boolean");
+assert.strictEqual(vm.basis.expensesInProfit, true);
+assert.strictEqual(typeof vm.basis.expensesInProfit, "boolean");
+
+// 8. recognized gross profit / operating expenses (§16 sample)
+assert.strictEqual(vm.recognized.grossProfit, 50);
+assert.strictEqual(vm.recognized.operatingExpenses, 0);
+
+// 9. sales totals (§16 sample)
+assert.strictEqual(vm.sales.total.margin, 95);
+assert.strictEqual(vm.sales.total.interest, 508);
+
+// 10. a LITERAL zero installment interest stays numeric 0 (renders $0.00), not null
+const rawZeroInterest = Object.assign({}, raw, { sales_interest: 0 });
+const vmZeroInterest = buildViewModel(rawZeroInterest);
+assert.strictEqual(vmZeroInterest.sales.installment.interest, 0);
+assert.notStrictEqual(vmZeroInterest.sales.installment.interest, null);
+assert.strictEqual(formatMoney(vmZeroInterest.sales.installment.interest), "$0.00");
+
 console.log("ALL PNL ADAPTER TESTS PASSED");

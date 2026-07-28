@@ -91,6 +91,15 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 	render() {
 		this._renderFilters();
 		frappe.require("/assets/nasiya365/js/pnl_adapter.js", () => {
+			const adapter = window.Nasiya365PnL;
+			if (!adapter || typeof adapter.buildViewModel !== "function" || typeof adapter.formatMoney !== "function") {
+				console.error(
+					"[profit-and-loss] pnl_adapter.js failed to load or is missing expected exports:",
+					adapter
+				);
+				this._showError();
+				return;
+			}
 			this.load();
 		});
 	}
@@ -190,10 +199,15 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 					this._showError();
 					return;
 				}
-				const vm = window.Nasiya365PnL.buildViewModel(r.message || {});
-				this._vm = vm;
-				this._renderResult(vm);
-				this._setUpdatedNow();
+				try {
+					const vm = window.Nasiya365PnL.buildViewModel(r.message || {});
+					this._vm = vm;
+					this._renderResult(vm);
+					this._setUpdatedNow();
+				} catch (e) {
+					console.error("[profit-and-loss] failed to build/render view-model:", e);
+					this._showError();
+				}
 			},
 			error: (err) => {
 				console.error("[profit-and-loss] get_profit_summary request failed:", err);
