@@ -8,7 +8,7 @@ from nasiya365.api.profit import compute_profit
 
 
 def _header_row(label):
-    return {"metric": label, "amount": None, "bold": 1}
+    return {"metric": label, "amount": None, "currency": "USD", "bold": 1}
 
 
 def _cost_recovery_rows(p, row):
@@ -51,11 +51,11 @@ def execute(filters=None):
 
     columns = [
         {"label": _("Показатель"), "fieldname": "metric", "fieldtype": "Data", "width": 320},
-        {"label": _("Сумма (USD)"), "fieldname": "amount", "fieldtype": "Currency", "width": 180},
+        {"label": _("Сумма (USD)"), "fieldname": "amount", "fieldtype": "Currency", "options": "currency", "width": 180},
     ]
 
     def row(metric, amount, bold=0, indent=0):
-        return {"metric": ("    " * indent) + metric, "amount": flt(amount), "bold": bold}
+        return {"metric": ("    " * indent) + metric, "amount": flt(amount), "currency": "USD", "bold": bold}
 
     if (p.get("profit_method") or "").startswith("Возмещение"):
         data = _cost_recovery_rows(p, row)
