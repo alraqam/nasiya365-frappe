@@ -346,7 +346,7 @@ def _nasiya365_workspace_sidebar_items():
     link("Коллекции", "Page", "overdue-collector", child=1)
     link("Настройки", "DocType", "Merchant Settings", child=1)
     section("📊 Отчёты")
-    link("Прибыль и убытки", "Report", "Profit and Loss Summary", child=1)
+    link("Прибыль и поступления", "Page", "profit-and-loss", child=1)
     link("Распределение прибыли", "Report", "Shareholder Distribution", child=1)
     link("Отчёт по продажам", "Report", "Sales Report", child=1)
     link("Сборы и просрочка", "Report", "Collections and Overdue", child=1)
