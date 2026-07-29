@@ -150,17 +150,11 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 		this.refreshBtn = $(
 			`<button type="button" class="btn btn-default btn-sm pnl-btn-refresh">${__("Обновить")}</button>`
 		).appendTo(actions);
-		this.exportBtn = $(
-			`<button type="button" class="btn btn-default btn-sm pnl-btn-export">${__(
-				"Экспорт CSV"
-			)}</button>`
-		).appendTo(actions);
 
 		this.updatedEl = $(`<div class="pnl-updated"></div>`).appendTo(wrap);
 
 		this.generateBtn.on("click", () => this.load());
 		this.refreshBtn.on("click", () => this.load());
-		this.exportBtn.on("click", () => this.exportCsv());
 	}
 
 	_getFilterValues() {
@@ -480,63 +474,5 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 			now.getHours()
 		)}:${pad2(now.getMinutes())}`;
 		this.updatedEl.text(`${__("Обновлено")}: ${stamp}`);
-	}
-
-	/* ——— CSV export (§14) ——— */
-	exportCsv() {
-		if (!this._vm) {
-			frappe.show_alert({ message: __("Сначала сформируйте отчёт"), indicator: "orange" });
-			return;
-		}
-
-		const vm = this._vm;
-		const fmt = window.Nasiya365PnL.formatMoney;
-		const csvCell = (v) => {
-			v = v === null || v === undefined ? "" : String(v);
-			return /["\n\r,]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-		};
-
-		const rows = [];
-		rows.push([__("1. Продажи, оформленные за период")]);
-		rows.push([
-			__("Тип продажи"),
-			__("Продажи"),
-			__("Себестоимость"),
-			__("Маржа товара"),
-			__("Проценты по рассрочке"),
-			__("Общая прибыль"),
-		]);
-		this._salesRows(vm).forEach((row) => {
-			const d = row.data;
-			rows.push([
-				row.label,
-				fmt(d.sales),
-				fmt(d.cost),
-				fmt(d.margin),
-				d.interest === null ? "—" : fmt(d.interest),
-				fmt(d.totalProfit),
-			]);
-		});
-
-		rows.push([]);
-		rows.push([__("2. Поступления и заработанная прибыль")]);
-		rows.push([__("Показатель"), __("Сумма"), __("Объяснение")]);
-		this._recognizedRows(vm).forEach((row) => {
-			rows.push([row.label, fmt(row.value), row.explain]);
-		});
-
-		const csv = rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
-		const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-		const url = URL.createObjectURL(blob);
-
-		const from = (this._lastFilters && this._lastFilters.from_date) || "";
-		const to = (this._lastFilters && this._lastFilters.to_date) || "";
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = `pribyl-i-postupleniya-${from}-${to}.csv`;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		URL.revokeObjectURL(url);
 	}
 };
