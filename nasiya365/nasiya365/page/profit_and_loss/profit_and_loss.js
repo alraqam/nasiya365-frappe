@@ -90,7 +90,10 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 
 	render() {
 		this._renderFilters();
-		frappe.require("/assets/nasiya365/js/pnl_adapter.js?t=" + Date.now(), () => {
+		// NB: no ?t= cache-bust here — frappe.require's asset-type detection breaks
+		// on a query string. The adapter is stable; the CSS (which we iterate on)
+		// is cache-busted via its <link> href instead.
+		frappe.require("/assets/nasiya365/js/pnl_adapter.js", () => {
 			const adapter = window.Nasiya365PnL;
 			if (!adapter || typeof adapter.buildViewModel !== "function" || typeof adapter.formatMoney !== "function") {
 				console.error(
