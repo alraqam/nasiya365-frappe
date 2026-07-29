@@ -1,6 +1,6 @@
 {
     "charts": [],
-    "content": "[{\"id\": \"heading-main\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Nasiya365</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-dashboard\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Дашборд\", \"col\": 6}}, {\"id\": \"shortcut-collections\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Коллекции\", \"col\": 6}}, {\"id\": \"heading-actions\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Быстрые действия</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-data-import\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Наличные продажи\", \"col\": 4}}, {\"id\": \"shortcut-accept-pay\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Принять платеж\", \"col\": 4}}, {\"id\": \"shortcut-new-client\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Новый клиент\", \"col\": 4}}, {\"id\": \"shortcut-payment-transaction\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Платежи\", \"col\": 4}}, {\"id\": \"shortcut-supplier-payment\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Оплата поставщику\", \"col\": 4}}, {\"id\": \"shortcut-product\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Товары\", \"col\": 4}}, {\"id\": \"shortcut-installment-plan\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Рассрочка\", \"col\": 4}}, {\"id\": \"shortcut-merchant-settings\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Настройки\", \"col\": 4}}, {\"id\": \"heading-reports\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>📊 Отчёты</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-rep-pl\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Прибыль и убытки\", \"col\": 3}}, {\"id\": \"shortcut-rep-share\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Распределение прибыли\", \"col\": 3}}, {\"id\": \"shortcut-rep-sales\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Отчёт по продажам\", \"col\": 3}}, {\"id\": \"shortcut-rep-coll\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Сборы и просрочка\", \"col\": 3}}, {\"id\": \"shortcut-rep-suppliers\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Долги поставщикам\", \"col\": 3}}]",
+    "content": "[{\"id\": \"heading-main\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Nasiya365</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-dashboard\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Дашборд\", \"col\": 6}}, {\"id\": \"shortcut-collections\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Коллекции\", \"col\": 6}}, {\"id\": \"heading-actions\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Быстрые действия</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-data-import\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Наличные продажи\", \"col\": 4}}, {\"id\": \"shortcut-accept-pay\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Принять платеж\", \"col\": 4}}, {\"id\": \"shortcut-new-client\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Новый клиент\", \"col\": 4}}, {\"id\": \"shortcut-payment-transaction\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Платежи\", \"col\": 4}}, {\"id\": \"shortcut-supplier-payment\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Оплата поставщику\", \"col\": 4}}, {\"id\": \"shortcut-product\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Товары\", \"col\": 4}}, {\"id\": \"shortcut-installment-plan\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Рассрочка\", \"col\": 4}}, {\"id\": \"shortcut-merchant-settings\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Настройки\", \"col\": 4}}, {\"id\": \"heading-reports\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>📊 Отчёты</b></span>\", \"col\": 12}}, {\"id\": \"shortcut-rep-pl\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Прибыль и поступления\", \"col\": 3}}, {\"id\": \"shortcut-rep-share\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Распределение прибыли\", \"col\": 3}}, {\"id\": \"shortcut-rep-sales\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Отчёт по продажам\", \"col\": 3}}, {\"id\": \"shortcut-rep-coll\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Сборы и просрочка\", \"col\": 3}}, {\"id\": \"shortcut-rep-suppliers\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Долги поставщикам\", \"col\": 3}}]",
     "creation": "2026-01-07 02:02:00.000000",
     "custom_blocks": [],
     "docstatus": 0,
@@ -166,10 +166,10 @@
         },
         {
             "hidden": 0,
-            "is_query_report": 1,
-            "label": "Прибыль и убытки",
-            "link_type": "Report",
-            "link_to": "Profit and Loss Summary",
+            "is_query_report": 0,
+            "label": "Прибыль и поступления",
+            "link_type": "Page",
+            "link_to": "profit-and-loss",
             "type": "Link"
         },
         {
@@ -292,10 +292,9 @@
         {
             "color": "Green",
             "doc_view": "",
-            "label": "Прибыль и убытки",
-            "link_to": "Profit and Loss Summary",
-            "type": "Report",
-            "report_ref_doctype": "Installment Plan"
+            "label": "Прибыль и поступления",
+            "link_to": "profit-and-loss",
+            "type": "Page"
         },
         {
             "color": "Purple",
