@@ -92,21 +92,30 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 
 	render() {
 		this._renderFilters();
-		// NB: no ?t= cache-bust here — frappe.require's asset-type detection breaks
-		// on a query string. The adapter is stable; the CSS (which we iterate on)
-		// is cache-busted via its <link> href instead.
-		frappe.require("/assets/nasiya365/js/pnl_adapter.js", () => {
+		// Load the raw adapter via a cache-busted <script>. We can't cache-bust
+		// through frappe.require (its asset-type detection breaks on a query
+		// string), but a plain <script src="...?t="> accepts the query and so
+		// always picks up adapter edits on dev. The adapter IIFE sets
+		// window.Nasiya365PnL on load.
+		const adapterScript = document.createElement("script");
+		adapterScript.src = "/assets/nasiya365/js/pnl_adapter.js?t=" + Date.now();
+		adapterScript.onload = () => {
 			const adapter = window.Nasiya365PnL;
 			if (!adapter || typeof adapter.buildViewModel !== "function" || typeof adapter.formatMoney !== "function") {
 				console.error(
-					"[profit-and-loss] pnl_adapter.js failed to load or is missing expected exports:",
+					"[profit-and-loss] pnl_adapter.js loaded but is missing expected exports:",
 					adapter
 				);
 				this._showError();
 				return;
 			}
 			this.load();
-		});
+		};
+		adapterScript.onerror = () => {
+			console.error("[profit-and-loss] pnl_adapter.js failed to load");
+			this._showError();
+		};
+		document.head.appendChild(adapterScript);
 	}
 
 	/** Inject the raw pnl.css stylesheet into <head> once (guarded by id). */
