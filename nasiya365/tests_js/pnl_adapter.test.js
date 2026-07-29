@@ -43,12 +43,14 @@ assert.strictEqual(formatMoney(3510), "$3 510.00");
 assert.strictEqual(formatMoney(-120), "−$120.00");
 assert.strictEqual(formatMoney(95), "$95.00");
 
-// 7. basis flags — coerced to real booleans (raw.interest_in_profit=0, raw.expenses_in_profit=1)
+// 7. basis flags are BASIS-driven (profit_basis), not value-driven — this sample's
+// profit_basis is "Чистая прибыль" so both are true even though the raw
+// interest_in_profit=0/expenses_in_profit=1 flags (now unused) would suggest otherwise.
 assert.strictEqual(vm.basis.profitBasis, "Чистая прибыль");
-assert.strictEqual(vm.basis.interestInProfit, false);
-assert.strictEqual(typeof vm.basis.interestInProfit, "boolean");
-assert.strictEqual(vm.basis.expensesInProfit, true);
-assert.strictEqual(typeof vm.basis.expensesInProfit, "boolean");
+assert.strictEqual(vm.basis.interestIncluded, true);
+assert.strictEqual(typeof vm.basis.interestIncluded, "boolean");
+assert.strictEqual(vm.basis.expensesIncluded, true);
+assert.strictEqual(typeof vm.basis.expensesIncluded, "boolean");
 
 // 8. recognized gross profit / operating expenses (§16 sample)
 assert.strictEqual(vm.recognized.grossProfit, 50);
@@ -64,5 +66,24 @@ const vmZeroInterest = buildViewModel(rawZeroInterest);
 assert.strictEqual(vmZeroInterest.sales.installment.interest, 0);
 assert.notStrictEqual(vmZeroInterest.sales.installment.interest, null);
 assert.strictEqual(formatMoney(vmZeroInterest.sales.installment.interest), "$0.00");
+
+// 11. basis flags for all three profit_basis values (adapter change §A) — derived from
+// profit_basis alone, independent of the period's interest/expenses amounts.
+
+// "Только маржа" -> both false (interest excluded, expenses excluded)
+const vmMarginOnly = buildViewModel(Object.assign({}, raw, { profit_basis: "Только маржа" }));
+assert.strictEqual(vmMarginOnly.basis.interestIncluded, false);
+assert.strictEqual(vmMarginOnly.basis.expensesIncluded, false);
+
+// "Валовая прибыль" -> interest included, expenses excluded
+const vmGross = buildViewModel(Object.assign({}, raw, { profit_basis: "Валовая прибыль" }));
+assert.strictEqual(vmGross.basis.interestIncluded, true);
+assert.strictEqual(vmGross.basis.expensesIncluded, false);
+
+// "Чистая прибыль" -> both true, even when this period's interest/expenses amounts are 0
+// (raw already has interest_income: 0, expenses: 0 — see vm.basis assertions in §7 above).
+const vmNet = buildViewModel(Object.assign({}, raw, { profit_basis: "Чистая прибыль", interest_income: 0, expenses: 0 }));
+assert.strictEqual(vmNet.basis.interestIncluded, true);
+assert.strictEqual(vmNet.basis.expensesIncluded, true);
 
 console.log("ALL PNL ADAPTER TESTS PASSED");

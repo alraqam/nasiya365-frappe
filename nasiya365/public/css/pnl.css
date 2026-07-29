@@ -89,6 +89,19 @@
 	opacity: 0.7;
 }
 
+/* Secondary "Обновить" control: icon + label, small svg from frappe.utils.icon()
+   (or the "↻" glyph fallback) sized/aligned to sit next to the text. */
+.pnl-btn-refresh {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.pnl-btn-refresh .icon {
+	width: 12px;
+	height: 12px;
+}
+
 /* ===================== State region: loading / empty / error ===================== */
 
 .pnl-state {
@@ -139,6 +152,10 @@
 	font-size: 24px;
 	font-weight: 800;
 	letter-spacing: -0.02em;
+	/* Item 26: long money values must not overflow the card — shrink/wrap
+	   instead of clipping or pushing the card wider than its grid column. */
+	overflow-wrap: anywhere;
+	word-break: break-word;
 }
 
 .pnl-card-sub {
@@ -192,6 +209,37 @@
 	margin-top: 4px;
 	font-size: 12px;
 	opacity: 0.72;
+}
+
+/* ===================== Receipts→profit formula strip (§F) ===================== */
+
+.pnl-formula {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 8px;
+	margin-bottom: 10px;
+	padding: 10px 14px;
+	border: 1px solid var(--border-color);
+	border-radius: 10px;
+	background: var(--subtle-fg, rgba(0, 0, 0, 0.02));
+	font-size: 13px;
+}
+
+.pnl-formula-term strong {
+	font-variant-numeric: tabular-nums;
+	margin-left: 2px;
+}
+
+.pnl-formula-op {
+	opacity: 0.6;
+	font-weight: 700;
+}
+
+/* Emphasis only (weight/size) — NOT color: items 27/28 reserve green
+   exclusively for the earned-profit card, not for this strip. */
+.pnl-formula-result strong {
+	font-size: 14px;
 }
 
 .pnl-table-wrap {
@@ -273,6 +321,13 @@
 
 .pnl-basis-info div + div {
 	margin-top: 2px;
+}
+
+.pnl-basis-info-title {
+	font-weight: 700;
+	font-size: 12.5px;
+	opacity: 1;
+	margin-bottom: 4px;
 }
 
 /* ===================== Loading skeleton ===================== */
@@ -367,5 +422,14 @@
 	.pnl-updated {
 		margin-left: 0;
 		align-self: flex-start;
+		/* Item 25: keep the timestamp visually separated from the actions row
+		   above it on narrow screens instead of butting up against it. */
+		margin-top: 4px;
+	}
+
+	.pnl-formula {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 4px;
 	}
 }

@@ -84,10 +84,17 @@ function buildViewModel(raw) {
       operatingExpenses: num(raw.expenses),
       netProfit: num(raw.net_profit),
     },
+    // Basis-driven (NOT value-driven): whether interest/expenses are part of
+    // the distributed total depends on the merchant's configured
+    // `profit_basis`, not on whether this period happens to have a zero
+    // amount for them. (The backend's `interest_in_profit`/`expenses_in_profit`
+    // flags go falsy whenever the period's amount is 0, which produces a
+    // contradictory label — e.g. profit_basis "Чистая прибыль" with $0
+    // expenses this period would otherwise read as "expenses not included".)
     basis: {
       profitBasis: raw.profit_basis,
-      interestInProfit: !!raw.interest_in_profit,
-      expensesInProfit: !!raw.expenses_in_profit,
+      interestIncluded: raw.profit_basis !== "Только маржа",
+      expensesIncluded: raw.profit_basis === "Чистая прибыль",
     },
   };
 }

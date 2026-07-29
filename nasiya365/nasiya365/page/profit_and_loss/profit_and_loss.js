@@ -11,26 +11,27 @@ frappe.pages["profit-and-loss"].on_page_load = function (wrapper) {
 
 frappe.provide("nasiya365");
 
-/** Tooltip texts (spec §11) — kept in one place so render + card markup agree. */
+/**
+ * Tooltip texts (refinements-brief.md §E, items 20-22) — kept in one place so
+ * render + card markup agree. Exact strings per the brief; `earnedProfit` is
+ * shared by BOTH the «Заработанная прибыль» top card AND the «Заработанная
+ * товарная маржа» Table-2 row (brief item 21 applies the same text to both).
+ */
 const PNL_TOOLTIPS = {
 	method: __(
 		"Прибыль по сделке признаётся после того, как полученные платежи покроют себестоимость проданного товара."
 	),
 	futureProfit: __(
-		"Товарная маржа и все проценты по сделкам, оформленным в выбранном периоде. Сумма будет получена только при полной оплате."
+		"Сумма товарной маржи и процентов по сделкам периода. Процентная часть будет получена только при полной оплате рассрочек."
 	),
 	costRecovery: __(
-		"Часть полученных денег, которая возвращает сумму, ранее вложенную в приобретение товара. Это не убыток."
-	),
-	productMargin: __(
-		"Часть прибыли от разницы между продажной ценой товара и его себестоимостью."
-	),
-	interestIncome: __(
-		"Процентный доход по рассрочкам, уже признанный на основании полученных платежей."
+		"Часть полученных денег, которая возвращает средства, вложенные в товар. Это не расход и не убыток."
 	),
 	earnedProfit: __(
-		"Прибыль, признанная по действующим настройкам отчёта после учёта включённых расходов."
+		"Часть поступлений, признанная прибылью по действующей методике расчёта."
 	),
+	interestIncome: __("Признанный процентный доход по рассрочкам."),
+	totalRow: __("Итог по выбранной базе расчёта прибыли."),
 };
 
 /**
@@ -81,6 +82,7 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 							"Показывает деньги, фактически полученные в выбранном периоде, включая платежи по ранее оформленным сделкам."
 						)}</div>
 					</div>
+					<div class="pnl-formula"></div>
 					<div class="pnl-table-wrap"></div>
 				</div>
 				<div class="pnl-info-block"></div>
@@ -146,15 +148,28 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 			df: { fieldtype: "Link", fieldname: "branch", label: __("Филиал"), options: "Branch" },
 			render_input: true,
 		});
+		// Item 17: empty branch already means "all branches" in the backend —
+		// make that explicit via a placeholder instead of a blank field.
+		if (this.branchCtrl && this.branchCtrl.$input) {
+			this.branchCtrl.$input.attr("placeholder", __("Все филиалы"));
+		}
 
 		const actions = $(`<div class="pnl-filter-actions"></div>`).appendTo(wrap);
+		// Primary action: apply the currently selected filters (dates/branch) and
+		// (re)compute the report for that period.
 		this.generateBtn = $(
 			`<button type="button" class="btn btn-primary btn-sm pnl-btn-generate">${__(
 				"Сформировать отчёт"
 			)}</button>`
 		).appendTo(actions);
+		// Secondary action: re-run the report for the SAME filters already applied
+		// (items 15/16) — same load() call, distinct labelling/affordance only.
+		const refreshIconHtml =
+			typeof frappe.utils.icon === "function" ? frappe.utils.icon("refresh", "sm") : "↻";
 		this.refreshBtn = $(
-			`<button type="button" class="btn btn-default btn-sm pnl-btn-refresh">${__("Обновить")}</button>`
+			`<button type="button" class="btn btn-default btn-sm pnl-btn-refresh" title="${frappe.utils.escape_html(
+				__("Обновить данные отчёта")
+			)}">${refreshIconHtml} <span>${__("Обновить")}</span></button>`
 		).appendTo(actions);
 
 		this.updatedEl = $(`<div class="pnl-updated"></div>`).appendTo(wrap);
@@ -219,11 +234,16 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 		});
 	}
 
-	/* ——— States (§12) ——— */
+	/* ——— States (§12) ———
+	 * Item 2/29: every render path repaints cards + BOTH tables together, so a
+	 * loading/empty/error state never leaves stale numbers from a previous
+	 * period on screen while a new request is in flight.
+	 */
 	_showLoading() {
 		this.container.find(".pnl-state-region").empty();
 		this.container.find(".pnl-cards").html(this._skeletonCardsHtml());
 		this.container.find(".pnl-section-sales .pnl-table-wrap").html(this._skeletonTableHtml(3));
+		this.container.find(".pnl-section-recognized .pnl-formula").empty();
 		this.container.find(".pnl-section-recognized .pnl-table-wrap").html(this._skeletonTableHtml(7));
 		this.container.find(".pnl-info-block").empty();
 	}
@@ -252,6 +272,7 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 	_clearReport() {
 		this.container.find(".pnl-cards").empty();
 		this.container.find(".pnl-section-sales .pnl-table-wrap").empty();
+		this.container.find(".pnl-section-recognized .pnl-formula").empty();
 		this.container.find(".pnl-section-recognized .pnl-table-wrap").empty();
 		this.container.find(".pnl-info-block").empty();
 	}
@@ -288,6 +309,7 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 
 		this._renderCards(vm);
 		this._renderSalesTable(vm);
+		this._renderFormula(vm);
 		this._renderRecognizedTable(vm);
 		this._renderInfoBlock(vm);
 	}
@@ -305,16 +327,52 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 				<div class="pnl-card-value">${esc(fmt(vm.summary.collected))}</div>
 				<div class="pnl-card-sub">${__("Все фактически полученные платежи за выбранный период")}</div>
 			</div>
-			<div class="pnl-card pnl-card--earned${earnedPositive ? " pnl-card--positive" : ""}">
-				<div class="pnl-card-label">${__("Заработанная прибыль")}</div>
+			<div class="pnl-card pnl-card--earned${
+				earnedPositive ? " pnl-card--positive" : ""
+			}" title="${esc(PNL_TOOLTIPS.earnedProfit)}">
+				<div class="pnl-card-label"><span class="pnl-tooltip-label">${__(
+					"Заработанная прибыль"
+				)}</span></div>
 				<div class="pnl-card-value">${esc(fmt(vm.summary.earnedProfit))}</div>
 				<div class="pnl-card-sub">${__("Прибыль, признанная по фактически полученным платежам")}</div>
 			</div>
 			<div class="pnl-card pnl-card--future" title="${esc(PNL_TOOLTIPS.futureProfit)}">
-				<div class="pnl-card-label">${__("Будущая прибыль по новым сделкам")}</div>
+				<div class="pnl-card-label"><span class="pnl-tooltip-label">${__(
+					"Потенциал прибыли по продажам периода"
+				)}</span></div>
 				<div class="pnl-card-value">${esc(fmt(vm.summary.futureProfit))}</div>
-				<div class="pnl-card-sub">${__("При условии полной оплаты всех новых рассрочек")}</div>
+				<div class="pnl-card-sub">${__(
+					"Товарная маржа и потенциальные проценты по сделкам, оформленным в выбранном периоде."
+				)}</div>
 			</div>
+		`);
+	}
+
+	/* ——— Receipts→profit formula strip (§F, items 18-19) ———
+	 * Reads collected/costRecovery/grossProfit straight from the view-model —
+	 * grossProfit (= productMargin + interestIncome, per the adapter) is the
+	 * value that makes the displayed identity always hold:
+	 *   collected − costRecovery = grossProfit
+	 * (costRecovery is itself defined as collected minus margin+interest, so
+	 * using netProfit here — which additionally subtracts expenses — would
+	 * make the displayed equation not add up whenever expenses are included).
+	 */
+	_renderFormula(vm) {
+		const root = this.container.find(".pnl-section-recognized .pnl-formula").empty();
+		const fmt = window.Nasiya365PnL.formatMoney;
+		const esc = frappe.utils.escape_html;
+		const r = vm.recognized;
+
+		root.html(`
+			<span class="pnl-formula-term">${__("Поступило")} <strong>${esc(fmt(r.collected))}</strong></span>
+			<span class="pnl-formula-op">−</span>
+			<span class="pnl-formula-term">${__("Покрытие себестоимости")} <strong>${esc(
+			fmt(r.costRecovery)
+		)}</strong></span>
+			<span class="pnl-formula-op">=</span>
+			<span class="pnl-formula-term pnl-formula-result">${__("Заработанная прибыль")} <strong>${esc(
+			fmt(r.grossProfit)
+		)}</strong></span>
 		`);
 	}
 
@@ -369,6 +427,13 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 	/* ——— Table 2 «Поступления и заработанная прибыль» (§7) ——— */
 	_recognizedRows(vm) {
 		const r = vm.recognized;
+		// Item 12/13: only call it "Заработанная прибыль за период" when expenses
+		// are actually part of the total; otherwise name it by what it really is —
+		// the total under whichever basis is configured (no "net profit" claim
+		// unless expenses were subtracted).
+		const totalLabel = vm.basis.expensesIncluded
+			? __("Заработанная прибыль за период")
+			: __("Прибыль по выбранной базе расчёта");
 		return [
 			{
 				label: __("Поступило от клиентов"),
@@ -389,7 +454,7 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 				value: r.productMargin,
 				explain: __("Доход от разницы между ценой и себестоимостью"),
 				bold: false,
-				tooltip: PNL_TOOLTIPS.productMargin,
+				tooltip: PNL_TOOLTIPS.earnedProfit,
 			},
 			{
 				label: __("Заработанные проценты"),
@@ -413,11 +478,11 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 				tooltip: null,
 			},
 			{
-				label: __("Заработанная прибыль за период"),
+				label: totalLabel,
 				value: r.netProfit,
 				explain: __("Итоговая прибыль по действующим настройкам"),
 				bold: true,
-				tooltip: PNL_TOOLTIPS.earnedProfit,
+				tooltip: PNL_TOOLTIPS.totalRow,
 			},
 		];
 	}
@@ -456,19 +521,51 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 		`);
 	}
 
-	/* ——— Info block (§8) ——— */
+	/* ——— Info block (§B, items 9-11) ———
+	 * Always shown (not only when something is excluded) so the settings are
+	 * visible regardless of the configured basis, and always lists all three
+	 * inclusion lines so there's no contradiction like "Чистая прибыль" +
+	 * "expenses not included".
+	 */
+	_basisLine(profitBasis) {
+		if (profitBasis === "Только маржа") {
+			return __("База распределения: признанная товарная маржа");
+		}
+		if (profitBasis === "Валовая прибыль") {
+			return __("База распределения: товарная маржа + проценты");
+		}
+		if (profitBasis === "Чистая прибыль") {
+			return __("База распределения: чистая прибыль (маржа + проценты − расходы)");
+		}
+		return `${__("База распределения")}: ${profitBasis || "—"}`;
+	}
+
 	_renderInfoBlock(vm) {
 		const root = this.container.find(".pnl-info-block").empty();
 		const esc = frappe.utils.escape_html;
 		const b = vm.basis;
 
-		if (b.interestInProfit && b.expensesInProfit) return;
+		const lines = [
+			esc(this._basisLine(b.profitBasis)),
+			esc(__("Товарная маржа: входит в итог")),
+			esc(
+				b.interestIncluded
+					? __("Процентный доход: входит в итог")
+					: __("Процентный доход: не входит в итог")
+			),
+			esc(
+				b.expensesIncluded
+					? __("Операционные расходы: входят в итог")
+					: __("Операционные расходы: не входят в итог")
+			),
+		];
 
-		const lines = [`${esc(__("База расчёта прибыли"))}: ${esc(b.profitBasis || "—")}`];
-		if (!b.interestInProfit) lines.push(esc(__("Процентный доход: не входит в итог")));
-		if (!b.expensesInProfit) lines.push(esc(__("Операционные расходы: не входят в итог")));
-
-		root.html(`<div class="pnl-basis-info">${lines.map((l) => `<div>${l}</div>`).join("")}</div>`);
+		root.html(`
+			<div class="pnl-basis-info">
+				<div class="pnl-basis-info-title">${esc(__("Настройки расчёта и распределения прибыли"))}</div>
+				${lines.map((l) => `<div>${l}</div>`).join("")}
+			</div>
+		`);
 	}
 
 	/* ——— «Обновлено» timestamp (§13) ——— */
