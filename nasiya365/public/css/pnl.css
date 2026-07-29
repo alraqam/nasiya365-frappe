@@ -66,6 +66,14 @@
 	min-width: 150px;
 }
 
+/* Zero Frappe's default control bottom-margin so, with the row's
+   align-items:flex-end, the buttons line up with the date INPUT boxes
+   (not below them). */
+.pnl-filter-field .frappe-control,
+.pnl-filter-field .form-group {
+	margin-bottom: 0;
+}
+
 .pnl-filter-actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -222,6 +230,12 @@
 .pnl-col-num {
 	text-align: right;
 	font-variant-numeric: tabular-nums;
+}
+
+/* Right-align numeric column HEADERS too, so each header sits directly
+   over its right-aligned values (overrides the thead default left-align). */
+.pnl-table thead th.pnl-col-num {
+	text-align: right;
 }
 
 .pnl-col-label {
