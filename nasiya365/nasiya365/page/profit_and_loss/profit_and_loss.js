@@ -339,16 +339,16 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 			<div class="pnl-card pnl-card--earned${
 				earnedPositive ? " pnl-card--positive" : ""
 			}" title="${esc(PNL_TOOLTIPS.earnedProfit)}">
-				<div class="pnl-card-label"><span class="pnl-tooltip-label">${__(
+				<div class="pnl-card-label">${__(
 					"Заработанная прибыль"
-				)}</span></div>
+				)} <span class="pnl-info-icon" title="${esc(PNL_TOOLTIPS.earnedProfit)}">ⓘ</span></div>
 				<div class="pnl-card-value">${esc(fmt(vm.summary.earnedProfit))}</div>
 				<div class="pnl-card-sub">${__("Прибыль, признанная по фактически полученным платежам")}</div>
 			</div>
 			<div class="pnl-card pnl-card--future" title="${esc(PNL_TOOLTIPS.futureProfit)}">
-				<div class="pnl-card-label"><span class="pnl-tooltip-label">${__(
+				<div class="pnl-card-label">${__(
 					"Потенциал прибыли по продажам периода"
-				)}</span></div>
+				)} <span class="pnl-info-icon" title="${esc(PNL_TOOLTIPS.futureProfit)}">ⓘ</span></div>
 				<div class="pnl-card-value">${esc(fmt(vm.summary.futureProfit))}</div>
 				<div class="pnl-card-sub">${__(
 					"Товарная маржа и потенциальные проценты по сделкам, оформленным в выбранном периоде."
@@ -504,7 +504,7 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 		const rowsHtml = this._recognizedRows(vm)
 			.map((row) => {
 				const labelHtml = row.tooltip
-					? `<span class="pnl-tooltip-label" title="${esc(row.tooltip)}">${esc(row.label)}</span>`
+					? `${esc(row.label)} <span class="pnl-info-icon" title="${esc(row.tooltip)}">ⓘ</span>`
 					: esc(row.label);
 				return `
 					<tr class="${row.bold ? "pnl-row-total" : ""}">

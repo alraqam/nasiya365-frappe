@@ -306,6 +306,21 @@
 	cursor: help;
 }
 
+/* ⓘ info icon shown next to complex metrics (item 23). Muted, hover-brightens,
+   carries a native title tooltip. */
+.pnl-info-icon {
+	display: inline-block;
+	margin-left: 3px;
+	font-size: 12px;
+	line-height: 1;
+	opacity: 0.5;
+	cursor: help;
+}
+
+.pnl-info-icon:hover {
+	opacity: 0.9;
+}
+
 /* ===================== Info block (profit basis, §8) ===================== */
 
 .pnl-basis-info {
