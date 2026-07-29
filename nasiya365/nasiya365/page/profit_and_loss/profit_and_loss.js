@@ -90,7 +90,7 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 
 	render() {
 		this._renderFilters();
-		frappe.require("/assets/nasiya365/js/pnl_adapter.js", () => {
+		frappe.require("/assets/nasiya365/js/pnl_adapter.js?t=" + Date.now(), () => {
 			const adapter = window.Nasiya365PnL;
 			if (!adapter || typeof adapter.buildViewModel !== "function" || typeof adapter.formatMoney !== "function") {
 				console.error(
@@ -110,7 +110,10 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 		const link = document.createElement("link");
 		link.id = "pnl-css";
 		link.rel = "stylesheet";
-		link.href = "/assets/nasiya365/css/pnl.css";
+		// Cache-bust the raw (non-content-hashed) stylesheet so edits are always
+		// picked up on dev without a manual hard-reload. (At prod deploy this file
+		// is meant to be folded into the content-hashed nasiya365.bundle.css.)
+		link.href = "/assets/nasiya365/css/pnl.css?t=" + Date.now();
 		document.head.appendChild(link);
 	}
 
