@@ -49,7 +49,7 @@ def _user_branch_list():
     return (False, _get_user_branches(user))
 
 # Поступление already consumed (cash/BNPL issue) or returned — hide from new installment plans.
-_STOCK_ENTRY_UNAVAILABLE_BUSINESS = ("Продано", "Возврат")
+_STOCK_ENTRY_UNAVAILABLE_BUSINESS = ("Продано", "Отменён", "Возврат")
 
 # Installment Schedule child default was "Pending" while valid options are Russian — include both in SQL.
 _OPEN_SCHEDULE_STATUSES = ("Ожидает", "Частично", "Pending")
@@ -1513,7 +1513,7 @@ def installment_plan_stock_entry_query(
         WHERE se.docstatus = 1
           AND se.entry_type = %s
           AND IFNULL(NULLIF(TRIM(se.business_status), ''), 'В наличии') NOT IN (
-              'Продано', 'Возврат'
+              'Продано', 'Отменён', 'Возврат'
           )
           AND EXISTS (
               SELECT 1 FROM `tabStock Entry Item` sei

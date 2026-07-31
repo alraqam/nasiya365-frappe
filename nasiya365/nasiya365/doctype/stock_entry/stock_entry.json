@@ -43,7 +43,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Бизнес статус",
-   "options": "Черновик\nВ наличии\nПродано\nВозврат"
+   "options": "Черновик\nВ наличии\nПродано\nОтменён\nВозврат"
   },
   {
    "default": "Today",
