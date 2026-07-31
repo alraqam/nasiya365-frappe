@@ -33,17 +33,17 @@ def refresh_stock_entry_business_status(stock_entry_name, exclude_plan_name=None
 
 	for serial in serials:
 		norm = serial.upper().replace(" ", "")
-		last6 = norm[-6:] if len(norm) >= 6 else norm
+		# Exact IMEI match only. A last-6-digit fallback here miscounts a unit as sold when
+		# a DIFFERENT phone shares its last six digits — the multi-IMEI-receipt landmine.
 
 		if frappe.db.sql(
 			"""SELECT 1 FROM `tabInstallment Plan`
 			   WHERE IFNULL(docstatus, 0) < 2
 			     AND (%s = '' OR name != %s)
 			     AND NULLIF(TRIM(imei), '') IS NOT NULL
-			     AND (REPLACE(UPPER(TRIM(imei)),' ','') = %s
-			          OR RIGHT(REPLACE(UPPER(TRIM(imei)),' ',''), 6) = %s)
+			     AND REPLACE(UPPER(TRIM(imei)),' ','') = %s
 			   LIMIT 1""",
-			(exclude, exclude, norm, last6),
+			(exclude, exclude, norm),
 		):
 			installment_sold += 1
 			continue
@@ -53,25 +53,19 @@ def refresh_stock_entry_business_status(stock_entry_name, exclude_plan_name=None
 			   INNER JOIN `tabSales Order` so ON so.name = soi.parent
 			   WHERE so.docstatus = 1
 			     AND NULLIF(TRIM(soi.imei), '') IS NOT NULL
-			     AND (REPLACE(UPPER(TRIM(soi.imei)),' ','') = %s
-			          OR RIGHT(REPLACE(UPPER(TRIM(soi.imei)),' ',''), 6) = %s)
+			     AND REPLACE(UPPER(TRIM(soi.imei)),' ','') = %s
 			   LIMIT 1""",
-			(norm, last6),
+			(norm,),
 		):
 			cash_sold += 1
 
 	sold = installment_sold + cash_sold
 
-	if sold == 0:
-		status = "В наличии"
-	elif sold < total:
-		status = "Частично продан"
-	elif installment_sold == total:
-		status = "Рассрочка"
-	elif cash_sold == total:
-		status = "Наличные"
-	else:
-		status = "Частично продан"  # mixed methods, all gone
+	# Simple availability model: a receipt with any unsold unit is "В наличии"; once every
+	# unit is sold — by any method (cash, installment, or a mix) — it is "Продано". The sale
+	# method is visible on the Sales Orders / Installment Plans themselves, so it isn't
+	# duplicated into the receipt status.
+	status = "Продано" if sold >= total else "В наличии"
 
 	frappe.db.set_value(
 		"Stock Entry", stock_entry_name, "business_status", status, update_modified=False

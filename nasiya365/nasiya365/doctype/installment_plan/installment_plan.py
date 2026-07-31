@@ -367,7 +367,8 @@ class InstallmentPlan(Document):
         from nasiya365.api.bnpl_dashboard import assert_stock_entry_available_for_installment_plan
 
         assert_stock_entry_available_for_installment_plan(
-            self.stock_entry, self.name or "", getattr(self, "sales_order", None) or ""
+            self.stock_entry, self.name or "", getattr(self, "sales_order", None) or "",
+            imei=(getattr(self, "imei", None) or ""),
         )
 
     def validate_unique_sales_order(self):

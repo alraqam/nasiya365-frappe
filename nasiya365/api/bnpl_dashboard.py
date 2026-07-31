@@ -49,7 +49,7 @@ def _user_branch_list():
     return (False, _get_user_branches(user))
 
 # Поступление already consumed (cash/BNPL issue) or returned — hide from new installment plans.
-_STOCK_ENTRY_UNAVAILABLE_BUSINESS = ("Наличные", "Рассрочка", "Возврат")
+_STOCK_ENTRY_UNAVAILABLE_BUSINESS = ("Продано", "Возврат")
 
 # Installment Schedule child default was "Pending" while valid options are Russian — include both in SQL.
 _OPEN_SCHEDULE_STATUSES = ("Ожидает", "Частично", "Pending")
@@ -1309,12 +1309,39 @@ def installment_plan_taken_imei_rows_for_receipt(stock_ref, current_plan_name=No
     )
 
 
-def assert_stock_entry_available_for_installment_plan(stock_entry, current_plan_name=None, current_sales_order_name=None):
+def _stock_entry_free_item_rows(parent, warehouse, current_plan_name="", current_sales_order_name=""):
+    """Item rows of `parent` still sellable: serial not reserved (exact-IMEI, buy-back
+    aware — see _purchase_serial_tracks_consumed) AND product has positive stock. Used to
+    decide receipt-level availability by ANY free unit rather than blindly by item idx=1."""
+    free = []
+    for it in frappe.get_all(
+        "Stock Entry Item",
+        filters={"parent": parent},
+        fields=["name", "product", "imei"],
+        order_by="idx asc",
+    ):
+        serial = (it.imei or "").strip()
+        if serial and _purchase_serial_tracks_consumed(serial, current_plan_name, current_sales_order_name):
+            continue
+        if it.product and warehouse:
+            bal = frappe.db.sql(
+                "SELECT COALESCE(SUM(quantity_change), 0) FROM `tabStock Ledger` WHERE product=%s AND warehouse=%s",
+                (it.product, warehouse),
+            )[0][0]
+            if flt(bal) <= 0:
+                continue
+        free.append(it)
+    return free
+
+
+def assert_stock_entry_available_for_installment_plan(stock_entry, current_plan_name=None, current_sales_order_name=None, imei=None):
     """
     Submitted Поступление only; positive stock in ledger; not marked sold/return;
     serial not already sold (SO, including drafts / Отпуск / other plan IMEI); not linked to another open plan.
 
     `stock_entry` may be a Stock Entry name (legacy) or a Stock Entry Item row name (one line).
+    `imei` — when a PARENT receipt is given, the exact unit being sold; validated instead of
+    item idx=1 so a multi-item receipt whose first item is already sold doesn't block the rest.
     """
     if not stock_entry:
         return
@@ -1334,13 +1361,14 @@ def assert_stock_entry_available_for_installment_plan(stock_entry, current_plan_
     if row.entry_type != "Поступление":
         frappe.throw(_("Для рассрочки доступны только операции типа «Поступление»"))
     bs = (row.business_status or "").strip()
-    # "Рассрочка" is set by this plan itself after submit — allow when updating an existing plan.
-    # "Наличные" / "Возврат" are always final and must be blocked.
+    # A fully-sold receipt can read "Продано" because THIS plan sold one of its units — allow
+    # re-saving an existing plan in that case. "Возврат" is always final and must be blocked.
     if bs in _STOCK_ENTRY_UNAVAILABLE_BUSINESS:
-        if bs != "Рассрочка" or not current_plan_name:
+        if bs != "Продано" or not current_plan_name:
             frappe.throw(
                 _("Это поступление уже отражено как продажа или возврат. Выберите другой документ.")
             )
+    target_imei = (imei or "").strip()
     if installment_plan_stock_ref_is_sei_row(stock_entry):
         sei = frappe.db.get_value(
             "Stock Entry Item",
@@ -1350,13 +1378,29 @@ def assert_stock_entry_available_for_installment_plan(stock_entry, current_plan_
         )
         if not sei or sei.parent != parent:
             frappe.throw(_("Строка поступления не найдена"))
-    else:
-        sei = frappe.db.get_value(
-            "Stock Entry Item",
-            {"parent": parent, "idx": 1},
-            ["product", "imei"],
+    elif target_imei:
+        # Parent receipt given together with the specific unit being sold: validate THAT
+        # unit, matched on the exact (normalized) IMEI — not item idx=1. Otherwise a
+        # multi-item receipt whose first item is already sold wrongly blocks its other units.
+        norm = target_imei.upper().replace(" ", "")
+        matches = frappe.db.sql(
+            """SELECT product, imei FROM `tabStock Entry Item`
+               WHERE parent=%s AND REPLACE(UPPER(TRIM(imei)), ' ', '')=%s LIMIT 1""",
+            (parent, norm),
             as_dict=True,
         )
+        sei = matches[0] if matches else None
+        if not sei:
+            frappe.throw(_("Позиция с этим IMEI не найдена в поступлении"))
+    else:
+        # Parent receipt, no specific unit named: the receipt is available if ANY item row
+        # is free (not just item idx=1). The exact unit is pinned later by the IMEI carried
+        # on the sale / plan.
+        if not _stock_entry_free_item_rows(
+            parent, row.warehouse, current_plan_name or "", current_sales_order_name or ""
+        ):
+            frappe.throw(_("В этом поступлении нет свободных позиций для продажи. Выберите другой документ."))
+        sei = None
     if sei and sei.product and row.warehouse:
         bal = frappe.db.sql(
             """
@@ -1469,7 +1513,7 @@ def installment_plan_stock_entry_query(
         WHERE se.docstatus = 1
           AND se.entry_type = %s
           AND IFNULL(NULLIF(TRIM(se.business_status), ''), 'В наличии') NOT IN (
-              'Наличные', 'Рассрочка', 'Возврат'
+              'Продано', 'Возврат'
           )
           AND EXISTS (
               SELECT 1 FROM `tabStock Entry Item` sei
@@ -1489,13 +1533,9 @@ def _imei_matches_preference(serial: str, preferred: str) -> bool:
         return False
     a = (serial or "").strip().upper().replace(" ", "")
     b = (preferred or "").strip().upper().replace(" ", "")
-    if not a or not b:
-        return False
-    if a == b:
-        return True
-    if len(a) >= 6 and len(b) >= 6 and a[-6:] == b[-6:]:
-        return True
-    return False
+    # Exact IMEI only: a last-6-digit fallback here would let two different phones that
+    # happen to share their last six digits be treated as the same unit.
+    return bool(a and b and a == b)
 
 
 @frappe.whitelist()
@@ -1525,7 +1565,9 @@ def get_stock_entry_details_for_installment_plan(
     is_line = installment_plan_stock_ref_is_sei_row(stock_entry)
 
     taken_rows = installment_plan_taken_imei_rows_for_receipt(stock_entry, current_plan)
-    taken = {(r.imei or "").strip().upper().replace(" ", "")[-6:] for r in taken_rows if r.imei}
+    # Match on the FULL normalized IMEI, not the last 6 digits — two phones sharing their
+    # last six digits must not mask each other as "already taken".
+    taken = {(r.imei or "").strip().upper().replace(" ", "") for r in taken_rows if r.imei}
 
     # Collect all free items (not yet taken by another plan, draft Sales Order, or sale)
     free_items = []
@@ -1534,7 +1576,7 @@ def get_stock_entry_details_for_installment_plan(
             continue
         serial = (item.imei or "").strip()
         if serial:
-            if serial.upper().replace(" ", "")[-6:] in taken:
+            if serial.upper().replace(" ", "") in taken:
                 continue  # already linked to another plan
             if _purchase_serial_tracks_consumed(serial, current_plan, current_so):
                 continue  # already sold, issued, or reserved by another order/plan
