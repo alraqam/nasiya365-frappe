@@ -258,7 +258,7 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 	}
 
 	_skeletonCardsHtml() {
-		return Array.from({ length: 3 })
+		return Array.from({ length: 4 })
 			.map(
 				() => `
 			<div class="pnl-card pnl-skeleton-card">
@@ -347,11 +347,20 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 			</div>
 			<div class="pnl-card pnl-card--future" title="${esc(PNL_TOOLTIPS.futureProfit)}">
 				<div class="pnl-card-label">${__(
-					"Потенциал прибыли по продажам периода"
+					"Потенциал по наличным продажам"
 				)} <span class="pnl-info-icon" title="${esc(PNL_TOOLTIPS.futureProfit)}">ⓘ</span></div>
-				<div class="pnl-card-value">${esc(fmt(vm.summary.futureProfit))}</div>
+				<div class="pnl-card-value">${esc(fmt(vm.sales.cash.totalProfit))}</div>
 				<div class="pnl-card-sub">${__(
-					"Товарная маржа и потенциальные проценты по сделкам, оформленным в выбранном периоде."
+					"Товарная маржа наличных продаж, оформленных за период."
+				)}</div>
+			</div>
+			<div class="pnl-card pnl-card--future" title="${esc(PNL_TOOLTIPS.futureProfit)}">
+				<div class="pnl-card-label">${__(
+					"Потенциал по рассрочкам"
+				)} <span class="pnl-info-icon" title="${esc(PNL_TOOLTIPS.futureProfit)}">ⓘ</span></div>
+				<div class="pnl-card-value">${esc(fmt(vm.sales.installment.totalProfit))}</div>
+				<div class="pnl-card-sub">${__(
+					"Товарная маржа и потенциальные проценты по рассрочкам периода."
 				)}</div>
 			</div>
 		`);
@@ -385,52 +394,71 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 		`);
 	}
 
-	/* ——— Table 1 «Продажи, оформленные за период» (§6) ——— */
-	_salesRows(vm) {
-		return [
-			{ label: __("Наличные"), bold: false, data: vm.sales.cash },
-			{ label: __("Рассрочка"), bold: false, data: vm.sales.installment },
-			{ label: __("Итого"), bold: true, data: vm.sales.total },
-		];
-	}
-
+	/* ——— Table 1 «Продажи, оформленные за период» — наличные и рассрочка РАЗДЕЛЬНО (§6).
+	 * Two transposed tables (metrics as rows) instead of one type-per-row table, so each
+	 * type has its own total and the two are never summed into a combined «Итого». ——— */
 	_renderSalesTable(vm) {
 		const wrap = this.container.find(".pnl-section-sales .pnl-table-wrap").empty();
 		const fmt = window.Nasiya365PnL.formatMoney;
 		const esc = frappe.utils.escape_html;
+		const c = vm.sales.cash;
+		const i = vm.sales.installment;
 
-		const rowsHtml = this._salesRows(vm)
-			.map((row) => {
-				const d = row.data;
-				const interestCell = d.interest === null ? "—" : esc(fmt(d.interest));
-				return `
-					<tr class="${row.bold ? "pnl-row-total" : ""}">
-						<td class="pnl-col-label">${esc(row.label)}</td>
-						<td class="pnl-col-num">${esc(fmt(d.sales))}</td>
-						<td class="pnl-col-num">${esc(fmt(d.cost))}</td>
-						<td class="pnl-col-num">${esc(fmt(d.margin))}</td>
-						<td class="pnl-col-num">${interestCell}</td>
-						<td class="pnl-col-num">${esc(fmt(d.totalProfit))}</td>
-					</tr>
-				`;
-			})
-			.join("");
+		const cashRows = [[__("Выручка"), c.sales], [__("Себестоимость"), c.cost]];
+		const instRows = [
+			[__("Выручка"), i.sales],
+			[__("Себестоимость"), i.cost],
+			[__("Маржа товара"), i.margin],
+			[__("Проценты по рассрочке"), i.interest],
+		];
+		// Pad the shorter table with blank rows so both TOTAL rows sit at the same level.
+		const maxDataRows = Math.max(cashRows.length, instRows.length);
 
-		wrap.html(`
-			<table class="pnl-table">
-				<thead>
-					<tr>
-						<th class="pnl-col-label">${__("Тип продажи")}</th>
-						<th class="pnl-col-num">${__("Продажи")}</th>
-						<th class="pnl-col-num">${__("Себестоимость")}</th>
-						<th class="pnl-col-num">${__("Маржа товара")}</th>
-						<th class="pnl-col-num">${__("Проценты по рассрочке")}</th>
-						<th class="pnl-col-num">${__("Общая прибыль")}</th>
-					</tr>
-				</thead>
-				<tbody>${rowsHtml}</tbody>
-			</table>
-		`);
+		const bodyHtml = (rows, total) => {
+			const data = rows
+				.map(
+					([k, v]) =>
+						`<tr><td class="pnl-col-label">${esc(k)}</td><td class="pnl-col-num">${esc(fmt(v))}</td></tr>`
+				)
+				.join("");
+			const spacers = Array.from({ length: maxDataRows - rows.length })
+				.map(
+					() =>
+						`<tr class="pnl-row-spacer"><td class="pnl-col-label">&nbsp;</td><td class="pnl-col-num"></td></tr>`
+				)
+				.join("");
+			return (
+				data +
+				spacers +
+				`<tr class="pnl-row-total"><td class="pnl-col-label">${esc(total[0])}</td><td class="pnl-col-num">${esc(fmt(total[1]))}</td></tr>`
+			);
+		};
+
+		const tableHtml = (title, pillClass, pillText, rows, total) => `
+			<div class="pnl-subtable">
+				<div class="pnl-subtable-head">
+					<span class="pnl-subtable-title">${esc(title)}</span>
+					<span class="pnl-pill ${pillClass}">${esc(pillText)}</span>
+				</div>
+				<table class="pnl-table"><tbody>${bodyHtml(rows, total)}</tbody></table>
+			</div>`;
+
+		const cash = tableHtml(
+			__("Наличные продажи"),
+			"pnl-pill-cash",
+			__("наличные"),
+			cashRows,
+			[__("Прибыль (маржа)"), c.totalProfit]
+		);
+		const inst = tableHtml(
+			__("Продажи в рассрочку"),
+			"pnl-pill-inst",
+			__("рассрочка"),
+			instRows,
+			[__("Итого прибыль"), i.totalProfit]
+		);
+
+		wrap.html(`<div class="pnl-sales-split">${cash}${inst}</div>`);
 	}
 
 	/* ——— Table 2 «Поступления и заработанная прибыль» (§7) ——— */
