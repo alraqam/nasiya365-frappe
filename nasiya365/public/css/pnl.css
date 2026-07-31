@@ -128,9 +128,73 @@
 
 .pnl-cards {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	/* 2×2: row 1 = Поступило + Заработанная, row 2 = потенциал наличные + рассрочка */
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 12px;
 	margin-bottom: 28px;
+}
+
+/* ===================== Раздел 1: две раздельные таблицы (наличные / рассрочка) ===================== */
+
+/* The sales section renders two self-contained sub-tables, so the shared
+   .pnl-table-wrap border/overflow must not box them together. */
+.pnl-section-sales .pnl-table-wrap {
+	border: 0;
+	border-radius: 0;
+	overflow: visible;
+}
+
+.pnl-sales-split {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 14px;
+	align-items: start;
+}
+
+.pnl-subtable {
+	border: 1px solid var(--border-color);
+	border-radius: 10px;
+	overflow: hidden;
+	background: var(--card-bg);
+}
+
+.pnl-subtable-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 10px 14px;
+	border-bottom: 1px solid var(--border-color);
+}
+
+.pnl-subtable-title {
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.pnl-subtable .pnl-table {
+	border: 0;
+}
+
+.pnl-pill {
+	font-size: 10.5px;
+	font-weight: 700;
+	padding: 2px 8px;
+	border-radius: 999px;
+	white-space: nowrap;
+	letter-spacing: 0.02em;
+}
+
+.pnl-pill-cash {
+	color: var(--blue-600, #2563eb);
+	background: rgba(37, 99, 235, 0.1);
+	border: 1px solid rgba(37, 99, 235, 0.28);
+}
+
+.pnl-pill-inst {
+	color: var(--purple-600, #7c3aed);
+	background: rgba(124, 58, 237, 0.1);
+	border: 1px solid rgba(124, 58, 237, 0.28);
 }
 
 .pnl-card {
@@ -417,6 +481,10 @@
 
 @media (max-width: 720px) {
 	.pnl-cards {
+		grid-template-columns: 1fr;
+	}
+
+	.pnl-sales-split {
 		grid-template-columns: 1fr;
 	}
 
