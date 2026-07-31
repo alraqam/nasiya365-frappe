@@ -162,9 +162,12 @@ class StockEntry(Document):
 		self.update_stock_ledger()
 
 	def on_cancel(self):
-		"""Reverse stock ledger entries when cancelled"""
-		if self._has_business_status_field() and (self.business_status or "").strip() in ("", "Черновик"):
-			self.business_status = "Возврат"
+		"""Reverse stock ledger entries when cancelled, and mark the receipt as «Отменён»
+		regardless of its previous status — a cancelled receipt must not keep reading as
+		«В наличии» (available stock). «Возврат» stays a separate, deliberate status for an
+		actual return of goods, not for document cancellation."""
+		if self._has_business_status_field():
+			self.business_status = "Отменён"
 			self.db_update()
 		self.update_stock_ledger(cancel=True)
 
