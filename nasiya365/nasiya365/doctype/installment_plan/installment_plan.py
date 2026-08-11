@@ -579,8 +579,10 @@ class InstallmentPlan(Document):
             financed_total = flt(self.financed_amount) + flt(self.total_interest)
             allocated = 0.0
             for i in range(num):
-                if i > 0:
-                    current_date = self._next_schedule_date(current_date)
+                # Первый взнос — через один период после даты договора, не в день
+                # подписания. Аванс (строка 0), если есть, остаётся отдельной строкой
+                # с датой «сегодня» и на даты взносов не влияет.
+                current_date = self._next_schedule_date(current_date)
 
                 # Last row absorbs rounding remainder so sum(schedule) == total_amount exactly
                 if i == num - 1:
@@ -818,13 +820,13 @@ def _build_installment_preview(principal, down_payment, interest_rate, num_insta
         })
 
     for i in range(num_installments):
-        if i > 0:
-            if "Еженедельно" in frequency:
-                current_date = add_to_date(current_date, weeks=1)
-            elif "две недели" in frequency:
-                current_date = add_to_date(current_date, weeks=2)
-            else:
-                current_date = add_months(current_date, 1)
+        # Первый взнос — через один период после даты договора, не в день подписания.
+        if "Еженедельно" in frequency:
+            current_date = add_to_date(current_date, weeks=1)
+        elif "две недели" in frequency:
+            current_date = add_to_date(current_date, weeks=2)
+        else:
+            current_date = add_months(current_date, 1)
 
         schedule.append({
             "installment_number": i + 1,
