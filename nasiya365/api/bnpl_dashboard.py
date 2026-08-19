@@ -1203,8 +1203,11 @@ def _serial_reserved_sql(imei_expr, so_excl_sql="''", plan_excl_sql="''"):
     """
     ni = imei_expr
 
-    def _no_later_acquisition(cons_date_sql):
-        # No «Поступление»/«Корректировка» of this serial dated after the consumption.
+    def _no_later_acquisition(cons_date_sql, cons_created_sql):
+        # No «Поступление»/«Корректировка» of this serial that comes AFTER the consumption.
+        # "After" = later posting_date, OR the same posting_date but the acquisition row was
+        # created after the consumption — so a same-day BUY-BACK (entered after the sale)
+        # frees the serial, while the ORIGINAL purchase (entered before the sale) does not.
         # NULL acquisition date never frees; NULL consumption date stays reserved.
         return f"""NOT EXISTS (
             SELECT 1 FROM `tabStock Entry Item` a_i
@@ -1213,7 +1216,13 @@ def _serial_reserved_sql(imei_expr, so_excl_sql="''", plan_excl_sql="''"):
               AND a_e.entry_type IN ('Поступление', 'Корректировка')
               AND NULLIF(TRIM(a_i.imei), '') IS NOT NULL
               AND {_norm_imei_sql('a_i.imei')} = {ni}
-              AND COALESCE(a_e.posting_date, '0001-01-01') > COALESCE({cons_date_sql}, '9999-12-31')
+              AND (
+                COALESCE(a_e.posting_date, '0001-01-01') > COALESCE({cons_date_sql}, '9999-12-31')
+                OR (
+                  COALESCE(a_e.posting_date, '0001-01-01') = COALESCE({cons_date_sql}, '9999-12-31')
+                  AND a_e.creation > {cons_created_sql}
+                )
+              )
         )"""
 
     # Correlated EXISTS (no derived table -> works without LATERAL). Reserved iff some
@@ -1227,7 +1236,7 @@ def _serial_reserved_sql(imei_expr, so_excl_sql="''", plan_excl_sql="''"):
               AND ({so_excl_sql} = '' OR so.name != {so_excl_sql})
               AND NULLIF(TRIM(soi.imei), '') IS NOT NULL
               AND {_norm_imei_sql('soi.imei')} = {ni}
-              AND {_no_later_acquisition('so.order_date')}
+              AND {_no_later_acquisition('so.order_date', 'so.creation')}
         )
         OR EXISTS (
             SELECT 1 FROM `tabInstallment Plan` ip
@@ -1236,7 +1245,7 @@ def _serial_reserved_sql(imei_expr, so_excl_sql="''", plan_excl_sql="''"):
               AND ({plan_excl_sql} = '' OR ip.name != {plan_excl_sql})
               AND NULLIF(TRIM(ip.imei), '') IS NOT NULL
               AND {_norm_imei_sql('ip.imei')} = {ni}
-              AND {_no_later_acquisition('ip.start_date')}
+              AND {_no_later_acquisition('ip.start_date', 'ip.creation')}
         )
         OR EXISTS (
             SELECT 1 FROM `tabStock Entry Item` oxi
@@ -1244,7 +1253,7 @@ def _serial_reserved_sql(imei_expr, so_excl_sql="''", plan_excl_sql="''"):
             WHERE ox.docstatus = 1 AND ox.entry_type = 'Отпуск'
               AND NULLIF(TRIM(oxi.imei), '') IS NOT NULL
               AND {_norm_imei_sql('oxi.imei')} = {ni}
-              AND {_no_later_acquisition('ox.posting_date')}
+              AND {_no_later_acquisition('ox.posting_date', 'ox.creation')}
         )
     )
     """
