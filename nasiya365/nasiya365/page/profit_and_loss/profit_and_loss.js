@@ -408,7 +408,6 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 		const instRows = [
 			[__("Выручка"), i.sales],
 			[__("Себестоимость"), i.cost],
-			[__("Маржа товара"), i.margin],
 			[__("Проценты по рассрочке"), i.interest],
 		];
 		// Pad the shorter table with blank rows so both TOTAL rows sit at the same level.
@@ -434,28 +433,59 @@ nasiya365.ProfitAndLoss = class ProfitAndLoss {
 			);
 		};
 
-		const tableHtml = (title, pillClass, pillText, rows, total) => `
+		const tableHtml = (title, pillClass, pillText, rows, total, extra = "") => `
 			<div class="pnl-subtable">
 				<div class="pnl-subtable-head">
 					<span class="pnl-subtable-title">${esc(title)}</span>
 					<span class="pnl-pill ${pillClass}">${esc(pillText)}</span>
 				</div>
 				<table class="pnl-table"><tbody>${bodyHtml(rows, total)}</tbody></table>
+				${extra}
 			</div>`;
+
+		// Item: авансы и товарная маржа с рассрочек показываются справочно под
+		// таблицей наличных — это деньги, остающиеся магазину (в дележ с
+		// инвестором не входят). Две ОТДЕЛЬНЫЕ строки: складывать нельзя, т.к.
+		// аванс уже содержит внутри часть этой маржи (иначе двойной счёт).
+		const cashExtra = `
+			<div class="pnl-refs">
+				<div class="pnl-refs-cap">${esc(__("С рассрочек — остаётся магазину"))}</div>
+				<div class="pnl-ref-row">
+					<div class="pnl-ref-body">
+						<div class="pnl-ref-name">${esc(__("Авансы по рассрочкам"))}</div>
+						<div class="pnl-ref-sub">${esc(__("живые деньги, получены при покупке"))}</div>
+					</div>
+					<div class="pnl-ref-val">${esc(fmt(i.downPayment))}</div>
+				</div>
+				<div class="pnl-ref-row">
+					<div class="pnl-ref-body">
+						<div class="pnl-ref-name">${esc(__("Маржа товара с рассрочек"))}</div>
+						<div class="pnl-ref-sub">${esc(__("чистая наценка, инвестору не идёт"))}</div>
+					</div>
+					<div class="pnl-ref-val">${esc(fmt(i.margin))}</div>
+				</div>
+				<div class="pnl-ref-note">${esc(__("две отдельные строки — не складываются"))}</div>
+			</div>`;
+		const instExtra = `
+			<div class="pnl-inst-note">${esc(
+				__("Маржа товара показана в наличных (остаётся магазину, в дележ не входит).")
+			)}</div>`;
 
 		const cash = tableHtml(
 			__("Наличные продажи"),
 			"pnl-pill-cash",
 			__("наличные"),
 			cashRows,
-			[__("Прибыль (маржа)"), c.totalProfit]
+			[__("Прибыль (маржа)"), c.totalProfit],
+			cashExtra
 		);
 		const inst = tableHtml(
 			__("Продажи в рассрочку"),
 			"pnl-pill-inst",
 			__("рассрочка"),
 			instRows,
-			[__("Итого прибыль"), i.totalProfit]
+			[__("Итого (проценты)"), i.interest],
+			instExtra
 		);
 
 		wrap.html(`<div class="pnl-sales-split">${cash}${inst}</div>`);

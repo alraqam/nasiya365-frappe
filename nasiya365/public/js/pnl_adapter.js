@@ -37,6 +37,7 @@ function buildViewModel(raw) {
   const salesFinancedCogs = num(raw.sales_financed_cogs);
   const salesFinancedMargin = num(raw.sales_financed_margin);
   const salesInterest = num(raw.sales_interest);
+  const salesDownPayment = num(raw.sales_down_payment);
 
   const salesTotalMargin = num(raw.sales_total_margin);
   const potentialProfit = num(raw.potential_profit);
@@ -65,6 +66,7 @@ function buildViewModel(raw) {
         cost: salesFinancedCogs,
         margin: salesFinancedMargin,
         interest: salesInterest,
+        downPayment: salesDownPayment,
         totalProfit: salesFinancedMargin + salesInterest,
       },
       total: {
