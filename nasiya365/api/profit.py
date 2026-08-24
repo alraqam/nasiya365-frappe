@@ -393,7 +393,8 @@ def _compute_accrual(from_date, to_date, branch):
     plans = frappe.db.sql(
         f"""
         SELECT ip.name, ip.imei, ip.principal_amount, ip.total_interest,
-               ip.financed_amount, ip.total_amount, ip.stock_entry, ip.start_date
+               ip.financed_amount, ip.total_amount, ip.down_payment,
+               ip.stock_entry, ip.start_date
         FROM `tabInstallment Plan` ip
         WHERE ip.docstatus = 1
           AND IFNULL(ip.status, '') IN ({in_status})
@@ -405,12 +406,13 @@ def _compute_accrual(from_date, to_date, branch):
         (*_LIVE_PLAN_STATUSES, from_date, to_date, *plan_branch_params, *expl_params),
         as_dict=True,
     )
-    financed_revenue = financed_cogs = interest_income = 0.0
+    financed_revenue = financed_cogs = interest_income = down_payment_total = 0.0
     for p in plans:
         revenue = flt(p.principal_amount) or flt(p.financed_amount)
         financed_revenue += revenue
         financed_cogs += _cogs_for_sale_item(p.imei, p.get("stock_entry"), p.get("start_date"))
         interest_income += flt(p.total_interest)
+        down_payment_total += flt(p.down_payment)
     financed_margin = financed_revenue - financed_cogs
 
     so_branch = " AND so.branch = %s" if branch else ""
@@ -448,6 +450,7 @@ def _compute_accrual(from_date, to_date, branch):
         "financed_cogs": financed_cogs,
         "financed_margin": financed_margin,
         "interest_income": interest_income,
+        "down_payment": down_payment_total,
     }
 
 
@@ -563,6 +566,7 @@ def _compute_cost_recovery(from_date, to_date, branch):
         "sales_financed_margin": flt(sales["financed_margin"]),
         "sales_total_margin": sales_total_margin,
         "sales_interest": sales_interest,
+        "sales_down_payment": flt(sales.get("down_payment")),
         "potential_profit": sales_total_margin + sales_interest,
         # Раздел 2 (recognized) — these DRIVE _apply_basis / net_profit
         "cash_margin": rec_margin_cash,

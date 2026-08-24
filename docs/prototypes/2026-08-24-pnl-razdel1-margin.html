@@ -1,0 +1,406 @@
+<title>Раздел 1 — маржа и авансы</title>
+<style>
+  :root {
+    --bg: #FAFBFC;
+    --surface: #FFFFFF;
+    --surface-2: #F4F6F9;
+    --border: #E4E7EE;
+    --border-strong: #D2D7E2;
+    --ink: #1A1E29;
+    --ink-muted: #626B7D;
+    --ink-faint: #949CAB;
+    --cash: #0E8A66;
+    --cash-soft: #E8F5F0;
+    --inst: #4B57C9;
+    --inst-soft: #ECEEFB;
+    --new: #9A6410;
+    --new-soft: #FBF3E3;
+    --new-border: #EBD9B6;
+    --shadow: 0 1px 2px rgba(20,25,40,.04), 0 8px 24px rgba(20,25,40,.05);
+    --radius: 12px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12141A;
+      --surface: #1A1D26;
+      --surface-2: #222634;
+      --border: #2B303C;
+      --border-strong: #3A4150;
+      --ink: #E9ECF3;
+      --ink-muted: #9AA3B2;
+      --ink-faint: #6C7585;
+      --cash: #35C99B;
+      --cash-soft: #123027;
+      --inst: #939BF2;
+      --inst-soft: #1E2140;
+      --new: #E3B366;
+      --new-soft: #2A2313;
+      --new-border: #4A3C1E;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12141A;
+    --surface: #1A1D26;
+    --surface-2: #222634;
+    --border: #2B303C;
+    --border-strong: #3A4150;
+    --ink: #E9ECF3;
+    --ink-muted: #9AA3B2;
+    --ink-faint: #6C7585;
+    --cash: #35C99B;
+    --cash-soft: #123027;
+    --inst: #939BF2;
+    --inst-soft: #1E2140;
+    --new: #E3B366;
+    --new-soft: #2A2313;
+    --new-border: #4A3C1E;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 40px 20px 72px;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(24px, 4vw, 32px);
+    line-height: 1.15;
+    letter-spacing: -.02em;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .lede {
+    font-size: 15px;
+    color: var(--ink-muted);
+    max-width: 60ch;
+    margin: 0 0 32px;
+  }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  /* ── Report card ─────────────────────────────── */
+  .report {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .report-head {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .report-head h2 {
+    font-size: 16px;
+    margin: 0 0 4px;
+    letter-spacing: -.01em;
+  }
+  .report-head p {
+    font-size: 13px;
+    color: var(--ink-muted);
+    margin: 0;
+  }
+
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+  }
+  @media (max-width: 680px) {
+    .split { grid-template-columns: 1fr; }
+  }
+  .col {
+    background: var(--surface);
+    padding: 20px 24px 22px;
+  }
+
+  .col-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .col-title { font-size: 14px; font-weight: 600; }
+  .pill {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .03em;
+    padding: 3px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .pill-cash { color: var(--cash); background: var(--cash-soft); }
+  .pill-inst { color: var(--inst); background: var(--inst-soft); }
+
+  table { width: 100%; border-collapse: collapse; }
+  td {
+    font-size: 14px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  td.label { color: var(--ink-muted); }
+  tr:last-child td { border-bottom: none; }
+
+  tr.total td {
+    font-weight: 700;
+    font-size: 15px;
+    border-top: 2px solid var(--border-strong);
+    border-bottom: none;
+    padding-top: 12px;
+  }
+  tr.total td.label { color: var(--ink); }
+  .total-cash td.num { color: var(--cash); }
+  .total-inst td.num { color: var(--inst); }
+
+  .was {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ink-faint);
+    text-decoration: line-through;
+    margin-right: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* note under installment */
+  .note {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--ink-muted);
+    line-height: 1.45;
+    padding-left: 14px;
+    border-left: 2px solid var(--border-strong);
+  }
+
+  /* ── New reference lines under cash ───────────── */
+  .refs {
+    margin-top: 16px;
+    border: 1px dashed var(--new-border);
+    background: var(--new-soft);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .refs-cap {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--new);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 8px;
+  }
+  .tag-new {
+    font-size: 9.5px;
+    letter-spacing: .06em;
+    background: var(--new);
+    color: var(--surface);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .ref-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 6px 0;
+  }
+  .ref-ico {
+    width: 22px;
+    flex: none;
+    text-align: center;
+    color: var(--new);
+  }
+  .ref-body { flex: 1 1 auto; min-width: 0; }
+  .ref-name { font-size: 13.5px; font-weight: 600; }
+  .ref-sub { font-size: 11.5px; color: var(--ink-muted); }
+  .ref-val {
+    font-size: 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--new);
+    white-space: nowrap;
+  }
+  .ref-nosum {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--ink-faint);
+    text-align: center;
+    border-top: 1px dashed var(--new-border);
+    padding-top: 8px;
+  }
+
+  /* ── Change log ───────────────────────────────── */
+  .changes {
+    margin-top: 32px;
+    display: grid;
+    gap: 12px;
+  }
+  .change {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .change-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--new);
+    margin-top: 7px;
+    flex: none;
+  }
+  .change-t { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
+  .change-d { font-size: 13px; color: var(--ink-muted); margin: 0; }
+  .change-d code {
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">nasiya365 · Прибыль и поступления</p>
+  <h1>Раздел 1 — маржа товара и авансы отдельно</h1>
+  <p class="lede">
+    Предлагаемый вид первого раздела. <strong>Маржа товара с рассрочек</strong> и
+    <strong>авансы</strong> вынесены под таблицу наличных — это деньги, которые остаются
+    магазину. В рассрочке остаются только <strong>проценты</strong> — тот пул, что делится
+    с инвестором. Числа даны на примере: товар&nbsp;1000&nbsp;→&nbsp;рассрочка&nbsp;1030,
+    аванс&nbsp;300.
+  </p>
+
+  <div class="report">
+    <div class="report-head">
+      <h2>1. Продажи, оформленные за период</h2>
+      <p>Наличные и рассрочка считаются раздельно — их итоги никогда не суммируются вместе.</p>
+    </div>
+
+    <div class="split">
+      <!-- ── CASH ─────────────────────────── -->
+      <div class="col">
+        <div class="col-head">
+          <span class="col-title">Наличные продажи</span>
+          <span class="pill pill-cash">наличные</span>
+        </div>
+        <table>
+          <tbody>
+            <tr><td class="label">Выручка</td><td class="num">$2,500</td></tr>
+            <tr><td class="label">Себестоимость</td><td class="num">$2,100</td></tr>
+            <tr class="total total-cash"><td class="label">Прибыль (маржа)</td><td class="num">$400</td></tr>
+          </tbody>
+        </table>
+
+        <!-- new reference lines -->
+        <div class="refs">
+          <div class="refs-cap">
+            С рассрочек — остаётся магазину
+            <span class="tag-new">НОВОЕ</span>
+          </div>
+
+          <div class="ref-row">
+            <div class="ref-ico" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>
+            </div>
+            <div class="ref-body">
+              <div class="ref-name">Авансы по рассрочкам</div>
+              <div class="ref-sub">живые деньги, получены при покупке</div>
+            </div>
+            <div class="ref-val">$300</div>
+          </div>
+
+          <div class="ref-row">
+            <div class="ref-ico" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 7-7"/><path d="M17 5h4v4"/></svg>
+            </div>
+            <div class="ref-body">
+              <div class="ref-name">Маржа товара с рассрочек</div>
+              <div class="ref-sub">чистая наценка, инвестору не идёт</div>
+            </div>
+            <div class="ref-val">$30</div>
+          </div>
+
+          <div class="ref-nosum">две отдельные строки — не складываются (аванс уже содержит часть маржи)</div>
+        </div>
+      </div>
+
+      <!-- ── INSTALLMENT ──────────────────── -->
+      <div class="col">
+        <div class="col-head">
+          <span class="col-title">Продажи в рассрочку</span>
+          <span class="pill pill-inst">рассрочка</span>
+        </div>
+        <table>
+          <tbody>
+            <tr><td class="label">Выручка</td><td class="num">$1,030</td></tr>
+            <tr><td class="label">Себестоимость</td><td class="num">$1,000</td></tr>
+            <tr><td class="label">Проценты по рассрочке</td><td class="num">$170</td></tr>
+            <tr class="total total-inst">
+              <td class="label">Итого (проценты)</td>
+              <td class="num"><span class="was">$200</span>$170</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="note">
+          Маржа товара <strong>$30</strong> здесь больше не показывается — она вынесена
+          в наличные (остаётся магазину, в дележ с инвестором не входит).
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── change log ─────────────────────── -->
+  <div class="changes">
+    <div class="change">
+      <span class="change-dot"></span>
+      <div>
+        <p class="change-t">Маржа товара переехала под наличные</p>
+        <p class="change-d">Из таблицы рассрочки убрана строка «Маржа товара». Теперь она — справочная строка на «твоей» стороне, отдельно от процентов.</p>
+      </div>
+    </div>
+    <div class="change">
+      <span class="change-dot"></span>
+      <div>
+        <p class="change-t">Итог рассрочки = только проценты</p>
+        <p class="change-d">Было <code>$200</code> (маржа + проценты) → стало <code>$170</code> (только проценты). Это и есть пул для распределения инвестору.</p>
+      </div>
+    </div>
+    <div class="change">
+      <span class="change-dot"></span>
+      <div>
+        <p class="change-t">Авансы и маржа — двумя строками, без суммы</p>
+        <p class="change-d">Аванс <code>$300</code> и маржа <code>$30</code> показаны раздельно. Складывать нельзя: аванс уже содержит внутри часть этой наценки — иначе двойной счёт.</p>
+      </div>
+    </div>
+  </div>
+</div>

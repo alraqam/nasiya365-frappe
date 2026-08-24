@@ -516,3 +516,73 @@
 		gap: 4px;
 	}
 }
+
+/* ===================== Раздел 1: справочные строки под наличными ===================== */
+/* Авансы + товарная маржа с рассрочек — деньги, остающиеся магазину (в дележ
+   с инвестором не входят). Показаны под таблицей наличных отдельным блоком. */
+.pnl-refs {
+	margin: 10px 12px 12px;
+	border: 1px dashed rgba(245, 158, 11, 0.5);
+	background: rgba(245, 158, 11, 0.07);
+	border-radius: 9px;
+	padding: 10px 12px;
+}
+.pnl-refs-cap {
+	font-size: 10.5px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #b45309;
+	margin-bottom: 6px;
+}
+.pnl-ref-row {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+	padding: 5px 0;
+}
+.pnl-ref-body {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.pnl-ref-name {
+	font-size: 13px;
+	font-weight: 600;
+}
+.pnl-ref-sub {
+	font-size: 11px;
+	opacity: 0.7;
+}
+.pnl-ref-val {
+	font-size: 13.5px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	color: #b45309;
+	white-space: nowrap;
+}
+.pnl-ref-note {
+	margin-top: 6px;
+	padding-top: 6px;
+	border-top: 1px dashed rgba(245, 158, 11, 0.4);
+	font-size: 10.5px;
+	opacity: 0.65;
+	text-align: center;
+}
+.pnl-inst-note {
+	margin: 10px 12px 12px;
+	font-size: 11px;
+	opacity: 0.72;
+	line-height: 1.4;
+	padding-left: 10px;
+	border-left: 2px solid var(--border-color);
+}
+@media (prefers-color-scheme: dark) {
+	.pnl-refs-cap,
+	.pnl-ref-val {
+		color: #fbbf24;
+	}
+}
+:root[data-theme="dark"] .pnl-refs-cap,
+:root[data-theme="dark"] .pnl-ref-val {
+	color: #fbbf24;
+}

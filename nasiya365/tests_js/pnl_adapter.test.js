@@ -86,4 +86,12 @@ const vmNet = buildViewModel(Object.assign({}, raw, { profit_basis: "Чиста�
 assert.strictEqual(vmNet.basis.interestIncluded, true);
 assert.strictEqual(vmNet.basis.expensesIncluded, true);
 
+// 12. авансы (down_payment) прокидываются в installment для справочной строки
+//     под наличными; totalProfit (карточка) остаётся маржа+проценты и не меняется.
+const rawDp = Object.assign({}, raw, { sales_down_payment: 300 });
+const vmDp = buildViewModel(rawDp);
+assert.strictEqual(vmDp.sales.installment.downPayment, 300);
+assert.strictEqual(vmDp.sales.installment.totalProfit, 553); // 45 + 508, без изменений
+assert.strictEqual(buildViewModel({}).sales.installment.downPayment, 0);
+
 console.log("ALL PNL ADAPTER TESTS PASSED");
