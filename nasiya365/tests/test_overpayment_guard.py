@@ -125,3 +125,33 @@ class TestOverpaymentGuard(unittest.TestCase):
             _pt("Installment Plan", plan.name, 660000)._guard_installment_overpayment()  # без исключения
         finally:
             frappe.flags.in_migrate = False
+
+    # ── Fix round: schedule-authoritative remaining + coverage ──
+    def test_remaining_prefers_schedule_over_stale_high_header(self):
+        # header завышен (500), но график: должны 165 → берём 165, платёж 200 блокируется
+        plan = _plan(remaining_balance=500)
+        _sched_row(plan.name, 1, amount=200, paid_amount=35)   # due = 165
+        self.assertAlmostEqual(_installment_plan_remaining(plan.name), 165.0, places=2)
+        with self.assertRaises(frappe.exceptions.ValidationError):
+            _pt("Installment Plan", plan.name, 200)._guard_installment_overpayment()
+
+    def test_remaining_prefers_schedule_over_stale_low_header(self):
+        # header занижен (50), но график: должны 165 → честный платёж 100 проходит
+        plan = _plan(remaining_balance=50)
+        _sched_row(plan.name, 1, amount=200, paid_amount=35)   # due = 165
+        self.assertAlmostEqual(_installment_plan_remaining(plan.name), 165.0, places=2)
+        _pt("Installment Plan", plan.name, 100)._guard_installment_overpayment()  # без исключения
+
+    def test_all_bypass_flags(self):
+        plan = _plan(remaining_balance=165.91)
+        for flag in ("in_migrate", "in_import", "in_patch", "in_install"):
+            setattr(frappe.flags, flag, True)
+            try:
+                _pt("Installment Plan", plan.name, 660000)._guard_installment_overpayment()  # без исключения
+            finally:
+                setattr(frappe.flags, flag, False)
+
+    def test_sales_order_reference_under_remaining_ok(self):
+        so = _db_insert("Sales Order", total_amount=1200, order_date="2026-01-01", docstatus=1)
+        _plan(remaining_balance=100, sales_order=so.name)
+        _pt("Sales Order", so.name, 80)._guard_installment_overpayment()  # без исключения
