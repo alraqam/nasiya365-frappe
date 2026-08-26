@@ -3,6 +3,7 @@ import frappe
 
 from nasiya365.nasiya365.doctype.payment_transaction.payment_transaction import (
     _resolve_installment_plan_name,
+    _installment_plan_remaining,
 )
 
 
@@ -65,3 +66,17 @@ class TestOverpaymentGuard(unittest.TestCase):
     def test_resolve_none_for_cash_sales_order(self):
         so = _db_insert("Sales Order", total_amount=650, order_date="2026-01-01", docstatus=1)
         self.assertIsNone(_resolve_installment_plan_name(_pt("Sales Order", so.name, 1)))
+
+    # ── Task 2: remaining ────────────────────────────
+    def test_remaining_uses_header(self):
+        plan = _plan(remaining_balance=165.91)
+        self.assertAlmostEqual(_installment_plan_remaining(plan.name), 165.91, places=2)
+
+    def test_remaining_falls_back_to_schedule_when_header_zero(self):
+        plan = _plan(remaining_balance=0)
+        _sched_row(plan.name, 1, amount=100, paid_amount=60)   # due = 40
+        self.assertAlmostEqual(_installment_plan_remaining(plan.name), 40.0, places=2)
+
+    def test_remaining_zero_for_closed_plan(self):
+        plan = _plan(remaining_balance=0)                       # нет строк графика
+        self.assertEqual(_installment_plan_remaining(plan.name), 0.0)

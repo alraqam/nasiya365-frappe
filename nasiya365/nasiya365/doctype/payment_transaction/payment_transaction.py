@@ -164,6 +164,23 @@ def _resolve_installment_plan_name(doc):
     return None
 
 
+def _installment_plan_remaining(plan_name: str) -> float:
+    """Сколько ещё должны по договору. Primary — header `remaining_balance`; если он
+    NULL или <= 0, берём из графика SUM(amount - paid_amount), чтобы устаревший header
+    не давал ложный блок. Clamp >= 0."""
+    if not plan_name:
+        return 0.0
+    header = flt(frappe.db.get_value("Installment Plan", plan_name, "remaining_balance"))
+    if header > 0:
+        return header
+    due = frappe.db.sql(
+        """SELECT COALESCE(SUM(COALESCE(amount, 0) - COALESCE(paid_amount, 0)), 0)
+           FROM `tabInstallment Schedule` WHERE parent = %s""",
+        (plan_name,),
+    )[0][0]
+    return max(flt(due), 0.0)
+
+
 def allocate_payment_transaction_to_installment_plan(doc):
     """Apply this payment amount to the linked Installment Plan schedule (idempotent per successful run)."""
     if getattr(doc, "_nasiya_installment_plan_allocated", False):
