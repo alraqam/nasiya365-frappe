@@ -149,20 +149,27 @@ def _merge_payment_allocation_fields_from_db(doc):
         doc.amount = row.amount
 
 
+def _resolve_installment_plan_name(doc):
+    """Installment Plan, к которому относится платёж, по его reference.
+
+    reference = Installment Plan → сам; reference = Sales Order → план, связанный
+    через `sales_order`; иначе (напр. наличный Sales Order) → None.
+    """
+    rd = (getattr(doc, "reference_doctype", "") or "").strip()
+    rn = (getattr(doc, "reference_name", "") or "").strip()
+    if rd == "Installment Plan" and rn:
+        return rn
+    if rd == "Sales Order" and rn:
+        return frappe.db.get_value("Installment Plan", {"sales_order": rn}, "name")
+    return None
+
+
 def allocate_payment_transaction_to_installment_plan(doc):
     """Apply this payment amount to the linked Installment Plan schedule (idempotent per successful run)."""
     if getattr(doc, "_nasiya_installment_plan_allocated", False):
         return
     _merge_payment_allocation_fields_from_db(doc)
-    rd = (doc.reference_doctype or "").strip()
-    rn = (doc.reference_name or "").strip()
-
-    plan_name = None
-    if rd == "Installment Plan" and rn:
-        plan_name = rn
-    elif rd == "Sales Order" and rn:
-        # Legacy/import/payment-from-SO flows: map SO -> linked installment plan.
-        plan_name = frappe.db.get_value("Installment Plan", {"sales_order": rn}, "name")
+    plan_name = _resolve_installment_plan_name(doc)
     if not plan_name:
         return
 
