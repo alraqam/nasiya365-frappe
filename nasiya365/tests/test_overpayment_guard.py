@@ -80,3 +80,48 @@ class TestOverpaymentGuard(unittest.TestCase):
     def test_remaining_zero_for_closed_plan(self):
         plan = _plan(remaining_balance=0)                       # нет строк графика
         self.assertEqual(_installment_plan_remaining(plan.name), 0.0)
+
+    # ── Task 3: guard ────────────────────────────────
+    def test_exact_remaining_closure_ok(self):
+        plan = _plan(remaining_balance=165.91)
+        _pt("Installment Plan", plan.name, 165.91)._guard_installment_overpayment()  # без исключения
+
+    def test_under_remaining_ok(self):
+        plan = _plan(remaining_balance=165.91)
+        _pt("Installment Plan", plan.name, 55)._guard_installment_overpayment()
+
+    def test_tolerance_rounding_ok(self):
+        plan = _plan(remaining_balance=165.91)
+        _pt("Installment Plan", plan.name, 165.915)._guard_installment_overpayment()
+
+    def test_gross_overpayment_blocked_and_message_has_remaining(self):
+        plan = _plan(remaining_balance=165.91)
+        with self.assertRaises(frappe.exceptions.ValidationError) as cm:
+            _pt("Installment Plan", plan.name, 660000)._guard_installment_overpayment()
+        self.assertIn("165.91", str(cm.exception))
+
+    def test_sales_order_reference_guarded(self):
+        so = _db_insert("Sales Order", total_amount=1200, order_date="2026-01-01", docstatus=1)
+        _plan(remaining_balance=100, sales_order=so.name)
+        with self.assertRaises(frappe.exceptions.ValidationError):
+            _pt("Sales Order", so.name, 200)._guard_installment_overpayment()
+
+    def test_closed_plan_blocks_any_payment(self):
+        plan = _plan(remaining_balance=0)   # remaining 0, строк графика нет
+        with self.assertRaises(frappe.exceptions.ValidationError):
+            _pt("Installment Plan", plan.name, 10)._guard_installment_overpayment()
+
+    def test_header_zero_uses_schedule_due_for_guard(self):
+        plan = _plan(remaining_balance=0)
+        _sched_row(plan.name, 1, amount=100, paid_amount=60)   # due = 40
+        _pt("Installment Plan", plan.name, 40)._guard_installment_overpayment()   # ok
+        with self.assertRaises(frappe.exceptions.ValidationError):
+            _pt("Installment Plan", plan.name, 60)._guard_installment_overpayment()
+
+    def test_migrate_flag_bypasses_guard(self):
+        plan = _plan(remaining_balance=165.91)
+        frappe.flags.in_migrate = True
+        try:
+            _pt("Installment Plan", plan.name, 660000)._guard_installment_overpayment()  # без исключения
+        finally:
+            frappe.flags.in_migrate = False

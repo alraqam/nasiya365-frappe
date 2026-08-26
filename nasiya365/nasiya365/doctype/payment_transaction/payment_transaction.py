@@ -20,6 +20,8 @@ _METHOD_ALIASES = {
 # Methods that are never valid to store (removed from options but may exist in old data).
 _EXCLUDED_METHODS = frozenset(("Наличные",))
 
+_OVERPAYMENT_TOLERANCE = 0.01
+
 
 def _get_payment_line_methods() -> frozenset:
     """Return valid payment methods. Priority: Merchant Settings → DocType meta → fallback."""
@@ -524,6 +526,7 @@ class PaymentTransaction(Document):
         self.autolink_single_open_installment_plan()
         self.apply_payment_totals()
         self._validate_payment_date()
+        self._guard_installment_overpayment()
 
     def _validate_payment_date(self):
         """Дата платежа = когда клиент реально заплатил (может быть в прошлом).
@@ -532,6 +535,29 @@ class PaymentTransaction(Document):
             self.payment_date = nowdate()
         elif getdate(self.payment_date) > getdate(nowdate()):
             frappe.throw(_("Дата платежа не может быть в будущем."))
+
+    def _guard_installment_overpayment(self):
+        """Блокирует платёж, превышающий остаток связанного плана (сверх копейки), ДО
+        проведения. Ловит ошибки суммы/валюты (инцидент INST-2026-00065: 660000 сум,
+        введённые в поле USD)."""
+        if (frappe.flags.in_migrate or frappe.flags.in_import
+                or frappe.flags.in_patch or frappe.flags.in_install):
+            return
+        plan_name = _resolve_installment_plan_name(self)
+        if not plan_name:
+            return
+        amt = flt(self.amount)
+        if amt <= 0:
+            return
+        remaining = _installment_plan_remaining(plan_name)
+        if amt > remaining + _OVERPAYMENT_TOLERANCE:
+            frappe.throw(
+                _(
+                    "Сумма платежа {0} превышает остаток по договору {1}. "
+                    "Остаток: {2} USD. Проверьте сумму — возможно, введена в сумах "
+                    "вместо USD. Для полного закрытия введите {2}."
+                ).format(f"{amt:.2f}", plan_name, f"{remaining:.2f}")
+            )
 
     def before_insert(self):
         if not self.received_by:
