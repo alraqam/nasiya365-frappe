@@ -79,6 +79,15 @@
 ```
 
 Точки правки:
+- **`installment_plan_query` + `has_installment_plan_permission`** (`permissions.py`) —
+  НАСТОЯЩИЕ permission-хуки doctype (зарегистрированы в `hooks.py`): гейт Desk-списка и
+  прав на чтение/запись (в т.ч. проведение платежа через `_require_doc_permission`).
+  Читать `ip.branch` первым, при пустом → fallback на `sales_order`. В
+  `has_installment_plan_permission` убрать ранний `if not doc.sales_order: return False`
+  до проверки `branch` (иначе новые договоры с заполненным `branch`, но без заказа,
+  блокировали бы branch-ограниченного кассира). **[добавлено после финального ревью]**
+- **`sales_report.py`** — explicit branch filter + SELECT-колонка «Филиал» (тот же паттерн
+  «поле ИЛИ SO» и `COALESCE(NULLIF(ip.branch,''), SO)`). **[добавлено после финального ревью]**
 - **`_user_branch_clause`** (`bnpl_dashboard.py`) — ядро прав/фильтра; правка здесь
   автоматически чинит P&L-права (`_branch_clause_for`) и Collections-права.
 - **`_PAYMENT_BRANCH_CASE`** (`profit.py`) — резолв филиала платежа по Installment Plan
