@@ -921,3 +921,48 @@ def send_installment_plan_otp(customer):
         "ok": True,
         "message": _("OTP: интеграция в разработке (клиент {0})").format(customer),
     }
+
+
+@frappe.whitelist()
+def get_payment_history(installment_plan):
+    """Проведённые платежи по договору для read-only выписки под графиком.
+
+    Читает существующие Payment Transaction (docstatus=1, Завершен). Ничего не хранит.
+    """
+    from nasiya365.permissions import require_branch_access
+    require_branch_access("Installment Plan", installment_plan, ptype="read")
+    rows = frappe.db.sql(
+        """
+        SELECT name, payment_date, amount, payment_method
+        FROM `tabPayment Transaction`
+        WHERE reference_doctype = 'Installment Plan'
+          AND reference_name = %s
+          AND docstatus = 1
+          AND status = 'Завершен'
+        ORDER BY payment_date ASC, creation ASC
+        """,
+        (installment_plan,), as_dict=True,
+    )
+    payments = []
+    total = 0.0
+    for r in rows:
+        methods = frappe.db.sql(
+            """SELECT DISTINCT payment_method FROM `tabPayment Transaction Line`
+               WHERE parent = %s AND parenttype = 'Payment Transaction'
+                 AND IFNULL(payment_method, '') != ''""",
+            (r.name,), pluck=True,
+        )
+        if len(methods) == 1:
+            method = methods[0]
+        elif len(methods) > 1:
+            method = "Комбинированный"
+        else:
+            method = r.payment_method or "—"
+        total += flt(r.amount)
+        payments.append({
+            "name": r.name,
+            "payment_date": str(r.payment_date) if r.payment_date else None,
+            "amount": flt(r.amount),
+            "method": method,
+        })
+    return {"payments": payments, "total": total, "count": len(payments)}
