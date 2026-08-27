@@ -16,16 +16,21 @@ def _require_doc_permission(doctype: str, name: str, ptype: str = "read") -> Non
         frappe.throw(_("Not permitted"), frappe.PermissionError)
 
 
-def _user_branch_clause(plan_alias: str = "ip"):
+def _user_branch_clause(plan_alias: str = "ip", user: str = None):
     """
     Return (sql_fragment, params) restricting Installment-Plan-backed queries
     to the caller's assigned branches. Fragment begins with ' AND ' when non-empty.
-    For unrestricted users returns ('', ()).
-    For users with zero branches returns a no-match fragment so they see nothing.
+    Для unrestricted-пользователей возвращает ('', ()).
+    Для пользователей без филиалов — no-match фрагмент (видит ничего).
+
+    Филиал плана берётся из собственного поля `branch`; при пустом поле —
+    fallback на старый путь через `sales_order → Sales Order.branch` (старые
+    договоры без своего branch не пропадают).
     """
     from nasiya365.permissions import _get_user_branches, _is_unrestricted
 
-    user = frappe.session.user
+    if user is None:
+        user = frappe.session.user
     if _is_unrestricted(user):
         return ("", ())
     branches = _get_user_branches(user)
@@ -33,10 +38,12 @@ def _user_branch_clause(plan_alias: str = "ip"):
         return (" AND 1=0", ())
     placeholders = ",".join(["%s"] * len(branches))
     fragment = (
+        f" AND ({plan_alias}.branch IN ({placeholders})"
+        f" OR (({plan_alias}.branch IS NULL OR {plan_alias}.branch = '')"
         f" AND {plan_alias}.sales_order IN "
-        f"(SELECT name FROM `tabSales Order` WHERE branch IN ({placeholders}))"
+        f"(SELECT name FROM `tabSales Order` WHERE branch IN ({placeholders}))))"
     )
-    return (fragment, tuple(branches))
+    return (fragment, tuple(branches) + tuple(branches))
 
 
 def _user_branch_list():

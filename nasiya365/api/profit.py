@@ -386,8 +386,11 @@ def _compute_cash(from_date, to_date, branch):
 def _compute_accrual(from_date, to_date, branch):
     """Recognise the full margin + interest of each deal at point of sale."""
     plan_branch_clause, plan_branch_params = _branch_clause_for("ip")
-    expl = " AND ip.sales_order IN (SELECT name FROM `tabSales Order` WHERE branch = %s)" if branch else ""
-    expl_params = [branch] if branch else []
+    expl = (
+        " AND (ip.branch = %s OR ((ip.branch IS NULL OR ip.branch = '')"
+        " AND ip.sales_order IN (SELECT name FROM `tabSales Order` WHERE branch = %s)))"
+    ) if branch else ""
+    expl_params = [branch, branch] if branch else []
     in_status = ",".join(["%s"] * len(_LIVE_PLAN_STATUSES))
 
     plans = frappe.db.sql(

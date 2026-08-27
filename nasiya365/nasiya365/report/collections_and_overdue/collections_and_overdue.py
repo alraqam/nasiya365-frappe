@@ -31,8 +31,11 @@ def execute(filters=None):
     ]
 
     plan_branch_clause, plan_branch_params = _branch_clause_for("ip")
-    expl = " AND ip.sales_order IN (SELECT name FROM `tabSales Order` WHERE branch = %s)" if branch else ""
-    expl_params = [branch] if branch else []
+    expl = (
+        " AND (ip.branch = %s OR ((ip.branch IS NULL OR ip.branch = '')"
+        " AND ip.sales_order IN (SELECT name FROM `tabSales Order` WHERE branch = %s)))"
+    ) if branch else ""
+    expl_params = [branch, branch] if branch else []
     in_status = ",".join(["%s"] * len(_LIVE_PLAN_STATUSES))
     in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
 
@@ -40,7 +43,8 @@ def execute(filters=None):
         f"""
         SELECT ip.name, ip.customer_name, ip.total_amount, ip.paid_amount,
                ip.remaining_balance,
-               (SELECT branch FROM `tabSales Order` so WHERE so.name = ip.sales_order) AS branch,
+               COALESCE(ip.branch,
+                        (SELECT branch FROM `tabSales Order` so WHERE so.name = ip.sales_order)) AS branch,
                (
                    SELECT COALESCE(SUM(s.amount - COALESCE(s.paid_amount, 0)), 0)
                    FROM `tabInstallment Schedule` s

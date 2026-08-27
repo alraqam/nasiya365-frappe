@@ -131,3 +131,54 @@ class TestPlanBranchAutoset(unittest.TestCase):
             self.assertFalse(p.get("branch"))
         finally:
             ip_mod._branch_decision_for_user = orig
+
+
+def _seed_plan(branch=None, sales_order=None):
+    return _db_insert(
+        "Installment Plan", imei="IMEI" + frappe.generate_hash(length=6),
+        principal_amount=1000, financed_amount=700, total_interest=200,
+        total_amount=1200, start_date="2026-01-01",
+        status="Активный", contract_status="Активный", docstatus=1,
+        branch=branch, sales_order=sales_order,
+    )
+
+
+class TestPlanBranchVisibility(unittest.TestCase):
+    def setUp(self):
+        frappe.db.savepoint("plan_branch_vis")
+
+    def tearDown(self):
+        frappe.db.rollback(save_point="plan_branch_vis")
+
+    def _visible(self, plan_name, user):
+        from nasiya365.api.bnpl_dashboard import _user_branch_clause
+        frappe.cache().delete_value("nasiya365:user_branches:%s" % user)
+        frag, params = _user_branch_clause("ip", user=user)
+        rows = frappe.db.sql(
+            f"SELECT ip.name FROM `tabInstallment Plan` ip WHERE ip.name = %s {frag}",
+            (plan_name, *params),
+        )
+        frappe.cache().delete_value("nasiya365:user_branches:%s" % user)
+        return bool(rows)
+
+    def test_new_plan_direct_branch_visible_to_its_branch(self):
+        a = _seed_branch()
+        user = "op_a_%s@test.local" % frappe.generate_hash(length=4)
+        _seed_branch_user(a.name, user)
+        p = _seed_plan(branch=a.name, sales_order=None)   # новый: своё поле, без SO
+        self.assertTrue(self._visible(p.name, user))
+
+    def test_new_plan_not_visible_to_other_branch(self):
+        a = _seed_branch(); other = _seed_branch()
+        user_other = "op_o_%s@test.local" % frappe.generate_hash(length=4)
+        _seed_branch_user(other.name, user_other)
+        p = _seed_plan(branch=a.name, sales_order=None)
+        self.assertFalse(self._visible(p.name, user_other))
+
+    def test_legacy_plan_via_sales_order_still_visible(self):
+        a = _seed_branch()
+        user = "op_a2_%s@test.local" % frappe.generate_hash(length=4)
+        _seed_branch_user(a.name, user)
+        so = _seed_sales_order(a.name)
+        p = _seed_plan(branch=None, sales_order=so.name)   # старый: branch пуст, SO→A
+        self.assertTrue(self._visible(p.name, user))       # fallback работает
