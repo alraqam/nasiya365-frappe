@@ -19,6 +19,7 @@
   "product_name",
   "imei",
   "sales_order",
+  "branch",
   "column_break_1",
   "amounts_section",
   "principal_amount",
