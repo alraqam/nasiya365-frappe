@@ -24,8 +24,55 @@ frappe.ui.form.on('Installment Plan', {
             set_status_marker(frm, grid);
             grid.refresh();
         });
+
+        render_payment_history(frm);
     },
 });
+
+/** Read-only выписка «История оплат» под графиком — из проведённых платежей. */
+function render_payment_history(frm) {
+    const field = frm.get_field('payment_history_html');
+    if (!field || !frm.doc.name || frm.is_new()) return;
+
+    frappe.call({
+        method: 'nasiya365.nasiya365.doctype.installment_plan.installment_plan.get_payment_history',
+        args: { installment_plan: frm.doc.name },
+        callback: function (r) {
+            const data = r.message || { payments: [], total: 0, count: 0 };
+            field.$wrapper.html(build_payment_history_html(data));
+        },
+    });
+}
+
+function build_payment_history_html(data) {
+    const esc = frappe.utils.escape_html;
+    if (!data.count) {
+        return `<div class="text-muted" style="padding:8px 0;">${__('Оплат пока нет')}</div>`;
+    }
+    const rows = data.payments.map(function (p) {
+        return `<tr>
+            <td>${esc(frappe.datetime.str_to_user(p.payment_date) || '')}</td>
+            <td style="text-align:right;">${esc(format_currency(flt(p.amount), 'USD'))}</td>
+            <td>${esc(p.method || '—')}</td>
+            <td class="text-muted">${esc(p.name)}</td>
+        </tr>`;
+    }).join('');
+    return `
+        <table class="table table-bordered" style="margin-bottom:0;">
+            <thead><tr>
+                <th>${__('Дата')}</th>
+                <th style="text-align:right;">${__('Сумма')}</th>
+                <th>${__('Метод')}</th>
+                <th>${__('№ платежа')}</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+            <tfoot><tr>
+                <th>${__('Всего оплачено')}</th>
+                <th style="text-align:right;">${esc(format_currency(flt(data.total), 'USD'))}</th>
+                <th colspan="2" class="text-muted">${data.count} ${__('платежей')}</th>
+            </tr></tfoot>
+        </table>`;
+}
 
 /** Один запрос на все платежи графика — чтобы подсказка открывалась мгновенно. */
 function load_payment_meta(frm, done) {

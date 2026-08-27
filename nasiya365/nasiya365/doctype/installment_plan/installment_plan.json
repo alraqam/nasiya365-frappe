@@ -38,6 +38,7 @@
   "total_amount",
   "schedule_section",
   "schedule",
+  "payment_history_html",
   "progress_section",
   "paid_amount",
   "remaining_balance",
@@ -255,6 +256,11 @@
    "fieldtype": "Table",
    "label": "График",
    "options": "Installment Schedule"
+  },
+  {
+   "fieldname": "payment_history_html",
+   "fieldtype": "HTML",
+   "label": "История оплат"
   },
   {
    "fieldname": "progress_section",
