@@ -39,8 +39,10 @@ _LIVE_PLAN_STATUSES = ("Активный", "Просрочен", "Заверше
 # Payment Transaction's branch from its reference (Installment Plan / Sales Order).
 _PAYMENT_BRANCH_CASE = """CASE
                  WHEN pt.reference_doctype = 'Installment Plan' THEN (
-                     SELECT so.branch FROM `tabSales Order` so
-                     JOIN `tabInstallment Plan` ip ON ip.sales_order = so.name
+                     SELECT COALESCE(ip.branch, (
+                         SELECT so.branch FROM `tabSales Order` so
+                         WHERE so.name = ip.sales_order LIMIT 1))
+                     FROM `tabInstallment Plan` ip
                      WHERE ip.name = pt.reference_name LIMIT 1)
                  WHEN pt.reference_doctype = 'Sales Order' THEN (
                      SELECT branch FROM `tabSales Order` WHERE name = pt.reference_name LIMIT 1)

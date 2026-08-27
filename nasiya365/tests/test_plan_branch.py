@@ -182,3 +182,18 @@ class TestPlanBranchVisibility(unittest.TestCase):
         so = _seed_sales_order(a.name)
         p = _seed_plan(branch=None, sales_order=so.name)   # старый: branch пуст, SO→A
         self.assertTrue(self._visible(p.name, user))       # fallback работает
+
+    def test_payment_branch_uses_direct_field(self):
+        # платёж по новому плану (branch=A, без SO) должен относиться к филиалу A
+        a = _seed_branch()
+        p = _seed_plan(branch=a.name, sales_order=None)
+        _db_insert("Payment Transaction", reference_doctype="Installment Plan",
+                   reference_name=p.name, amount=100, status="Завершен",
+                   payment_date="2026-06-01", docstatus=1)
+        from nasiya365.api.profit import _PAYMENT_BRANCH_CASE
+        row = frappe.db.sql(
+            f"SELECT ({_PAYMENT_BRANCH_CASE}) AS branch FROM `tabPayment Transaction` pt "
+            f"WHERE pt.reference_name = %s AND pt.reference_doctype = 'Installment Plan'",
+            (p.name,),
+        )
+        self.assertEqual(row[0][0], a.name)
