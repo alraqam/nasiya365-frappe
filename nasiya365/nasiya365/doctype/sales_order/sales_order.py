@@ -42,10 +42,29 @@ class SalesOrder(Document):
         if not frappe.flags.in_import:
             self.create_cash_receipt()
 
+    def before_cancel(self):
+        """Отменить наличный платёж заказа ДО того, как Frappe выставит docstatus=2 —
+        сбой каскада тогда откатывает отмену заказа целиком (как в Installment Plan)."""
+        self._cancel_linked_cash_receipt()
+
     def on_cancel(self):
         self.status = "Отменен"
         self.db_update()
         self.reverse_stock()
+
+    def _cancel_linked_cash_receipt(self):
+        """Отменить проведённый наличный платёж этого заказа (Payment Transaction.on_cancel
+        реверсирует кассу и разноску). Идемпотентно: отсутствующие/уже отменённые — пропуск."""
+        names = frappe.get_all(
+            "Payment Transaction",
+            filters={"reference_doctype": "Sales Order",
+                     "reference_name": self.name, "docstatus": 1},
+            pluck="name",
+        )
+        for n in names:
+            pt = frappe.get_doc("Payment Transaction", n)
+            pt.flags.ignore_permissions = True
+            pt.cancel()
 
     def on_trash(self):
         """Block deletion if any Installment Plan references this SO — they need

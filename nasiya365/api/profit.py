@@ -360,10 +360,10 @@ def _compute_cash(from_date, to_date, branch):
             so = so_cache.get(pay.rn)
             if so is None:
                 so = frappe.db.get_value(
-                    "Sales Order", pay.rn, ["name", "total_amount"], as_dict=True
+                    "Sales Order", pay.rn, ["name", "total_amount", "docstatus"], as_dict=True
                 )
                 so_cache[pay.rn] = so
-            if not so:
+            if not so or so.docstatus == 2:
                 continue
             margin, denom = _so_profit(so)
             frac = amount / denom if denom else 0
@@ -542,9 +542,9 @@ def _compute_cost_recovery(from_date, to_date, branch):
             so = so_cache.get(w.rn)
             if so is None:
                 so = frappe.db.get_value(
-                    "Sales Order", w.rn, ["name", "total_amount"], as_dict=True)
+                    "Sales Order", w.rn, ["name", "total_amount", "docstatus"], as_dict=True)
                 so_cache[w.rn] = so
-            if not so:
+            if not so or so.docstatus == 2:
                 continue
             cogs = _cogs_for_sales_order(so.name)
             margin = flt(so.total_amount) - cogs
