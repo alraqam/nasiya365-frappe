@@ -1,0 +1,222 @@
+<title>История оплат под графиком</title>
+<style>
+  :root {
+    --bg: #F4F5F7;
+    --surface: #FFFFFF;
+    --surface-2: #F8F9FB;
+    --border: #E2E5EA;
+    --border-strong: #CDD2DB;
+    --ink: #1C2027;
+    --ink-muted: #616B7A;
+    --ink-faint: #98A1AF;
+    --accent: #2C7BE5;
+    --paid: #16A06A;
+    --paid-soft: #E4F5EE;
+    --partial: #B7791F;
+    --partial-soft: #FBF1DC;
+    --wait: #7A8494;
+    --wait-soft: #EEF0F3;
+    --hist: #2C7BE5;
+    --hist-soft: #E8F1FD;
+    --radius: 8px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171C;
+      --surface: #1C2027;
+      --surface-2: #232830;
+      --border: #2C323C;
+      --border-strong: #3A424E;
+      --ink: #E7EAF0;
+      --ink-muted: #9BA5B4;
+      --ink-faint: #6B7482;
+      --accent: #5B9CF0;
+      --paid: #3DCB8E;
+      --paid-soft: #123528;
+      --partial: #E0B057;
+      --partial-soft: #2E2712;
+      --wait: #8792A2;
+      --wait-soft: #262B33;
+      --hist: #5B9CF0;
+      --hist-soft: #16273D;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171C;
+    --surface: #1C2027;
+    --surface-2: #232830;
+    --border: #2C323C;
+    --border-strong: #3A424E;
+    --ink: #E7EAF0;
+    --ink-muted: #9BA5B4;
+    --ink-faint: #6B7482;
+    --accent: #5B9CF0;
+    --paid: #3DCB8E;
+    --paid-soft: #123528;
+    --partial: #E0B057;
+    --partial-soft: #2E2712;
+    --wait: #8792A2;
+    --wait-soft: #262B33;
+    --hist: #5B9CF0;
+    --hist-soft: #16273D;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--font); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 18px 64px; }
+
+  .eyebrow {
+    font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; margin: 0 0 6px;
+  }
+  h1 { font-size: 21px; letter-spacing: -.01em; margin: 0 0 6px; }
+  .doc-meta { font-size: 13px; color: var(--ink-muted); margin: 0 0 24px; }
+  .doc-meta b { color: var(--ink); font-weight: 600; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; margin-bottom: 20px;
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 9px;
+    padding: 13px 18px; border-bottom: 1px solid var(--border);
+  }
+  .card-head h2 { font-size: 14px; margin: 0; font-weight: 600; }
+  .card-head .sub { font-size: 12px; color: var(--ink-muted); margin-left: auto; }
+  .tag-new {
+    font-size: 9.5px; letter-spacing: .05em; font-weight: 700;
+    background: var(--hist); color: #fff; padding: 2px 7px; border-radius: 4px;
+  }
+
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: left; font-size: 11px; letter-spacing: .03em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600; padding: 9px 18px;
+    background: var(--surface-2); border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody td {
+    padding: 10px 18px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  .muted { color: var(--ink-muted); }
+  .pay-id { font-size: 11.5px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+  .pill {
+    display: inline-block; font-size: 10.5px; font-weight: 600;
+    padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+  }
+  .pill-paid { color: var(--paid); background: var(--paid-soft); }
+  .pill-partial { color: var(--partial); background: var(--partial-soft); }
+  .pill-wait { color: var(--wait); background: var(--wait-soft); }
+
+  .method {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .method .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .dot-card { background: var(--accent); }
+  .dot-cash { background: var(--paid); }
+
+  tfoot td {
+    padding: 11px 18px; font-weight: 700; font-size: 13.5px;
+    border-top: 2px solid var(--border-strong); background: var(--surface-2);
+  }
+  tfoot .num { color: var(--hist); }
+
+  /* schedule row states */
+  tr .due { color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+  .callout {
+    display: flex; gap: 10px; align-items: flex-start;
+    background: var(--hist-soft); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 15px; margin-bottom: 24px;
+    font-size: 12.5px; color: var(--ink-muted); line-height: 1.5;
+  }
+  .callout b { color: var(--ink); font-weight: 600; }
+  .callout .ic { color: var(--hist); flex: none; margin-top: 1px; }
+
+  .note-strip {
+    font-size: 11.5px; color: var(--ink-faint); margin: 6px 2px 0;
+    display: flex; align-items: center; gap: 6px;
+  }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Форма договора · nasiya365</p>
+  <h1>Рассрочка INST-2026-00071</h1>
+  <p class="doc-meta">Клиент: <b>Sardor Karimov</b> · Товар: <b>iPhone 15</b> · Сумма договора: <b>$1&nbsp;540</b> · Остаток: <b>$810</b></p>
+
+  <div class="callout">
+    <span class="ic" aria-hidden="true">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+    </span>
+    <div>По графику взнос — <b>1-го числа</b>. Но клиент носит деньги частями в течение месяца.
+    Внизу — новая таблица <b>«История оплат»</b>: видно каждую фактическую оплату по дате.
+    График сверху показывает итог по периодам, история снизу — как деньги реально приносили.</div>
+  </div>
+
+  <!-- ── existing schedule (context) ── -->
+  <div class="card">
+    <div class="card-head">
+      <h2>График платежей</h2>
+      <span class="sub">как сейчас</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>№</th><th>Срок</th><th class="num">Сумма</th><th class="num">Оплачено</th><th>Статус</th><th>Дата оплаты</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Аванс</td><td class="due">30.08.2026</td><td class="num">$100</td><td class="num">$100</td><td><span class="pill pill-paid">Оплачен</span></td><td class="muted">30.08.2026</td></tr>
+          <tr><td>1</td><td class="due">01.10.2026</td><td class="num">$240</td><td class="num">$240</td><td><span class="pill pill-paid">Оплачен</span></td><td class="muted">28.09.2026</td></tr>
+          <tr><td>2</td><td class="due">01.11.2026</td><td class="num">$240</td><td class="num">$240</td><td><span class="pill pill-paid">Оплачен</span></td><td class="muted">25.10.2026</td></tr>
+          <tr><td>3</td><td class="due">01.12.2026</td><td class="num">$240</td><td class="num">$150</td><td><span class="pill pill-partial">Частично</span></td><td class="muted">15.11.2026</td></tr>
+          <tr><td>4</td><td class="due">01.01.2027</td><td class="num">$240</td><td class="num">$0</td><td><span class="pill pill-wait">Ожидает</span></td><td class="muted">—</td></tr>
+          <tr><td>5</td><td class="due">01.02.2027</td><td class="num">$240</td><td class="num">$0</td><td><span class="pill pill-wait">Ожидает</span></td><td class="muted">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── NEW: payment history ── -->
+  <div class="card">
+    <div class="card-head">
+      <h2>История оплат</h2>
+      <span class="tag-new">НОВОЕ</span>
+      <span class="sub">каждая фактическая оплата по дате</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Дата</th><th class="num">Сумма</th><th>Метод</th><th>№ платежа</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>30.08.2026</td><td class="num">$100</td><td><span class="method"><span class="dot dot-card"></span>Карта</span></td><td class="pay-id">PAY-2026-00067</td></tr>
+          <tr><td>10.09.2026</td><td class="num">$100</td><td><span class="method"><span class="dot dot-cash"></span>Наличные</span></td><td class="pay-id">PAY-2026-00133</td></tr>
+          <tr><td>20.09.2026</td><td class="num">$80</td><td><span class="method"><span class="dot dot-card"></span>Карта</span></td><td class="pay-id">PAY-2026-00151</td></tr>
+          <tr><td>28.09.2026</td><td class="num">$60</td><td><span class="method"><span class="dot dot-cash"></span>Наличные</span></td><td class="pay-id">PAY-2026-00164</td></tr>
+          <tr><td>12.10.2026</td><td class="num">$120</td><td><span class="method"><span class="dot dot-card"></span>Карта</span></td><td class="pay-id">PAY-2026-00188</td></tr>
+          <tr><td>25.10.2026</td><td class="num">$120</td><td><span class="method"><span class="dot dot-cash"></span>Наличные</span></td><td class="pay-id">PAY-2026-00203</td></tr>
+          <tr><td>15.11.2026</td><td class="num">$150</td><td><span class="method"><span class="dot dot-card"></span>Карта</span></td><td class="pay-id">PAY-2026-00241</td></tr>
+        </tbody>
+        <tfoot>
+          <tr><td>Всего оплачено</td><td class="num">$730</td><td colspan="2" class="muted" style="font-weight:600;">7 платежей · 30.08 – 15.11</td></tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  <div class="note-strip">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    Только просмотр. Данные берутся из существующих платежей — отдельное хранилище не создаётся.
+  </div>
+</div>
