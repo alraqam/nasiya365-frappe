@@ -929,6 +929,8 @@ def get_payment_history(installment_plan):
 
     Читает существующие Payment Transaction (docstatus=1, Завершен). Ничего не хранит.
     """
+    from nasiya365.permissions import require_branch_access
+    require_branch_access("Installment Plan", installment_plan, ptype="read")
     rows = frappe.db.sql(
         """
         SELECT name, payment_date, amount, payment_method

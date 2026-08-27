@@ -84,3 +84,12 @@ class TestPaymentHistory(unittest.TestCase):
         self.assertEqual(r["count"], 0)
         self.assertEqual(r["payments"], [])
         self.assertEqual(r["total"], 0)
+
+    def test_submitted_but_not_completed_excluded(self):
+        plan = _seed_plan()
+        _seed_payment(plan.name, 100, "2026-09-01", ["Карта"])                          # docstatus=1, Завершен → ok
+        _seed_payment(plan.name, 50, "2026-09-02", ["Карта"], docstatus=1,
+                      status="Ожидает")                                                 # docstatus=1 but NOT Завершен → excluded
+        r = get_payment_history(plan.name)
+        self.assertEqual(r["count"], 1)
+        self.assertAlmostEqual(r["total"], 100.0, places=2)
