@@ -43,7 +43,7 @@ def execute(filters=None):
         f"""
         SELECT ip.name, ip.customer_name, ip.total_amount, ip.paid_amount,
                ip.remaining_balance,
-               COALESCE(ip.branch,
+               COALESCE(NULLIF(ip.branch, ''),
                         (SELECT branch FROM `tabSales Order` so WHERE so.name = ip.sales_order)) AS branch,
                (
                    SELECT COALESCE(SUM(s.amount - COALESCE(s.paid_amount, 0)), 0)

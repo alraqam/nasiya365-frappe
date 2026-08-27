@@ -39,7 +39,7 @@ _LIVE_PLAN_STATUSES = ("Активный", "Просрочен", "Заверше
 # Payment Transaction's branch from its reference (Installment Plan / Sales Order).
 _PAYMENT_BRANCH_CASE = """CASE
                  WHEN pt.reference_doctype = 'Installment Plan' THEN (
-                     SELECT COALESCE(ip.branch, (
+                     SELECT COALESCE(NULLIF(ip.branch, ''), (
                          SELECT so.branch FROM `tabSales Order` so
                          WHERE so.name = ip.sales_order LIMIT 1))
                      FROM `tabInstallment Plan` ip
@@ -172,7 +172,7 @@ def _cogs_for_sales_order(so_name, as_of_date=None):
 
 
 def _branch_clause_for(alias):
-    """Branch restriction reused from the dashboard (joins via sales_order.branch)."""
+    """Branch restriction reused from the dashboard (plan's own branch, fallback to sales_order.branch)."""
     return _user_branch_clause(alias)
 
 

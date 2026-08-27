@@ -206,9 +206,11 @@ def installment_plan_query(user: str = None) -> str:
         return "1=0"
     escaped = _escaped_branch_list(branches)
     return (
-        "`tabInstallment Plan`.`sales_order` IN ("
-        f"  SELECT `name` FROM `tabSales Order` WHERE `branch` IN ({escaped})"
-        ")"
+        "(`tabInstallment Plan`.`branch` IN (" + escaped + ")"
+        " OR ((`tabInstallment Plan`.`branch` IS NULL OR `tabInstallment Plan`.`branch` = '')"
+        "  AND `tabInstallment Plan`.`sales_order` IN ("
+        "    SELECT `name` FROM `tabSales Order` WHERE `branch` IN (" + escaped + ")"
+        ")))"
     )
 
 
@@ -365,6 +367,11 @@ def has_installment_plan_permission(doc, ptype: str, user: str) -> bool:
     branches = _get_user_branches(user)
     if not branches:
         return False
+    # Прямое поле филиала (новые договоры).
+    plan_branch = getattr(doc, "branch", None)
+    if plan_branch:
+        return plan_branch in branches
+    # Fallback на старый путь через заказ (договоры без своего branch).
     if not doc.sales_order:
         return False
     so_branch = frappe.db.get_value("Sales Order", doc.sales_order, "branch")

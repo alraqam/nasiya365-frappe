@@ -197,3 +197,66 @@ class TestPlanBranchVisibility(unittest.TestCase):
             (p.name,),
         )
         self.assertEqual(row[0][0], a.name)
+
+
+class TestPlanBranchPermission(unittest.TestCase):
+    def setUp(self):
+        frappe.db.savepoint("plan_branch_perm")
+
+    def tearDown(self):
+        frappe.db.rollback(save_point="plan_branch_perm")
+
+    def _query_sees(self, plan_name, user):
+        from nasiya365.permissions import installment_plan_query
+        frappe.cache().delete_value("nasiya365:user_branches:%s" % user)
+        cond = installment_plan_query(user)
+        frappe.cache().delete_value("nasiya365:user_branches:%s" % user)
+        rows = frappe.db.sql(
+            f"SELECT name FROM `tabInstallment Plan` WHERE name = %s AND ({cond})",
+            (plan_name,),
+        )
+        return bool(rows)
+
+    def _has_perm(self, doc, user):
+        from nasiya365.permissions import has_installment_plan_permission
+        frappe.cache().delete_value("nasiya365:user_branches:%s" % user)
+        r = has_installment_plan_permission(doc, "read", user)
+        frappe.cache().delete_value("nasiya365:user_branches:%s" % user)
+        return r
+
+    def test_query_sees_new_plan_direct_branch(self):
+        a = _seed_branch()
+        user = "perm_a_%s@test.local" % frappe.generate_hash(length=4)
+        _seed_branch_user(a.name, user)
+        p = _seed_plan(branch=a.name, sales_order=None)
+        self.assertTrue(self._query_sees(p.name, user))
+
+    def test_query_legacy_via_sales_order(self):
+        a = _seed_branch()
+        user = "perm_b_%s@test.local" % frappe.generate_hash(length=4)
+        _seed_branch_user(a.name, user)
+        so = _seed_sales_order(a.name)
+        p = _seed_plan(branch=None, sales_order=so.name)
+        self.assertTrue(self._query_sees(p.name, user))
+
+    def test_has_perm_new_plan_direct_branch(self):
+        a = _seed_branch()
+        user = "perm_c_%s@test.local" % frappe.generate_hash(length=4)
+        _seed_branch_user(a.name, user)
+        doc = frappe._dict(branch=a.name, sales_order=None)
+        self.assertTrue(self._has_perm(doc, user))
+
+    def test_has_perm_denies_other_branch(self):
+        a = _seed_branch(); other = _seed_branch()
+        user = "perm_d_%s@test.local" % frappe.generate_hash(length=4)
+        _seed_branch_user(other.name, user)
+        doc = frappe._dict(branch=a.name, sales_order=None)
+        self.assertFalse(self._has_perm(doc, user))
+
+    def test_has_perm_legacy_via_sales_order(self):
+        a = _seed_branch()
+        user = "perm_e_%s@test.local" % frappe.generate_hash(length=4)
+        _seed_branch_user(a.name, user)
+        so = _seed_sales_order(a.name)
+        doc = frappe._dict(branch=None, sales_order=so.name)
+        self.assertTrue(self._has_perm(doc, user))

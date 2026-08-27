@@ -93,15 +93,19 @@ def execute(filters=None):
     if sale_type in (None, "", "Рассрочка"):
         in_status = ",".join(["%s"] * len(_LIVE_PLAN_STATUSES))
         plan_branch_clause, plan_branch_params = _branch_clause_for("ip")
-        expl = " AND ip.sales_order IN (SELECT name FROM `tabSales Order` WHERE branch = %s)" if branch else ""
-        expl_params = [branch] if branch else []
+        expl = (
+            " AND (ip.branch = %s OR ((ip.branch IS NULL OR ip.branch = '')"
+            " AND ip.sales_order IN (SELECT name FROM `tabSales Order` WHERE branch = %s)))"
+        ) if branch else ""
+        expl_params = [branch, branch] if branch else []
         imei_sql = " AND ip.imei LIKE %s" if imei else ""
         plans = frappe.db.sql(
             f"""
             SELECT ip.name, ip.start_date, ip.customer_name, ip.imei,
                    ip.product_name, ip.principal_amount, ip.financed_amount,
                    ip.sales_order, ip.stock_entry,
-                   (SELECT branch FROM `tabSales Order` so WHERE so.name = ip.sales_order) AS branch,
+                   COALESCE(NULLIF(ip.branch, ''),
+                            (SELECT branch FROM `tabSales Order` so WHERE so.name = ip.sales_order)) AS branch,
                    (SELECT salesperson FROM `tabSales Order` so WHERE so.name = ip.sales_order) AS salesperson
             FROM `tabInstallment Plan` ip
             WHERE ip.docstatus = 1
