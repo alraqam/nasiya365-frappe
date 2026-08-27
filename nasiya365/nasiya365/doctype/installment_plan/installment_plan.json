@@ -145,6 +145,13 @@
    "options": "Sales Order"
   },
   {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "options": "Branch",
+   "label": "Филиал",
+   "in_standard_filter": 1
+  },
+  {
    "fieldname": "column_break_1",
    "fieldtype": "Column Break"
   },

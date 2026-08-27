@@ -54,6 +54,36 @@ def _normalize_frequency(freq):
     return CANONICAL.get(base, "Ежемесячно (Monthly)")
 
 
+def _plan_branch_from_sources(sales_order=None, stock_entry=None):
+    """Филиал плана из его собственных ссылок: заказ → склад. None если не определить."""
+    if sales_order:
+        b = frappe.db.get_value("Sales Order", sales_order, "branch")
+        if b:
+            return b
+    if stock_entry:
+        wh = frappe.db.get_value("Stock Entry", stock_entry, "warehouse")
+        if wh:
+            b = frappe.db.get_value("Warehouse", wh, "branch")
+            if b:
+                return b
+    return None
+
+
+def _branch_decision_for_user(user):
+    """('ok', branch) — ровно один филиал; ('ambiguous', None) — несколько;
+    ('skip', None) — unrestricted-админ или оператор без филиалов (не блокируем)."""
+    from nasiya365.permissions import _get_user_branches, _is_unrestricted
+
+    if _is_unrestricted(user):
+        return ("skip", None)
+    branches = _get_user_branches(user)
+    if len(branches) == 1:
+        return ("ok", branches[0])
+    if not branches:
+        return ("skip", None)
+    return ("ambiguous", None)
+
+
 class InstallmentPlan(Document):
     """Installment Plan state machine:
 
@@ -96,6 +126,8 @@ class InstallmentPlan(Document):
             return
 
         self.frequency = _normalize_frequency(self.frequency)
+
+        self._autoset_branch()
 
         self.validate_unique_sales_order()
         self.validate_customer_limit()
@@ -370,6 +402,22 @@ class InstallmentPlan(Document):
             self.stock_entry, self.name or "", getattr(self, "sales_order", None) or "",
             imei=(getattr(self, "imei", None) or ""),
         )
+
+    def _autoset_branch(self):
+        """Заполнить `branch`, если не задан вручную: заказ → склад → единственный
+        филиал оператора; при неоднозначности требовать явный выбор."""
+        if self.get("branch"):
+            return
+        b = _plan_branch_from_sources(self.get("sales_order"), self.get("stock_entry"))
+        if b:
+            self.branch = b
+            return
+        decision, br = _branch_decision_for_user(frappe.session.user)
+        if decision == "ok":
+            self.branch = br
+        elif decision == "ambiguous":
+            frappe.throw(_("Выберите филиал для рассрочки."))
+        # skip → оставить пустым
 
     def validate_unique_sales_order(self):
         """Prevent two Installment Plans from referencing the same Sales Order.
