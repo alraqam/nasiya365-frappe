@@ -20,6 +20,8 @@ _METHOD_ALIASES = {
 # Methods that are never valid to store (removed from options but may exist in old data).
 _EXCLUDED_METHODS = frozenset(("Наличные",))
 
+_OVERPAYMENT_TOLERANCE = 0.01
+
 
 def _get_payment_line_methods() -> frozenset:
     """Return valid payment methods. Priority: Merchant Settings → DocType meta → fallback."""
@@ -149,20 +151,45 @@ def _merge_payment_allocation_fields_from_db(doc):
         doc.amount = row.amount
 
 
+def _resolve_installment_plan_name(doc):
+    """Installment Plan, к которому относится платёж, по его reference.
+
+    reference = Installment Plan → сам; reference = Sales Order → план, связанный
+    через `sales_order`; иначе (напр. наличный Sales Order) → None.
+    """
+    rd = (getattr(doc, "reference_doctype", "") or "").strip()
+    rn = (getattr(doc, "reference_name", "") or "").strip()
+    if rd == "Installment Plan" and rn:
+        return rn
+    if rd == "Sales Order" and rn:
+        return frappe.db.get_value("Installment Plan", {"sales_order": rn}, "name")
+    return None
+
+
+def _installment_plan_remaining(plan_name: str) -> float:
+    """Сколько ещё осталось доплатить по договору. Основной источник — ГРАФИК
+    SUM(amount - paid_amount) (правда строка-за-строкой, устойчива к рассинхрону
+    сохранённого remaining_balance после ручных правок графика). Если строк графика
+    нет — откат на header `remaining_balance`. Clamp >= 0."""
+    if not plan_name:
+        return 0.0
+    cnt, due = frappe.db.sql(
+        """SELECT COUNT(*),
+                  COALESCE(SUM(COALESCE(amount, 0) - COALESCE(paid_amount, 0)), 0)
+           FROM `tabInstallment Schedule` WHERE parent = %s""",
+        (plan_name,),
+    )[0]
+    if cint(cnt) > 0:
+        return max(flt(due), 0.0)
+    return max(flt(frappe.db.get_value("Installment Plan", plan_name, "remaining_balance")), 0.0)
+
+
 def allocate_payment_transaction_to_installment_plan(doc):
     """Apply this payment amount to the linked Installment Plan schedule (idempotent per successful run)."""
     if getattr(doc, "_nasiya_installment_plan_allocated", False):
         return
     _merge_payment_allocation_fields_from_db(doc)
-    rd = (doc.reference_doctype or "").strip()
-    rn = (doc.reference_name or "").strip()
-
-    plan_name = None
-    if rd == "Installment Plan" and rn:
-        plan_name = rn
-    elif rd == "Sales Order" and rn:
-        # Legacy/import/payment-from-SO flows: map SO -> linked installment plan.
-        plan_name = frappe.db.get_value("Installment Plan", {"sales_order": rn}, "name")
+    plan_name = _resolve_installment_plan_name(doc)
     if not plan_name:
         return
 
@@ -500,6 +527,7 @@ class PaymentTransaction(Document):
         self.autolink_single_open_installment_plan()
         self.apply_payment_totals()
         self._validate_payment_date()
+        self._guard_installment_overpayment()
 
     def _validate_payment_date(self):
         """Дата платежа = когда клиент реально заплатил (может быть в прошлом).
@@ -508,6 +536,29 @@ class PaymentTransaction(Document):
             self.payment_date = nowdate()
         elif getdate(self.payment_date) > getdate(nowdate()):
             frappe.throw(_("Дата платежа не может быть в будущем."))
+
+    def _guard_installment_overpayment(self):
+        """Блокирует платёж, превышающий остаток связанного плана (сверх копейки), ДО
+        проведения. Ловит ошибки суммы/валюты (инцидент INST-2026-00065: 660000 сум,
+        введённые в поле USD)."""
+        if (frappe.flags.in_migrate or frappe.flags.in_import
+                or frappe.flags.in_patch or frappe.flags.in_install):
+            return
+        plan_name = _resolve_installment_plan_name(self)
+        if not plan_name:
+            return
+        amt = flt(self.amount)
+        if amt <= 0:
+            return
+        remaining = _installment_plan_remaining(plan_name)
+        if amt > remaining + _OVERPAYMENT_TOLERANCE:
+            frappe.throw(
+                _(
+                    "Сумма платежа {0} превышает остаток по договору {1}. "
+                    "Остаток: {2} USD. Проверьте сумму — возможно, введена в сумах "
+                    "вместо USD. Для полного закрытия введите {2}."
+                ).format(f"{amt:.2f}", plan_name, f"{remaining:.2f}")
+            )
 
     def before_insert(self):
         if not self.received_by:
