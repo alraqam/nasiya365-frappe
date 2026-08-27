@@ -39,8 +39,10 @@ _LIVE_PLAN_STATUSES = ("Активный", "Просрочен", "Заверше
 # Payment Transaction's branch from its reference (Installment Plan / Sales Order).
 _PAYMENT_BRANCH_CASE = """CASE
                  WHEN pt.reference_doctype = 'Installment Plan' THEN (
-                     SELECT so.branch FROM `tabSales Order` so
-                     JOIN `tabInstallment Plan` ip ON ip.sales_order = so.name
+                     SELECT COALESCE(NULLIF(ip.branch, ''), (
+                         SELECT so.branch FROM `tabSales Order` so
+                         WHERE so.name = ip.sales_order LIMIT 1))
+                     FROM `tabInstallment Plan` ip
                      WHERE ip.name = pt.reference_name LIMIT 1)
                  WHEN pt.reference_doctype = 'Sales Order' THEN (
                      SELECT branch FROM `tabSales Order` WHERE name = pt.reference_name LIMIT 1)
@@ -170,7 +172,7 @@ def _cogs_for_sales_order(so_name, as_of_date=None):
 
 
 def _branch_clause_for(alias):
-    """Branch restriction reused from the dashboard (joins via sales_order.branch)."""
+    """Branch restriction reused from the dashboard (plan's own branch, fallback to sales_order.branch)."""
     return _user_branch_clause(alias)
 
 
@@ -386,8 +388,11 @@ def _compute_cash(from_date, to_date, branch):
 def _compute_accrual(from_date, to_date, branch):
     """Recognise the full margin + interest of each deal at point of sale."""
     plan_branch_clause, plan_branch_params = _branch_clause_for("ip")
-    expl = " AND ip.sales_order IN (SELECT name FROM `tabSales Order` WHERE branch = %s)" if branch else ""
-    expl_params = [branch] if branch else []
+    expl = (
+        " AND (ip.branch = %s OR ((ip.branch IS NULL OR ip.branch = '')"
+        " AND ip.sales_order IN (SELECT name FROM `tabSales Order` WHERE branch = %s)))"
+    ) if branch else ""
+    expl_params = [branch, branch] if branch else []
     in_status = ",".join(["%s"] * len(_LIVE_PLAN_STATUSES))
 
     plans = frappe.db.sql(

@@ -19,6 +19,7 @@
   "product_name",
   "imei",
   "sales_order",
+  "branch",
   "column_break_1",
   "amounts_section",
   "principal_amount",
@@ -143,6 +144,13 @@
    "label": "Заказ на продажу (импорт / legacy)",
    "no_copy": 1,
    "options": "Sales Order"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "options": "Branch",
+   "label": "Филиал",
+   "in_standard_filter": 1
   },
   {
    "fieldname": "column_break_1",
