@@ -1,0 +1,291 @@
+<title>Распределение для инвестора — макет</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f5f7f9;
+    --card-bg: #ffffff;
+    --border: #e3e7ec;
+    --text: #1b1e23;
+    --muted: rgba(27, 30, 35, 0.62);
+    --faint: rgba(27, 30, 35, 0.42);
+    --subtle: rgba(15, 23, 42, 0.028);
+    --blue: #2563eb;
+    --blue-soft: rgba(37, 99, 235, 0.10);
+    --blue-line: rgba(37, 99, 235, 0.28);
+    --purple: #7c3aed;
+    --purple-soft: rgba(124, 58, 237, 0.10);
+    --purple-line: rgba(124, 58, 237, 0.28);
+    --green: #1f9d63;
+    --green-soft: rgba(31, 157, 99, 0.10);
+    --green-line: rgba(31, 157, 99, 0.34);
+    --amber: #b45309;
+    --amber-soft: rgba(180, 83, 9, 0.10);
+    --amber-line: rgba(180, 83, 9, 0.38);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15181c;
+      --card-bg: #1d2126;
+      --border: #2d343b;
+      --text: #e7eaee;
+      --muted: rgba(231, 234, 238, 0.62);
+      --faint: rgba(231, 234, 238, 0.42);
+      --subtle: rgba(255, 255, 255, 0.03);
+      --blue: #6ea0ff;
+      --blue-soft: rgba(110, 160, 255, 0.14);
+      --blue-line: rgba(110, 160, 255, 0.34);
+      --purple: #b18bff;
+      --purple-soft: rgba(177, 139, 255, 0.14);
+      --purple-line: rgba(177, 139, 255, 0.34);
+      --green: #4cc98a;
+      --green-soft: rgba(76, 201, 138, 0.12);
+      --green-line: rgba(76, 201, 138, 0.36);
+      --amber: #e0a24a;
+      --amber-soft: rgba(224, 162, 74, 0.12);
+      --amber-line: rgba(224, 162, 74, 0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15181c;
+    --card-bg: #1d2126;
+    --border: #2d343b;
+    --text: #e7eaee;
+    --muted: rgba(231, 234, 238, 0.62);
+    --faint: rgba(231, 234, 238, 0.42);
+    --subtle: rgba(255, 255, 255, 0.03);
+    --blue: #6ea0ff;
+    --blue-soft: rgba(110, 160, 255, 0.14);
+    --blue-line: rgba(110, 160, 255, 0.34);
+    --purple: #b18bff;
+    --purple-soft: rgba(177, 139, 255, 0.14);
+    --purple-line: rgba(177, 139, 255, 0.34);
+    --green: #4cc98a;
+    --green-soft: rgba(76, 201, 138, 0.12);
+    --green-line: rgba(76, 201, 138, 0.36);
+    --amber: #e0a24a;
+    --amber-soft: rgba(224, 162, 74, 0.12);
+    --amber-line: rgba(224, 162, 74, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px 72px; }
+
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--blue);
+  }
+  h1 { font-size: 25px; font-weight: 800; letter-spacing: -0.02em; margin: 6px 0 8px; text-wrap: balance; }
+  .lede { font-size: 14.5px; color: var(--muted); max-width: 64ch; margin: 0; }
+
+  .note {
+    margin: 22px 0 30px; padding: 12px 16px;
+    border: 1px solid var(--border); border-left: 3px solid var(--blue);
+    border-radius: 8px; background: var(--subtle); font-size: 13px; color: var(--muted);
+  }
+  .note b { color: var(--text); }
+
+  h2.section {
+    font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--faint); margin: 38px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+
+  /* ---- report card ---- */
+  .report { border: 1px solid var(--border); border-radius: 14px; background: var(--card-bg); overflow: hidden; }
+  .report-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding: 16px 18px; border-bottom: 1px solid var(--border);
+  }
+  .report-title { font-size: 15px; font-weight: 800; }
+  .report-period { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* summary strip */
+  .summary { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1px; background: var(--border); }
+  .summary .cell { background: var(--card-bg); padding: 14px 18px; }
+  .cell-label { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+  .cell-value { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+  .cell-value.pool { color: var(--blue); }
+  .cell-sub { font-size: 11px; color: var(--faint); margin-top: 2px; }
+
+  /* distribution table */
+  table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.t thead th {
+    text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+    color: var(--muted); padding: 11px 18px; border-bottom: 1px solid var(--border); background: var(--subtle);
+  }
+  table.t th.num, table.t td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.t td { padding: 12px 18px; border-bottom: 1px solid var(--border); }
+  .who { display: flex; align-items: center; gap: 9px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .dot-inv { background: var(--purple); }
+  .dot-shop { background: var(--green); }
+  .tag {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.02em; padding: 1px 7px; border-radius: 999px;
+  }
+  .tag-inv { color: var(--purple); background: var(--purple-soft); border: 1px solid var(--purple-line); }
+  .tag-shop { color: var(--green); background: var(--green-soft); border: 1px solid var(--green-line); }
+  tr.total td { border-top: 2px solid var(--border); border-bottom: none; font-weight: 800; }
+  .pct { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* margin-stays block */
+  .margin-block {
+    margin: 0; padding: 14px 18px; background: var(--green-soft);
+    border-top: 1px dashed var(--green-line);
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  .margin-lbl { font-weight: 800; color: var(--green); display: flex; align-items: center; gap: 8px; }
+  .margin-val { font-size: 18px; font-weight: 800; color: var(--green); font-variant-numeric: tabular-nums; }
+  .margin-sub { flex-basis: 100%; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+  /* your-total footer */
+  .yourtotal {
+    padding: 13px 18px; border-top: 1px solid var(--border);
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    font-size: 13.5px;
+  }
+  .yourtotal .lbl { color: var(--muted); }
+  .yourtotal .lbl b { color: var(--text); }
+  .yourtotal .val { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+  .caption { margin: 9px 2px 0; font-size: 12px; color: var(--muted); }
+
+  /* per-deal waterfall */
+  .flow { border: 1px solid var(--border); border-radius: 12px; background: var(--card-bg); padding: 16px 18px; }
+  .flow h3 { margin: 0 0 4px; font-size: 14px; font-weight: 800; }
+  .flow-sub { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+  .bar { display: flex; height: 34px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+  .seg { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; }
+  .seg-cost { background: #64748b; }
+  .seg-margin { background: var(--green); }
+  .seg-int { background: var(--blue); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; font-size: 12px; }
+  .legend .item { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .legend .sw { width: 11px; height: 11px; border-radius: 3px; }
+  .legend b { color: var(--text); font-weight: 700; }
+  .flow-lines { margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+  .flow-lines div { padding: 3px 0; }
+  .flow-lines b { color: var(--text); }
+
+  .assume {
+    margin-top: 28px; padding: 14px 16px; border: 1px solid var(--amber-line);
+    border-radius: 10px; background: var(--amber-soft); font-size: 12.5px; color: var(--muted);
+  }
+  .assume b { color: var(--text); }
+  .assume ul { margin: 8px 0 0; padding-left: 18px; }
+  .assume li { margin-bottom: 4px; }
+
+  @media (max-width: 680px) {
+    .summary { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">Распределение прибыли · инвестор</div>
+  <h1>Инвестор делит проценты, наценка — твоя</h1>
+  <p class="lede">Отчёт распределяет между участниками <b>только проценты рассрочки</b>. Маржа товара стоит отдельной строкой и целиком остаётся магазину. Цифры — пример.</p>
+
+  <div class="note">
+    <b>База распределения — проценты рассрочки, а не вся прибыль.</b> Себестоимость возвращается как капитал, наценка (маржа товара) в дележ не входит. Так инвестор получает свою долю с процентов, а твой розничный заработок остаётся тебе.
+  </div>
+
+  <!-- ===== Отчёт ===== -->
+  <h2 class="section">Отчёт: распределение за период</h2>
+  <div class="report">
+    <div class="report-head">
+      <span class="report-title">Распределение — инвестор / магазин</span>
+      <span class="report-period">01.08.2026 — 31.08.2026</span>
+    </div>
+
+    <div class="summary">
+      <div class="cell">
+        <div class="cell-label">Проценты рассрочки (пул)</div>
+        <div class="cell-value pool">$1&nbsp;980.00</div>
+        <div class="cell-sub">собрано за период · делится</div>
+      </div>
+      <div class="cell">
+        <div class="cell-label">Модель</div>
+        <div class="cell-value" style="font-size:15px;">Фиксированный %</div>
+        <div class="cell-sub">инвестор 60 / магазин 40</div>
+      </div>
+      <div class="cell">
+        <div class="cell-label">Маржа товара (вне дележа)</div>
+        <div class="cell-value" style="color:var(--green);">$655.00</div>
+        <div class="cell-sub">целиком магазину</div>
+      </div>
+    </div>
+
+    <table class="t">
+      <thead>
+        <tr><th>Участник</th><th class="num">Доля %</th><th class="num">Сумма с процентов</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="who"><span class="dot dot-inv"></span>Инвестор <span class="tag tag-inv">инвестор</span></span></td>
+          <td class="num pct">60%</td>
+          <td class="num">$1&nbsp;188.00</td>
+        </tr>
+        <tr>
+          <td><span class="who"><span class="dot dot-shop"></span>Магазин (ты) <span class="tag tag-shop">магазин</span></span></td>
+          <td class="num pct">40%</td>
+          <td class="num">$792.00</td>
+        </tr>
+        <tr class="total">
+          <td>Итого распределено</td>
+          <td class="num pct">100%</td>
+          <td class="num">$1&nbsp;980.00</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="margin-block">
+      <span class="margin-lbl">Маржа товара — остаётся магазину</span>
+      <span class="margin-val">$655.00</span>
+      <span class="margin-sub">розничная наценка (продал − купил). В дележ с инвестором НЕ входит — это твой отдельный заработок.</span>
+    </div>
+
+    <div class="yourtotal">
+      <span class="lbl"><b>Твой итог за период</b> · доля процентов $792.00 + маржа $655.00</span>
+      <span class="val" style="color:var(--green);">$1&nbsp;447.00</span>
+    </div>
+  </div>
+  <p class="caption">Инвестор видит только пул процентов и свою долю. Строку «маржа» при желании можно скрывать в его версии отчёта.</p>
+
+  <!-- ===== Как это на одной сделке ===== -->
+  <h2 class="section">Как это читается на одной сделке</h2>
+  <div class="flow">
+    <h3>Телефон: купил 1000, продал в рассрочку 1030, проценты 200</h3>
+    <div class="flow-sub">Клиент за весь срок заплатит 1230. Вот куда идёт каждый доллар:</div>
+    <div class="bar">
+      <div class="seg seg-cost" style="width:81.3%">Себестоимость 1000</div>
+      <div class="seg seg-margin" style="width:2.44%" title="Маржа 30"></div>
+      <div class="seg seg-int" style="width:16.26%">Проценты 200</div>
+    </div>
+    <div class="legend">
+      <span class="item"><span class="sw" style="background:#64748b"></span>Себестоимость <b>1000</b> — возврат капитала</span>
+      <span class="item"><span class="sw" style="background:var(--green)"></span>Маржа <b>30</b> — твоя</span>
+      <span class="item"><span class="sw" style="background:var(--blue)"></span>Проценты <b>200</b> — делятся</span>
+    </div>
+    <div class="flow-lines">
+      <div>Проценты 200 → инвестор 60% = <b>120</b>, ты 40% = <b>80</b></div>
+      <div>Маржа 30 → <b>100% твоя</b> (инвестор не участвует)</div>
+      <div>Твой заработок со сделки = маржа 30 + доля процентов 80 = <b>110</b></div>
+    </div>
+  </div>
+
+  <!-- ===== Предположения ===== -->
+  <div class="assume">
+    <b>Что я заложил в макет (поправь, если не так):</b>
+    <ul>
+      <li><b>Инвестор = участник в списке «Акционеры»</b> (Настройки магазина): добавляешь инвестора долей 60%, себя — 40%. Отдельный список инвесторов не заводим.</li>
+      <li><b>База = собранные проценты</b> (реально поступившие за период), а не проценты «по договору». Инвестору платим из живых денег.</li>
+      <li><b>Старый отчёт «делим чистую прибыль» оставляем</b> — переключатель базы в настройках: «Чистая прибыль» / «Только проценты».</li>
+    </ul>
+  </div>
+</div>
