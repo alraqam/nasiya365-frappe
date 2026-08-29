@@ -346,7 +346,7 @@ def _compute_cash(from_date, to_date, branch):
                     as_dict=True,
                 )
                 plan_cache[pay.rn] = plan
-            if not plan or (plan.contract_status == "Отменен"):
+            if not plan or plan.contract_status == "Отменен" or plan.status == "Списан":
                 continue
             embedded_margin, interest, denom = _plan_profit(plan)
             if denom <= 0:
@@ -523,10 +523,10 @@ def _compute_cost_recovery(from_date, to_date, branch):
                 plan = frappe.db.get_value(
                     "Installment Plan", w.rn,
                     ["imei", "principal_amount", "financed_amount", "total_interest",
-                     "total_amount", "contract_status", "stock_entry", "start_date"],
+                     "total_amount", "contract_status", "status", "stock_entry", "start_date"],
                     as_dict=True)
                 plan_cache[w.rn] = plan
-            if not plan or plan.contract_status == "Отменен":
+            if not plan or plan.contract_status == "Отменен" or plan.status == "Списан":
                 continue
             cogs = _plan_cogs(plan)
             margin = (flt(plan.principal_amount) or flt(plan.financed_amount)) - cogs
