@@ -135,11 +135,23 @@ class CustomerProfile(Document):
         """Update customer stats from Installment Plans — single SQL, no N+1."""
         from frappe.utils import flt
 
+        # total_debt считается ОТДЕЛЬНЫМ подзапросом, без join'а со строками графика.
+        # Внутри join'а SUM(ip.remaining_balance) множится на число строк плана:
+        # план с 12 взносами давал долг в 13 раз больше реального. Остальные
+        # агрегаты join требуют и от дублирования не страдают: COUNT(DISTINCT)
+        # схлопывает повторы, MAX идемпотентен, а overdue_count считает как раз
+        # строки графика.
         row = frappe.db.sql(
             """
             SELECT
                 COUNT(DISTINCT ip.name)                                               AS active_contracts_count,
-                COALESCE(SUM(ip.remaining_balance), 0)                                AS total_debt,
+                COALESCE((
+                    SELECT SUM(ip2.remaining_balance)
+                    FROM `tabInstallment Plan` ip2
+                    WHERE ip2.customer = %(customer)s
+                      AND ip2.docstatus = 1
+                      AND IFNULL(ip2.status, '') NOT IN ('Завершен', 'Списан', 'Отменен')
+                ), 0)                                                                  AS total_debt,
                 COALESCE(MAX(
                     CASE WHEN isc.status = 'Просрочен'
                          THEN DATEDIFF(CURDATE(), isc.due_date)
@@ -150,11 +162,11 @@ class CustomerProfile(Document):
                 ), 0)                                                                  AS overdue_count
             FROM `tabInstallment Plan` ip
             LEFT JOIN `tabInstallment Schedule` isc ON isc.parent = ip.name
-            WHERE ip.customer = %s
+            WHERE ip.customer = %(customer)s
               AND ip.docstatus = 1
               AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан', 'Отменен')
             """,
-            (self.name,),
+            {"customer": self.name},
             as_dict=True,
         )
         stats = row[0] if row else {}
