@@ -4,7 +4,11 @@ import frappe
 from frappe import _
 from frappe.utils import flt, today, add_months
 
-from nasiya365.api.profit import _cogs_for_sale_item, _cogs_for_sales_order
+from nasiya365.api.profit import (
+    _cogs_for_sale_item,
+    _cogs_for_sales_order,
+    _cogs_or_zero,
+)
 from nasiya365.api.profit import _sales_order_user_clause, _branch_clause_for
 
 _LIVE_PLAN_STATUSES = ("Активный", "Просрочен", "Завершен")
@@ -122,7 +126,12 @@ def execute(filters=None):
         )
         for p in plans:
             revenue = flt(p.principal_amount) or flt(p.financed_amount)
-            cogs = _cogs_for_sale_item(p.imei, p.stock_entry, p.start_date)
+            # Себестоимость может не разрешиться — тогда ноль, но с записью в
+            # журнал: молчаливый ноль показал бы сделку стопроцентно маржинальной.
+            cogs = _cogs_or_zero(
+                _cogs_for_sale_item(p.imei, p.stock_entry, p.start_date),
+                f"План {p.name}, IMEI {p.imei}",
+            )
             data.append({
                 "sale_date": p.start_date,
                 "sale_type": _("Рассрочка"),

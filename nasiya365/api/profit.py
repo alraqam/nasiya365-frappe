@@ -57,118 +57,186 @@ def _normalize_imei(imei):
     return (imei or "").strip().replace(" ", "").upper()
 
 
-def _cogs_for_imei(imei, as_of_date=None):
-    """
-    Cost of goods for a single device, located by IMEI in Stock Entry Item.
+def _unit_cost(row) -> float | None:
+    """Себестоимость ЕДИНИЦЫ по строке поступления: (сумма + расходы) / количество.
 
-    When the same IMEI was purchased more than once (device bought -> sold ->
-    bought again), the two cycles must NOT collapse. So:
-      - prefer an exact full-IMEI match over the fuzzy last-6-digits match;
-      - among matches, pick the most recent purchase on/before the sale date
-        (`as_of_date`) -- the lot the device was actually bought into for THAT
-        sale -- instead of an arbitrary `LIMIT 1` row.
-    Falls back to the most recent purchase overall when no dated match exists.
+    Раньше возвращалась стоимость всей строки. Для аппарата с IMEI количество
+    равно единице и разницы не было, а для оптовой строки на 10 штук продажа
+    одной списывала себестоимость всех десяти.
+    """
+    quantity = flt(row.get("quantity"))
+    if quantity <= 0:
+        return None
+    return round((flt(row.get("amount")) + flt(row.get("expense"))) / quantity, 4)
+
+
+def _cogs_for_imei(imei, as_of_date=None):
+    """Себестоимость единицы товара, найденная по IMEI. None — если не найдена.
+
+    Четыре ограничения, каждое из которых раньше отсутствовало:
+
+    * только проведённые документы (`docstatus = 1`) — черновик не закупка;
+    * только `entry_type = Поступление` — отпуск, перемещение и корректировка
+      источником себестоимости не являются;
+    * только ТОЧНОЕ совпадение IMEI. Поиск по последним шести цифрам оставался
+      финансовым источником: два разных аппарата с одинаковым хвостом давали
+      цену друг друга;
+    * поступление не позже продажи. Прежний код при отсутствии подходящей даты
+      брал самое свежее поступление вообще — то есть мог посчитать
+      себестоимость по закупке, сделанной ПОЗЖЕ продажи.
+
+    Если аппарат покупали несколько раз, берётся последняя закупка на дату
+    продажи — тот цикл, в котором он и был продан.
     """
     s = _normalize_imei(imei)
     if not s:
-        return 0.0
-    tail6 = s[-6:] if len(s) >= 6 else s
+        return None
 
-    def _lookup(with_date):
-        date_clause = "AND se.posting_date <= %s" if with_date else ""
-        params = [s, s, tail6]
-        if with_date:
-            params.append(with_date)
-        return frappe.db.sql(
-            f"""
-            SELECT COALESCE(sei.amount, 0) + COALESCE(sei.expense, 0) AS cost,
-                   CASE WHEN REPLACE(UPPER(TRIM(sei.imei)), ' ', '') = %s
-                        THEN 0 ELSE 1 END AS match_rank
-            FROM `tabStock Entry Item` sei
-            JOIN `tabStock Entry` se ON se.name = sei.parent
-            WHERE se.docstatus < 2
-              AND (
-                    REPLACE(UPPER(TRIM(sei.imei)), ' ', '') = %s
-                    OR RIGHT(REPLACE(UPPER(TRIM(sei.imei)), ' ', ''), 6) = %s
-                  )
-              {date_clause}
-            ORDER BY match_rank ASC, se.posting_date DESC, se.posting_time DESC, sei.idx DESC
-            LIMIT 1
-            """,
-            params,
-        )
+    date_clause = "AND se.posting_date <= %s" if as_of_date else ""
+    params = [s]
+    if as_of_date:
+        params.append(getdate(as_of_date))
 
-    row = _lookup(getdate(as_of_date)) if as_of_date else _lookup(None)
-    if not row and as_of_date:
-        # No purchase on/before the sale date -> fall back to the latest overall.
-        row = _lookup(None)
-    return flt(row[0][0]) if row else 0.0
+    row = frappe.db.sql(
+        f"""
+        SELECT sei.quantity, sei.amount, sei.expense
+        FROM `tabStock Entry Item` sei
+        JOIN `tabStock Entry` se ON se.name = sei.parent
+        WHERE se.docstatus = 1
+          AND se.entry_type = 'Поступление'
+          AND REPLACE(UPPER(TRIM(sei.imei)), ' ', '') = %s
+          {date_clause}
+        ORDER BY se.posting_date DESC, se.posting_time DESC, sei.idx DESC
+        LIMIT 1
+        """,
+        params,
+        as_dict=True,
+    )
+    return _unit_cost(row[0]) if row else None
 
 
 def _cogs_from_stock_ref(ref, imei=None):
-    """
-    Precise COGS from an explicit purchase reference (the sale's `stock_entry`),
-    which pins the sale to the exact lot it was sold from -- unambiguous even
-    when the same IMEI was bought several times. Returns None when it cannot
-    resolve, so callers fall back to the IMEI lookup.
+    """Себестоимость единицы по явной ссылке продажи на поступление.
 
-    `ref` may be a Stock Entry Item row name (preferred) or a parent Stock Entry.
+    Ссылка привязывает продажу к конкретной партии и снимает неоднозначность,
+    когда один IMEI закупали несколько раз. `ref` — имя строки Stock Entry Item
+    (предпочтительно) либо самого Stock Entry.
+
+    Возвращает None, если разрешить не удалось: вызывающий переходит к поиску
+    по IMEI. Ограничения те же — проведённый документ и только поступление.
     """
     if not ref:
         return None
-    if frappe.db.exists("Stock Entry Item", ref):
-        r = frappe.db.get_value(
-            "Stock Entry Item", ref, ["amount", "expense"], as_dict=True
-        )
-        if r:
-            return flt(r.amount) + flt(r.expense)
-    if frappe.db.exists("Stock Entry", ref):
-        items = frappe.db.get_all(
-            "Stock Entry Item", filters={"parent": ref},
-            fields=["imei", "amount", "expense"], order_by="idx asc",
-        )
-        if items:
-            if imei:
-                s = _normalize_imei(imei)
-                tail6 = s[-6:] if len(s) >= 6 else s
-                for it in items:
-                    n = _normalize_imei(it.imei)
-                    if n and (n == s or (len(n) >= 6 and n[-6:] == tail6)):
-                        return flt(it.amount) + flt(it.expense)
-            if len(items) == 1:
-                return flt(items[0].amount) + flt(items[0].expense)
+
+    row = frappe.db.sql(
+        """
+        SELECT sei.quantity, sei.amount, sei.expense
+        FROM `tabStock Entry Item` sei
+        JOIN `tabStock Entry` se ON se.name = sei.parent
+        WHERE sei.name = %s
+          AND se.docstatus = 1
+          AND se.entry_type = 'Поступление'
+        """,
+        (ref,),
+        as_dict=True,
+    )
+    if row:
+        return _unit_cost(row[0])
+
+    # Ссылка на само поступление: строку выбираем по точному IMEI, а если строка
+    # в поступлении одна — берём её.
+    items = frappe.db.sql(
+        """
+        SELECT sei.imei, sei.quantity, sei.amount, sei.expense
+        FROM `tabStock Entry Item` sei
+        JOIN `tabStock Entry` se ON se.name = sei.parent
+        WHERE sei.parent = %s
+          AND se.docstatus = 1
+          AND se.entry_type = 'Поступление'
+        ORDER BY sei.idx ASC
+        """,
+        (ref,),
+        as_dict=True,
+    )
+    if not items:
+        return None
+    if imei:
+        target = _normalize_imei(imei)
+        for it in items:
+            if _normalize_imei(it.get("imei")) == target:
+                return _unit_cost(it)
+    if len(items) == 1:
+        return _unit_cost(items[0])
     return None
 
 
-def _cogs_for_sale_item(imei, stock_ref=None, as_of_date=None):
+def _cogs_for_sale_item(imei, stock_ref=None, as_of_date=None, quantity=1):
+    """Себестоимость проданного по одной строке. None — если определить нельзя.
+
+    Порядок: точная ссылка на партию, затем поиск по IMEI на дату продажи.
+
+    Ненайденная себестоимость больше не превращается в ноль: сделка без
+    закупки выглядела стопроцентно маржинальной, и это молча завышало прибыль.
+    Вызывающий решает, показать ошибку данных или пропустить строку.
     """
-    COGS for one sold unit -- the single entry point used across the engine.
-      A) exact purchase via the sale's `stock_entry` link, when present;
-      B) otherwise a date-aware IMEI match (nearest purchase on/before the sale).
-    """
-    cost = _cogs_from_stock_ref(stock_ref, imei)
-    if cost is not None:
-        return cost
-    return _cogs_for_imei(imei, as_of_date)
+    unit = _cogs_from_stock_ref(stock_ref, imei)
+    if unit is None:
+        unit = _cogs_for_imei(imei, as_of_date)
+    if unit is None:
+        return None
+    return round(unit * flt(quantity or 1), 2)
 
 
-def _cogs_for_sales_order(so_name, as_of_date=None):
+def _cogs_or_zero(cost, what) -> float:
+    """Число для арифметики, когда себестоимость не определена.
+
+    Ноль тут неизбежен — иначе отчёт не построится, — но он записывается в
+    журнал ошибок. Молчаливый ноль означал бы стопроцентную маржу по сделке,
+    у которой просто не нашлось закупки, и завышал бы прибыль.
+    """
+    if cost is None:
+        frappe.log_error(title="COGS: себестоимость не определена", message=str(what))
+        return 0.0
+    return flt(cost)
+
+
+def _cogs_for_sales_order(so_name, as_of_date=None, with_diagnostics=False):
     """
     Sum COGS across all items on a cash Sales Order.
 
-    Uses the order's own `stock_entry` link for single-line orders (exact lot),
-    and a date-aware IMEI match otherwise, so repeated purchases of the same
-    IMEI resolve to the correct buy/sell cycle.
+    Количество умножается: раньше строка на пять аксессуаров стоила как один.
+
+    Строки, себестоимость которых определить нельзя, в сумму не попадают и
+    считаются отдельно — молча превращать их в ноль значит завышать прибыль.
     """
     so = frappe.db.get_value(
         "Sales Order", so_name, ["stock_entry", "order_date"], as_dict=True
     ) or frappe._dict()
     as_of = as_of_date or so.get("order_date")
     items = frappe.db.get_all(
-        "Sales Order Item", filters={"parent": so_name}, fields=["imei"]
+        "Sales Order Item", filters={"parent": so_name},
+        fields=["imei", "quantity"], order_by="idx asc",
     )
     single_ref = so.get("stock_entry") if len(items) == 1 else None
-    return sum(_cogs_for_sale_item(it.imei, single_ref, as_of) for it in items)
+
+    total, unresolved = 0.0, 0
+    for it in items:
+        cost = _cogs_for_sale_item(it.imei, single_ref, as_of, quantity=it.quantity)
+        if cost is None:
+            unresolved += 1
+            continue
+        total += cost
+
+    if unresolved:
+        # Не бросаем: отчёт должен открыться. Но и не молчим — цифра занижена
+        # ровно на непосчитанные строки, и это должно быть видно.
+        frappe.log_error(
+            title="COGS: себестоимость не определена",
+            message=f"Заказ {so_name}: строк без закупки — {unresolved}",
+        )
+
+    total = round(total, 2)
+    return (total, unresolved) if with_diagnostics else total
 
 
 def _branch_clause_for(alias):
@@ -209,7 +277,10 @@ def _plan_profit(plan):
     Returns (embedded_margin, total_interest, denominator).
     denominator = total contract value the customer pays (principal + interest).
     """
-    cogs = _cogs_for_sale_item(plan.imei, plan.get("stock_entry"), plan.get("start_date"))
+    cogs = _cogs_or_zero(
+        _cogs_for_sale_item(plan.imei, plan.get("stock_entry"), plan.get("start_date")),
+        f"План {plan.get('name')}, IMEI {plan.get('imei')}",
+    )
     revenue = flt(plan.principal_amount) or flt(plan.financed_amount)
     embedded_margin = revenue - cogs
     interest = flt(plan.total_interest)
@@ -415,7 +486,10 @@ def _compute_accrual(from_date, to_date, branch):
     for p in plans:
         revenue = flt(p.principal_amount) or flt(p.financed_amount)
         financed_revenue += revenue
-        financed_cogs += _cogs_for_sale_item(p.imei, p.get("stock_entry"), p.get("start_date"))
+        financed_cogs += _cogs_or_zero(
+            _cogs_for_sale_item(p.imei, p.get("stock_entry"), p.get("start_date")),
+            f"План {p.get('name')}, IMEI {p.get('imei')}",
+        )
         interest_income += flt(p.total_interest)
         down_payment_total += flt(p.down_payment)
     financed_margin = financed_revenue - financed_cogs
@@ -462,7 +536,10 @@ def _compute_accrual(from_date, to_date, branch):
 # ── COST RECOVERY BASIS ──────────────────────────────────────────────────────
 
 def _plan_cogs(plan):
-    return _cogs_for_sale_item(plan.imei, plan.get("stock_entry"), plan.get("start_date"))
+    return _cogs_or_zero(
+        _cogs_for_sale_item(plan.imei, plan.get("stock_entry"), plan.get("start_date")),
+        f"План {plan.get('name')}, IMEI {plan.get('imei')}",
+    )
 
 
 def _collected_before(rdt, rn, from_date):

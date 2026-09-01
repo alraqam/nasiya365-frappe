@@ -32,8 +32,13 @@ def _db_insert(doctype, **fields):
 
 
 def _seed_stock(imei, cogs, posting_date):
-    """Minimal Stock Entry + item so COGS resolves by IMEI."""
-    se = _db_insert("Stock Entry", entry_type="Поступление", posting_date=posting_date)
+    """Минимальное ПРОВЕДЁННОЕ поступление, чтобы себестоимость нашлась по IMEI.
+
+    docstatus=1 обязателен: черновое поступление источником себестоимости не
+    является — закупки ещё не было. Раньше расчёт брал и черновики.
+    """
+    se = _db_insert("Stock Entry", entry_type="Поступление", posting_date=posting_date,
+                    docstatus=1)
     _db_insert(
         "Stock Entry Item",
         parent=se.name,
