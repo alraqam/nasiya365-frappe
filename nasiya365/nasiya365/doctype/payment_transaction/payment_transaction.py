@@ -7,6 +7,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt, getdate, nowdate
 
+from nasiya365.nasiya365.doctype.payment_allocation import payment_allocation
+
 _FALLBACK_METHODS = frozenset((
     "Наличные USD", "Акксессуар касса", "Наличные UZS",
     "Карта", "Click", "Payme", "Перевод", "Терминал",
@@ -415,45 +417,74 @@ def _sync_payment_to_cashbox(doc):
 
 
 def _deallocate_payment_from_installment_plan(doc):
-    """Reverse schedule-row updates made by a payment transaction on cancel.
+    """Откатить вклад платежа в график при его отмене.
 
-    Finds every Installment Schedule row referencing this payment, reduces its
-    paid_amount by the allocated share, resets status if fully unpaid, then
-    recalculates plan totals.
+    Снимается ровно столько, сколько этот платёж внёс, — по журналу Payment
+    Allocation. Раньше строка обнулялась целиком, потому что код исходил из
+    посылки «у строки один плательщик»: Installment Schedule хранит одну ссылку
+    на платёж, и вторая оплата затирала первую. Строку 100, закрытую платежами
+    60 и 40, отмена второго обнуляла — клиент терял внесённые 60.
     """
     if not getattr(doc, "name", None):
         return
 
-    rows = frappe.db.sql(
-        """
-        SELECT isc.name, isc.parent, isc.amount, isc.paid_amount, isc.status
-        FROM `tabInstallment Schedule` isc
-        WHERE isc.payment_transaction = %s
-        """,
-        (doc.name,),
-        as_dict=True,
-    )
-    if not rows:
-        return
-
-    # Reverse by the smaller of (this row's paid_amount, total doc amount spread proportionally).
-    # Since the original allocation wrote payment_transaction on rows it paid/partially paid,
-    # we simply clear paid_amount back to zero on those rows (the transaction is the sole
-    # contributor — Frappe stores at most one payment_transaction reference per row).
     affected_plans = set()
-    for r in rows:
-        frappe.db.set_value(
-            "Installment Schedule",
-            r.name,
-            {
-                "paid_amount": 0,
-                "paid_date": None,
-                "payment_transaction": None,
-                "status": "Ожидает",
-            },
-            update_modified=False,
+    allocations = payment_allocation.active_for_payment(doc.name)
+
+    if allocations:
+        # Снимаем ровно то, что этот платёж внёс, — по журналу разноски.
+        for a in allocations:
+            row = frappe.db.get_value(
+                "Installment Schedule", a.schedule_row,
+                ["name", "parent", "amount", "paid_amount"], as_dict=True,
+            )
+            if not row:
+                # Строку графика перестроили — снимать нечего, запись всё равно
+                # помечается реверсированной, чтобы не всплыла при повторе.
+                continue
+            left = max(0.0, flt(row.paid_amount) - flt(a.allocated_amount))
+            frappe.db.set_value(
+                "Installment Schedule", row.name,
+                {
+                    "paid_amount": left,
+                    "paid_date": None if left <= 0 else row.get("paid_date"),
+                    "status": "Ожидает" if left <= 0 else "Частично",
+                },
+                update_modified=False,
+            )
+            affected_plans.add(row.parent)
+        payment_allocation.mark_reversed([a.name for a in allocations])
+    else:
+        # Платежи, проведённые до появления журнала: у строки одна ссылка на
+        # платёж, восстановить долю нечем — обнуляем, как раньше. Записи журнала
+        # для исторических платежей проставляет отдельная миграция.
+        rows = frappe.db.sql(
+            """
+            SELECT isc.name, isc.parent, isc.amount, isc.paid_amount, isc.status
+            FROM `tabInstallment Schedule` isc
+            WHERE isc.payment_transaction = %s
+            """,
+            (doc.name,),
+            as_dict=True,
         )
-        affected_plans.add(r.parent)
+        if not rows:
+            return
+        for r in rows:
+            frappe.db.set_value(
+                "Installment Schedule",
+                r.name,
+                {
+                    "paid_amount": 0,
+                    "paid_date": None,
+                    "payment_transaction": None,
+                    "status": "Ожидает",
+                },
+                update_modified=False,
+            )
+            affected_plans.add(r.parent)
+
+    if not affected_plans:
+        return
 
     for plan_name in affected_plans:
         # When the plan itself is being cancelled, its before_cancel hook drives the PT

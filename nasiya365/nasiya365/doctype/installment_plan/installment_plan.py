@@ -8,6 +8,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import add_days, add_months, add_to_date, cint, getdate, today, flt
 
+from nasiya365.nasiya365.doctype.payment_allocation import payment_allocation
 from nasiya365.finance import (
     FORMULA_VERSION_CALENDAR,
     FORMULA_VERSION_LEGACY,
@@ -759,7 +760,8 @@ class InstallmentPlan(Document):
             # Contract auto-creation must never block plan submission.
             frappe.log_error(frappe.get_traceback(), "Installment Plan: create_contract")
     
-    def apply_payment(self, amount, payment_transaction=None, payment_date=None):
+    def apply_payment(self, amount, payment_transaction=None, payment_date=None,
+                      record_ledger=True):
         """
         Apply a payment to this installment plan
         Automatically allocates to oldest pending/overdue installments first
@@ -778,6 +780,11 @@ class InstallmentPlan(Document):
             )
 
         remaining_payment = flt(amount)
+
+        # Что и на какую строку ушло — для журнала разноски. Без него отмена
+        # платежа не знает, сколько именно снимать: у строки одна ссылка на
+        # платёж, и вторая оплата затирала первую.
+        allocated_rows = []
 
         # Дата закрытия взноса = дата фактической оплаты (не «сегодня»).
         paid_stamp = getdate(payment_date) if payment_date else today()
@@ -805,6 +812,7 @@ class InstallmentPlan(Document):
                     installment.paid_date = paid_stamp
                     if payment_transaction and hasattr(installment, "payment_transaction"):
                         installment.payment_transaction = payment_transaction
+                    allocated_rows.append((installment.name, flt(due_amount)))
                     remaining_payment = max(0.0, flt(remaining_payment) - flt(due_amount))
                 elif remaining_payment > 0:
                     # Partial payment
@@ -812,6 +820,7 @@ class InstallmentPlan(Document):
                     installment.status = "Частично"
                     if payment_transaction and hasattr(installment, "payment_transaction"):
                         installment.payment_transaction = payment_transaction
+                    allocated_rows.append((installment.name, flt(remaining_payment)))
                     remaining_payment = 0
 
                 if remaining_payment <= 0:
@@ -827,10 +836,21 @@ class InstallmentPlan(Document):
         if flt(self.remaining_balance) <= _TOLERANCE:
             for s in self.schedule:
                 if s.status == "Частично" and (flt(s.amount) - flt(s.paid_amount)) <= _TOLERANCE:
+                    # Копейки добираются этим же платежом — значит и в журнал
+                    # они идут на него, иначе отмена не вернёт строку как было.
+                    allocated_rows.append((s.name, flt(s.amount) - flt(s.paid_amount)))
                     s.paid_amount = s.amount
                     s.status = "Оплачен"
             self.paid_amount = sum(flt(s.paid_amount) for s in self.schedule)
             self.remaining_balance = flt(self.total_amount) - flt(self.paid_amount)
+
+        # Разноска доступна вызывающему даже когда журнал не пишется: миграция
+        # исторических платежей проигрывает те же вызовы, но записи создаёт сама,
+        # уже после сверки итога с фактическим.
+        self._nasiya_last_allocations = list(allocated_rows)
+        if payment_transaction and record_ledger:
+            payment_allocation.record(payment_transaction, self.name, allocated_rows,
+                                      allocation_date=paid_stamp)
 
         # Recompute the stored debt_today denormalisation. Frappe skips validate() on
         # docstatus=1 saves so we cannot rely on set_contract_fields_from_plan firing.

@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "autoname": "format:PALLOC-{YYYY}{MM}-{######}",
+ "creation": "2026-09-01 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "payment_transaction",
+  "installment_plan",
+  "schedule_row",
+  "column_break_1",
+  "allocated_amount",
+  "allocation_date",
+  "status"
+ ],
+ "fields": [
+  {
+   "fieldname": "payment_transaction",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Платёж",
+   "options": "Payment Transaction",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "installment_plan",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "План рассрочки",
+   "options": "Installment Plan",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "description": "Имя строки графика (Installment Schedule), на которую разнесена сумма",
+   "fieldname": "schedule_row",
+   "fieldtype": "Data",
+   "label": "Строка графика",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "allocated_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Разнесено",
+   "reqd": 1
+  },
+  {
+   "fieldname": "allocation_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Дата разноски"
+  },
+  {
+   "default": "Активна",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Статус",
+   "options": "Активна\nРеверсирована"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-01 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "nasiya365",
+ "name": "Payment Allocation",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nasiya365 Admin",
+   "share": 1
+  }
+ ],
+ "search_fields": "payment_transaction,installment_plan",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
