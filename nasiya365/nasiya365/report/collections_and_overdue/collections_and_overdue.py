@@ -5,9 +5,13 @@ from frappe import _
 from frappe.utils import flt, cint, today, add_months, getdate
 
 from nasiya365.api.profit import _branch_clause_for
+from nasiya365.finance import UNSETTLED_SCHEDULE_STATUSES, unsettled_schedule_predicate
 
 _LIVE_PLAN_STATUSES = ("Активный", "Просрочен", "Завершен")
-_OPEN_SCHEDULE_STATUSES = ("Ожидает", "Частично", "Pending")
+# Набор берётся из nasiya365.finance: отчёт и дашборд должны считать просрочку
+# одинаково. Раньше здесь не было 'Просрочен', и после ночной разметки отчёт
+# показывал ноль.
+_OPEN_SCHEDULE_STATUSES = UNSETTLED_SCHEDULE_STATUSES
 
 
 def execute(filters=None):
@@ -38,6 +42,7 @@ def execute(filters=None):
     expl_params = [branch, branch] if branch else []
     in_status = ",".join(["%s"] * len(_LIVE_PLAN_STATUSES))
     in_open = ",".join(["%s"] * len(_OPEN_SCHEDULE_STATUSES))
+    open_pred = unsettled_schedule_predicate("s", in_open)
 
     plans = frappe.db.sql(
         f"""
@@ -51,7 +56,7 @@ def execute(filters=None):
                    WHERE s.parent = ip.name
                      AND s.due_date < %s
                      AND (s.amount - COALESCE(s.paid_amount, 0)) > 0.001
-                     AND IFNULL(s.status, '') IN ({in_open})
+                     AND {open_pred}
                ) AS overdue_amount,
                (
                    SELECT MAX(DATEDIFF(%s, s.due_date))
@@ -59,7 +64,7 @@ def execute(filters=None):
                    WHERE s.parent = ip.name
                      AND s.due_date < %s
                      AND (s.amount - COALESCE(s.paid_amount, 0)) > 0.001
-                     AND IFNULL(s.status, '') IN ({in_open})
+                     AND {open_pred}
                ) AS days_overdue,
                (
                    SELECT COALESCE(SUM(pt.amount), 0)

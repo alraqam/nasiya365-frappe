@@ -5,6 +5,8 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, get_first_day, get_last_day, getdate, nowdate, today
 
+from nasiya365.finance import UNSETTLED_SCHEDULE_STATUSES
+
 
 def _require_doc_permission(doctype: str, name: str, ptype: str = "read") -> None:
     """Raise PermissionError if caller cannot access `name` of `doctype`."""
@@ -46,6 +48,39 @@ def _user_branch_clause(plan_alias: str = "ip", user: str = None):
     return (fragment, tuple(branches) + tuple(branches))
 
 
+def _selected_branch_clause(plan_alias: str = "ip", branch: str | None = None):
+    """Фильтр по филиалу, ВЫБРАННОМУ в интерфейсе. Возвращает (фрагмент, параметры).
+
+    Отдельно от _user_branch_clause, и это не дублирование: тот ограничивает по
+    правам, этот — по выбору пользователя. Фрагменты складываются, то есть
+    пересекаются: выбор не может расширить доступ, права не отменяют выбор.
+
+    Раньше параметр `branch` доходил до _kpi_metrics и возвращался эхом в
+    `filters`, но ни в один запрос не попадал — интерфейс показывал, что фильтр
+    применён, а цифры были общие по всем филиалам.
+
+    Путь до филиала тот же, что у прав: собственное поле плана, при пустом —
+    через sales_order. План без филиала и без заказа не попадает ни в один
+    выбранный филиал.
+    """
+    if not branch:
+        return ("", ())
+    fragment = (
+        f" AND ({plan_alias}.branch = %s"
+        f" OR (({plan_alias}.branch IS NULL OR {plan_alias}.branch = '')"
+        f" AND {plan_alias}.sales_order IN "
+        f"(SELECT name FROM `tabSales Order` WHERE branch = %s)))"
+    )
+    return (fragment, (branch, branch))
+
+
+def _plan_scope_clause(plan_alias: str = "ip", branch: str | None = None):
+    """Права плюс выбранный филиал — один фрагмент и один набор параметров."""
+    perm_clause, perm_params = _user_branch_clause(plan_alias)
+    sel_clause, sel_params = _selected_branch_clause(plan_alias, branch)
+    return (perm_clause + sel_clause, tuple(perm_params) + tuple(sel_params))
+
+
 def _user_branch_list():
     """Return (is_unrestricted, branches list). Empty list means user sees nothing."""
     from nasiya365.permissions import _get_user_branches, _is_unrestricted
@@ -58,8 +93,10 @@ def _user_branch_list():
 # Поступление already consumed (cash/BNPL issue) or returned — hide from new installment plans.
 _STOCK_ENTRY_UNAVAILABLE_BUSINESS = ("Продано", "Отменён", "Возврат")
 
-# Installment Schedule child default was "Pending" while valid options are Russian — include both in SQL.
-_OPEN_SCHEDULE_STATUSES = ("Ожидает", "Частично", "Pending")
+# Набор берётся из nasiya365.finance — там же, откуда его берёт отчёт «Сборы и
+# просрочка». Одно определение на всех: пока их было два, отчёт после ночной
+# разметки показывал ноль там, где дашборд показывал 1 924,65.
+_OPEN_SCHEDULE_STATUSES = UNSETTLED_SCHEDULE_STATUSES
 
 # Collector lists: not only submitted (1); drafts often stay docstatus 0 until first payment flow.
 _COLLECTION_PLAN_WHERE = (
@@ -152,8 +189,8 @@ def _revenue_mtd_prev_month_window(as_of):
     return prev_start, prev_end
 
 
-def _sum_payments_between(start, end):
-    plan_branch_clause, branch_params = _user_branch_clause("ip")
+def _sum_payments_between(start, end, branch=None):
+    plan_branch_clause, branch_params = _plan_scope_clause("ip", branch)
     # Payment Transaction has no branch itself; filter via its linked Installment Plan.
     pt_filter = (
         "AND pt.reference_doctype = 'Installment Plan' "
@@ -176,7 +213,7 @@ def _sum_payments_between(start, end):
 
 
 def _kpi_metrics(base_date, branch=None):
-    plan_clause, branch_params = _user_branch_clause("ip")
+    plan_clause, branch_params = _plan_scope_clause("ip", branch)
 
     outstanding = frappe.db.sql(
         f"""
@@ -248,7 +285,7 @@ def _kpi_metrics(base_date, branch=None):
     active_contracts = frappe.db.sql(active_contracts_sql, branch_params)[0][0]
 
     mtd_start, mtd_end = _revenue_mtd_window(base_date)
-    revenue_mtd = _sum_payments_between(mtd_start, mtd_end)
+    revenue_mtd = _sum_payments_between(mtd_start, mtd_end, branch)
 
     return {
         "outstanding_amount": _to_float(outstanding),
@@ -1630,13 +1667,23 @@ def get_stock_entry_details_for_installment_plan(
 @frappe.whitelist()
 def get_cashbox_reconciliation(cashbox, date=None):
     """
-    End-of-day reconciliation: compare cashbox transaction rows (ledger)
-    against Payment Transactions posted for the same cashbox on the given date.
+    Сверка на конец дня: приход кассы против клиентских платежей за ту же дату.
+
+    Сравниваются ОДНОРОДНЫЕ совокупности, и обе оси важны:
+
+    * Только приход и только по ссылке на Payment Transaction. Раньше касса
+      давала чистую сумму (приход минус расход), а платежи — валовую: расход в
+      100 выглядел как недостача в 100. Расходы, оплаты поставщикам и инкассации
+      сверяются отдельно — это разные потоки.
+    * Платежи берутся те, что реально попали в ЭТУ кассу, — через строки самой
+      кассы. Прежний код спрашивал `pt.cashbox`, а такого поля у Payment
+      Transaction нет: сверка падала с «Unknown column», то есть не работала
+      вовсе.
 
     Returns:
-      - ledger_totals: per payment_method totals from Cashbox Transactions
-      - payment_totals: per payment_method totals from Payment Transaction Lines
-      - discrepancies: methods where the two differ by > 0.01
+      - ledger_totals: приход кассы по способам оплаты
+      - payment_totals: строки платежей по способам оплаты
+      - discrepancies: способы, где расхождение больше 0.01
     """
     report_date = getdate(date) if date else getdate(today())
 
@@ -1646,11 +1693,13 @@ def get_cashbox_reconciliation(cashbox, date=None):
         SELECT
             ct.payment_method,
             ct.currency,
-            SUM(CASE WHEN ct.transaction_type = 'Приход' THEN ct.amount ELSE -ct.amount END) AS net_amount,
+            SUM(ct.amount) AS net_amount,
             COALESCE(MAX(ct.exchange_rate), 0) AS exchange_rate
         FROM `tabCashbox Transaction` ct
         WHERE ct.parent = %s
           AND DATE(ct.creation) = %s
+          AND ct.transaction_type = 'Приход'
+          AND ct.reference_doctype = 'Payment Transaction'
         GROUP BY ct.payment_method, ct.currency
         """,
         (cashbox, report_date),
@@ -1667,8 +1716,13 @@ def get_cashbox_reconciliation(cashbox, date=None):
             COALESCE(MAX(ptl.exchange_rate), 0) AS exchange_rate
         FROM `tabPayment Transaction Line` ptl
         INNER JOIN `tabPayment Transaction` pt ON pt.name = ptl.parent
-        WHERE pt.cashbox = %s
-          AND DATE(pt.creation) = %s
+        WHERE EXISTS (
+                SELECT 1 FROM `tabCashbox Transaction` ct
+                WHERE ct.parent = %s
+                  AND ct.reference_doctype = 'Payment Transaction'
+                  AND ct.reference_name = pt.name
+                  AND DATE(ct.creation) = %s
+              )
           AND (pt.status IS NULL OR pt.status != 'Отменен')
         GROUP BY ptl.payment_method, COALESCE(ptl.currency, 'USD')
         """,
