@@ -70,6 +70,7 @@
   "pdf_file",
   "notes",
   "system_section",
+  "formula_version",
   "created_by"
  ],
  "quick_entry": 0,
@@ -466,6 +467,14 @@
    "fieldname": "system_section",
    "fieldtype": "Section Break",
    "label": "Системные поля"
+  },
+  {
+   "fieldname": "formula_version",
+   "fieldtype": "Int",
+   "label": "Версия формулы",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "1 — срок как число платежей (до 2026-09-01); 2 — срок по календарю"
   },
   {
    "fieldname": "created_by",

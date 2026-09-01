@@ -8,6 +8,11 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import add_days, add_months, add_to_date, cint, getdate, today, flt
 
+from nasiya365.finance import (
+    FORMULA_VERSION_CALENDAR,
+    FORMULA_VERSION_LEGACY,
+    plan_interest,
+)
 from nasiya365.utils.credit import is_customer_credit_limit_enforced
 from decimal import Decimal
 
@@ -133,6 +138,7 @@ class InstallmentPlan(Document):
         self.validate_customer_limit()
         self.validate_stock_entry_for_bnpl()
         self._warn_structural_change_on_paid_plan()
+        self.validate_financial_inputs()
         self.calculate_amounts()
         self.generate_schedule()
         # `has_dp_row` / total_amount depend on whether row 0 exists — only known after the schedule exists.
@@ -529,20 +535,60 @@ class InstallmentPlan(Document):
                 alert=True,
             )
 
-    def calculate_amounts(self):
-        """Calculate totals.
-        total_amount = down_payment + financed_amount + total_interest
-                     = principal + total_interest
-        installment_amount covers only the financed portion (not the down payment).
+    def validate_financial_inputs(self):
+        """Отвергнуть договор, которого не может существовать.
+
+        Раньше сервер проверял только «оплачено не отрицательно»: договор
+        сохранялся с нулевой ценой, авансом больше цены и отрицательной ставкой,
+        а дальше эти числа расходились по графику, кассе и отчётам.
         """
         principal = flt(self.principal_amount)
         down_payment = flt(self.down_payment)
-        interest_rate = flt(self.interest_rate) / 100
+
+        if principal <= 0:
+            frappe.throw(_("Сумма покупки должна быть больше нуля"))
+        if down_payment < 0:
+            frappe.throw(_("Первоначальный взнос не может быть отрицательным"))
+        if down_payment > principal:
+            frappe.throw(
+                _("Первоначальный взнос ({0}) больше суммы покупки ({1})").format(
+                    frappe.format_value(down_payment, {"fieldtype": "Currency"}),
+                    frappe.format_value(principal, {"fieldtype": "Currency"}),
+                )
+            )
+        if flt(self.interest_rate) < 0:
+            frappe.throw(_("Процентная ставка не может быть отрицательной"))
+        if cint(self.number_of_installments) <= 0:
+            frappe.throw(_("Число платежей должно быть больше нуля"))
+
+    def calculate_amounts(self):
+        """Расчёт итогов договора.
+
+        total_amount = down_payment + financed_amount + total_interest
+                     = principal + total_interest
+        installment_amount покрывает только финансируемую часть, без аванса.
+
+        Проценты считает nasiya365.finance.plan_interest — одна точка на договор,
+        калькулятор и превью. Пока их было несколько, продавец называл одну цифру,
+        а договор печатал другую: разница доходила до 22 раз.
+        """
+        principal = flt(self.principal_amount)
+        down_payment = flt(self.down_payment)
         num_installments = int(self.number_of_installments)
 
         self.financed_amount = principal - down_payment
 
-        self.total_interest = self.financed_amount * interest_rate * num_installments
+        # Версия формулы фиксируется на договоре: исторические договоры считаются
+        # тем, чем их посчитали, и новая модель их не пересчитывает.
+        if not cint(self.formula_version):
+            self.formula_version = (
+                FORMULA_VERSION_CALENDAR if self.is_new() else FORMULA_VERSION_LEGACY
+            )
+
+        self.total_interest = plan_interest(
+            self.financed_amount, self.interest_rate, num_installments,
+            self.frequency, self.formula_version,
+        )
 
         financed_total = self.financed_amount + self.total_interest
         # Include down payment in total_amount only when schedule has a row 0 (new-style plans).
@@ -659,20 +705,24 @@ class InstallmentPlan(Document):
                 self.end_date = self.schedule[-1].due_date
     
     def _validate_schedule_sum(self):
-        """Warn if schedule row amounts don't add up to total_amount (rounding drift on old plans)."""
+        """Сумма строк графика обязана совпадать с итогом договора.
+
+        Раньше расхождение только предупреждало, и договор всё равно сохранялся —
+        а дальше это тождество лежит в основе всего: остатка, просрочки, разноски
+        платежей и признания прибыли. Расхождение здесь означает, что где-то
+        дальше цифры уже не сойдутся.
+        """
         if not self.schedule:
             return
         schedule_sum = round(sum(flt(s.amount) for s in self.schedule), 2)
         total = round(flt(self.total_amount), 2)
         diff = abs(schedule_sum - total)
         if diff > 0.01:
-            frappe.msgprint(
+            frappe.throw(
                 _("График платежей: сумма строк ({0}) не совпадает с итоговой суммой ({1}). "
-                  "Разница: {2}. Пересохраните план для автоматического исправления.").format(
+                  "Разница: {2}.").format(
                     schedule_sum, total, round(diff, 4)
                 ),
-                indicator="orange",
-                alert=True,
             )
 
     def update_progress(self):
@@ -852,12 +902,12 @@ def calculate_installment_preview(principal, down_payment, interest_rate, num_in
 def _build_installment_preview(principal, down_payment, interest_rate, num_installments, frequency, start_date):
     principal = flt(principal)
     down_payment = flt(down_payment)
-    interest_rate = flt(interest_rate) / 100
     num_installments = int(num_installments)
     frequency = _normalize_frequency(frequency)
 
     financed = principal - down_payment
-    total_interest = financed * interest_rate * num_installments
+    # Та же функция, что считает договор: превью не имеет права расходиться с ним.
+    total_interest = plan_interest(financed, interest_rate, num_installments, frequency)
     financed_total = financed + total_interest
     total_amount = financed_total + down_payment  # includes down payment
     installment_amount = financed_total / num_installments if num_installments > 0 else financed_total

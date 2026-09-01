@@ -74,9 +74,13 @@ nasiya365.InstallmentCalculator = class {
                     {
                         fieldname: 'interest_rate',
                         fieldtype: 'Percent',
-                        label: __('Годовая процентная ставка %'),
-                        default: 24,
-                        description: __('Ставка по умолчанию из настроек продавца'),
+                        // Ставка МЕСЯЧНАЯ — как в договоре. Раньше поле называлось
+                        // годовым и делилось на 12, а договор трактовал то же число
+                        // как месячное: на вводе «2» калькулятор показывал 10.87
+                        // процентов там, где договор печатал 240.00.
+                        label: __('Ставка % (мес.)'),
+                        default: 2,
+                        description: __('Та же ставка, что в договоре — за месяц'),
                         onchange: () => this.calculate()
                     },
                     {
@@ -146,31 +150,37 @@ nasiya365.InstallmentCalculator = class {
         const price = parseFloat(values.product_price) || 0;
         const down_percent = parseFloat(values.down_payment_percent) || 0;
         const months = parseInt(values.installment_months) || 12;
-        const annual_rate = parseFloat(values.interest_rate) || 0;
-
-        // Calculate down payment
+        const rate = parseFloat(values.interest_rate) || 0;
         const down_payment = price * (down_percent / 100);
-        const principal = price - down_payment;
 
-        // Calculate monthly payment using amortization formula
-        const monthly_rate = annual_rate / 12 / 100;
-        let monthly_payment = 0;
-        let total_interest = 0;
+        // Считает СЕРВЕР — той же функцией, что и договор. Своей формулы здесь
+        // больше нет: пока их было две, калькулятор применял аннуитет по годовой
+        // ставке, а договор — flat по месячной, и продавец называл покупателю
+        // цифру, которой в договоре не появлялось.
+        frappe.call({
+            method: 'nasiya365.nasiya365.doctype.installment_plan.installment_plan.calculate_installment_preview',
+            args: {
+                principal: price,
+                down_payment: down_payment,
+                interest_rate: rate,
+                num_installments: months,
+                frequency: 'Ежемесячно (Monthly)',
+                start_date: frappe.datetime.get_today(),
+            },
+            callback: (r) => {
+                if (!r.message) return;
+                this._render(down_payment, r.message);
+            },
+        });
+    }
 
-        if (monthly_rate > 0) {
-            monthly_payment = (principal * monthly_rate) / (1 - Math.pow(1 + monthly_rate, -months));
-            total_interest = (monthly_payment * months) - principal;
-        } else {
-            // No interest
-            monthly_payment = principal / months;
-            total_interest = 0;
-        }
+    _render(down_payment, preview) {
+        const total_interest = preview.total_interest || 0;
+        const monthly_payment = preview.installment_amount || 0;
+        const total_payment = preview.total_amount || 0;
 
-        const total_payment = down_payment + (monthly_payment * months);
-
-        // Update result fields
         this.dialog.set_value('down_payment_amount', down_payment.toFixed(2));
-        this.dialog.set_value('financed_amount', principal.toFixed(2));
+        this.dialog.set_value('financed_amount', (preview.financed_amount || 0).toFixed(2));
         this.dialog.set_value('monthly_payment', monthly_payment.toFixed(2));
         this.dialog.set_value('total_interest', total_interest.toFixed(2));
         this.dialog.set_value('total_payment', total_payment.toFixed(2));
