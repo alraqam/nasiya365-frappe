@@ -4,6 +4,7 @@ import frappe
 from frappe.utils import add_days, flt, getdate, today
 
 from nasiya365.finance import UNSETTLED_SCHEDULE_STATUSES, unsettled_schedule_predicate
+from nasiya365.nasiya365.doctype.payment_allocation.payment_allocation import STATUS_ACTIVE
 
 # Договоры, обязательства по которым ещё живы.
 _LIVE_PLAN_STATUSES = ("Активный", "Просрочен")
@@ -22,10 +23,10 @@ def generate_collection_report(as_of=None):
     Наличные продажи, авансы и погашение старой просрочки в числитель не идут —
     раньше сюда попадали любые платежи за неделю.
 
-    ОГРАНИЧЕНИЕ: разнесение берётся по ссылке Installment Schedule.payment_transaction,
-    а она хранит один платёж на строку. Строку, закрытую двумя платежами, зачтёт
-    только последний. Точным числитель станет после журнала Payment Allocation
-    (стадия 3 плана исправлений).
+    Разнесение берётся из журнала Payment Allocation. По ссылке строки на платёж
+    его считать нельзя: ссылка одна, и строку, закрытую двумя платежами, зачитывал
+    только последний — причём целиком. Платёж 40 внутри периода приносил в
+    числитель все 100, включая 60, полученные раньше.
     """
     end_date = getdate(as_of) if as_of else getdate(today())
     start_date = add_days(end_date, -6)
@@ -34,31 +35,49 @@ def generate_collection_report(as_of=None):
     in_open = ",".join(["%s"] * len(UNSETTLED_SCHEDULE_STATUSES))
     open_pred = unsettled_schedule_predicate("isc", in_open)
 
-    # Обязательства со сроком в периоде и оплата по ним, полученная в периоде.
-    row = frappe.db.sql(
-        f"""
-        SELECT
-            COALESCE(SUM(isc.amount - COALESCE(isc.paid_amount, 0)), 0) AS still_open,
-            COALESCE(SUM(CASE WHEN pt.payment_date BETWEEN %s AND %s
-                              THEN COALESCE(isc.paid_amount, 0) ELSE 0 END), 0) AS paid_in_period
-        FROM `tabInstallment Schedule` isc
-        INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
-        LEFT JOIN `tabPayment Transaction` pt
-               ON pt.name = isc.payment_transaction
-              AND pt.docstatus = 1
-              AND pt.status = 'Завершен'
-        WHERE ip.docstatus = 1
+    live_plan_where = f"""
+          ip.docstatus = 1
           AND IFNULL(ip.status, '') IN ({in_live})
           AND IFNULL(ip.contract_status, '') != 'Отменен'
-          AND isc.due_date BETWEEN %s AND %s
-        """,
-        (start_date, end_date, *_LIVE_PLAN_STATUSES, start_date, end_date),
-        as_dict=True,
-    )[0]
+    """
 
-    collected = flt(row.paid_in_period)
+    # Сколько по обязательствам периода ещё не получено.
+    still_open = flt(
+        frappe.db.sql(
+            f"""
+            SELECT COALESCE(SUM(isc.amount - COALESCE(isc.paid_amount, 0)), 0)
+            FROM `tabInstallment Schedule` isc
+            INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
+            WHERE {live_plan_where}
+              AND isc.due_date BETWEEN %s AND %s
+            """,
+            (*_LIVE_PLAN_STATUSES, start_date, end_date),
+        )[0][0]
+    )
+
+    # Сколько по ним получено ИМЕННО в периоде — по журналу разноски.
+    collected = flt(
+        frappe.db.sql(
+            f"""
+            SELECT COALESCE(SUM(pa.allocated_amount), 0)
+            FROM `tabPayment Allocation` pa
+            INNER JOIN `tabInstallment Schedule` isc ON isc.name = pa.schedule_row
+            INNER JOIN `tabInstallment Plan` ip ON ip.name = isc.parent
+            INNER JOIN `tabPayment Transaction` pt ON pt.name = pa.payment_transaction
+            WHERE {live_plan_where}
+              AND pa.status = %s
+              AND isc.due_date BETWEEN %s AND %s
+              AND pt.docstatus = 1
+              AND pt.status = 'Завершен'
+              AND pt.payment_date BETWEEN %s AND %s
+            """,
+            (*_LIVE_PLAN_STATUSES, STATUS_ACTIVE, start_date, end_date,
+             start_date, end_date),
+        )[0][0]
+    )
+
     # Ожидание = то, что ещё открыто, плюс то, что закрыли в этом же периоде.
-    expected = flt(row.still_open) + collected
+    expected = still_open + collected
 
     overdue = flt(
         frappe.db.sql(

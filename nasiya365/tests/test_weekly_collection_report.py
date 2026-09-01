@@ -52,6 +52,15 @@ def _seed_payment(plan, amount, date):
     )
 
 
+def _seed_allocation(plan, row, payment, amount, status="Активна"):
+    """Запись журнала разноски — так это делает apply_payment в бою."""
+    return _db_insert(
+        "Payment Allocation", payment_transaction=payment.name,
+        installment_plan=plan, schedule_row=row.name, allocated_amount=amount,
+        allocation_date=payment.payment_date, status=status,
+    )
+
+
 class TestWeeklyCollectionReport(unittest.TestCase):
     """Проверки разностные.
 
@@ -83,7 +92,9 @@ class TestWeeklyCollectionReport(unittest.TestCase):
     def test_expected_is_obligation_before_period_payments(self):
         plan = _seed_plan()
         pay = _seed_payment(plan.name, 40, _IN_FIRST)
-        _seed_row(plan.name, _IN_FIRST, 100, paid=40, status="Частично", payment=pay.name)
+        row = _seed_row(plan.name, _IN_FIRST, 100, paid=40, status="Частично",
+                        payment=pay.name)
+        _seed_allocation(plan.name, row, pay, 40)
         # Ожидание — все 100, а не 60: платёж периода не уменьшает то, что ждали.
         self.assertAlmostEqual(self._delta("expected"), 100, places=2)
         self.assertAlmostEqual(self._delta("collected_against_expected"), 40, places=2)
@@ -122,3 +133,43 @@ class TestWeeklyCollectionReport(unittest.TestCase):
             )
         else:
             self.assertEqual(r["efficiency"], 0)  # ноль в знаменателе не делит
+
+
+class TestWeeklyCollectionIsExact(unittest.TestCase):
+    """Числитель считается по журналу разноски, а не по ссылке строки.
+
+    Пока считалось по Installment Schedule.payment_transaction, строку, закрытую
+    двумя платежами, зачитывал только последний — и зачитывал ЦЕЛИКОМ. Платёж 40
+    внутри периода приносил в числитель все 100, включая 60, полученные раньше.
+    """
+
+    def setUp(self):
+        frappe.db.savepoint("weekly_exact")
+        self.base = generate_collection_report(as_of=_END)
+
+    def tearDown(self):
+        frappe.db.rollback(save_point="weekly_exact")
+
+    def _delta(self, key):
+        return generate_collection_report(as_of=_END)[key] - self.base[key]
+
+    def test_only_money_received_in_the_period_counts(self):
+        plan = _seed_plan()
+        row = _seed_row(plan.name, _IN_FIRST, 100, paid=100, status="Оплачен")
+
+        early = _seed_payment(plan.name, 60, "2026-08-20")   # до периода
+        inside = _seed_payment(plan.name, 40, _IN_FIRST)     # внутри периода
+        for payment, amount in ((early, 60), (inside, 40)):
+            _seed_allocation(plan.name, row, payment, amount)
+        # Ссылка строки указывает на последний платёж — как это делает apply_payment.
+        frappe.db.set_value("Installment Schedule", row.name, "payment_transaction",
+                            inside.name, update_modified=False)
+
+        self.assertAlmostEqual(self._delta("collected_against_expected"), 40, places=2)
+
+    def test_reversed_allocation_does_not_count(self):
+        plan = _seed_plan()
+        row = _seed_row(plan.name, _IN_FIRST, 100, paid=0)
+        cancelled = _seed_payment(plan.name, 40, _IN_FIRST)
+        _seed_allocation(plan.name, row, cancelled, 40, status="Реверсирована")
+        self.assertAlmostEqual(self._delta("collected_against_expected"), 0, places=2)
