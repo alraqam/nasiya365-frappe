@@ -131,27 +131,58 @@ class CustomerProfile(Document):
         else:
             self.available_limit = limit - debt
         
+    def _outstanding_principal_total(self) -> float:
+        """Сумма непогашенного основного долга по живым проведённым договорам.
+
+        Кредитная база — основной долг без будущих процентов: ставка это цена
+        услуги, а не выданные деньги, и клиент со ставкой 2% в месяц на год не
+        должен «съедать» лимит на 24% больше, чем стоил товар.
+        """
+        from frappe.utils import flt
+
+        from nasiya365.finance import outstanding_principal
+
+        plans = frappe.db.sql(
+            """
+            SELECT ip.name, ip.financed_amount, ip.total_interest, ip.paid_amount,
+                   ip.down_payment,
+                   EXISTS (SELECT 1 FROM `tabInstallment Schedule` s
+                           WHERE s.parent = ip.name AND s.installment_number = 0) AS has_dp_row
+            FROM `tabInstallment Plan` ip
+            WHERE ip.customer = %s
+              AND ip.docstatus = 1
+              AND IFNULL(ip.status, '') NOT IN ('Завершен', 'Списан', 'Отменен')
+            """,
+            (self.name,),
+            as_dict=True,
+        )
+        return flt(sum(
+            outstanding_principal(
+                financed_amount=p.financed_amount,
+                total_interest=p.total_interest,
+                paid_amount=p.paid_amount,
+                down_payment=p.down_payment,
+                has_down_payment_row=bool(p.has_dp_row),
+            )
+            for p in plans
+        ), 2)
+
     def update_statistics(self):
         """Update customer stats from Installment Plans — single SQL, no N+1."""
         from frappe.utils import flt
 
-        # total_debt считается ОТДЕЛЬНЫМ подзапросом, без join'а со строками графика.
-        # Внутри join'а SUM(ip.remaining_balance) множится на число строк плана:
-        # план с 12 взносами давал долг в 13 раз больше реального. Остальные
-        # агрегаты join требуют и от дублирования не страдают: COUNT(DISTINCT)
-        # схлопывает повторы, MAX идемпотентен, а overdue_count считает как раз
-        # строки графика.
+        # Долг считается НЕ в этом запросе, а отдельно, в Python: кредитная база —
+        # непогашенный основной долг без будущих процентов (решение владельца), и
+        # выражать её в SQL пришлось бы вместе с проверкой строки 0 графика.
+        # Договоров у клиента единицы, поэтому цена такого чтения ничтожна.
+        #
+        # Агрегаты просрочки остаются на join'е: он им нужен и от дублирования они
+        # не страдают — COUNT(DISTINCT) схлопывает повторы, MAX идемпотентен, а
+        # overdue_count считает как раз строки графика.
         row = frappe.db.sql(
             """
             SELECT
                 COUNT(DISTINCT ip.name)                                               AS active_contracts_count,
-                COALESCE((
-                    SELECT SUM(ip2.remaining_balance)
-                    FROM `tabInstallment Plan` ip2
-                    WHERE ip2.customer = %(customer)s
-                      AND ip2.docstatus = 1
-                      AND IFNULL(ip2.status, '') NOT IN ('Завершен', 'Списан', 'Отменен')
-                ), 0)                                                                  AS total_debt,
                 COALESCE(MAX(
                     CASE WHEN isc.status = 'Просрочен'
                          THEN DATEDIFF(CURDATE(), isc.due_date)
@@ -172,7 +203,7 @@ class CustomerProfile(Document):
         stats = row[0] if row else {}
 
         self.active_contracts_count = int(stats.get("active_contracts_count") or 0)
-        self.total_debt = flt(stats.get("total_debt") or 0)
+        self.total_debt = self._outstanding_principal_total()
         self.update_available_limit()
         self.calculate_risk_profile(
             max_delay=int(stats.get("max_delay") or 0),

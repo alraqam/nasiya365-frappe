@@ -477,10 +477,18 @@ class InstallmentPlan(Document):
         # Refresh debt from submitted plans
         customer.update_statistics()
 
-        # Sum principal of OTHER draft plans for this customer (concurrent-draft protection)
+        # Мерим ту же величину, что и учёт, — финансируемую часть, а не цену товара.
+        # Кредитная база — основной долг без будущих процентов, и аванс в него не
+        # входит: он платится при подписании и займом не становится. Раньше
+        # сверялась полная цена, и товар за 1200 с авансом 400 не проходил при
+        # лимите 1000, хотя в долг уходило 800.
+        requested = flt(self.principal_amount) - flt(self.down_payment)
+
+        # Черновики других планов — по той же мерке, иначе защита от параллельных
+        # черновиков считала бы строже самого лимита.
         other_draft_principal = flt(frappe.db.sql(
             """
-            SELECT COALESCE(SUM(principal_amount), 0)
+            SELECT COALESCE(SUM(principal_amount - COALESCE(down_payment, 0)), 0)
             FROM `tabInstallment Plan`
             WHERE customer = %s
               AND docstatus = 0
@@ -492,9 +500,9 @@ class InstallmentPlan(Document):
 
         effective_available = flt(customer.available_limit) - other_draft_principal
 
-        if flt(self.principal_amount) > effective_available:
+        if requested > effective_available:
             msg = _("Запрашиваемая сумма {0} превышает доступный кредитный лимит {1}").format(
-                frappe.format_value(self.principal_amount, {"fieldtype": "Currency"}),
+                frappe.format_value(requested, {"fieldtype": "Currency"}),
                 frappe.format_value(max(0.0, effective_available), {"fieldtype": "Currency"}),
             )
             if other_draft_principal > 0:

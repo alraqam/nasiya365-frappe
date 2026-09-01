@@ -20,3 +20,36 @@ def unsettled_schedule_predicate(alias: str, placeholders: str) -> str:
     `placeholders` — строка вида "%s,%s,%s,%s" под UNSETTLED_SCHEDULE_STATUSES.
     """
     return f"({alias}.status IN ({placeholders}) OR TRIM(IFNULL({alias}.status, '')) = '')"
+
+
+def outstanding_principal(financed_amount, total_interest, paid_amount,
+                          down_payment=0, has_down_payment_row=False) -> float:
+    """Непогашенный основной долг по договору — кредитная база (решение владельца).
+
+    Долгом считается только невозвращённая часть финансируемой суммы. Будущие
+    проценты в неё не входят: иначе клиент со ставкой 2% в месяц на год «съедал»
+    бы лимит на 24% больше, чем стоил купленный товар, а ставка — это цена
+    услуги, а не выданные деньги.
+
+    Платежи по flat-модели гасят основной долг и проценты пропорционально их
+    долям в сумме к оплате, поэтому доля погашенного основного долга равна доле
+    погашенной финансируемой части.
+
+    Аванс вычитается ДО пропорции: он не входит в финансируемую сумму, а по FIFO
+    гасится первым (строка 0 графика). Учитывается только у договоров, где эта
+    строка есть, — у старых аванс не входит и в paid_amount.
+    """
+    from frappe.utils import flt
+
+    financed = flt(financed_amount)
+    financed_total = financed + flt(total_interest)
+    if financed_total <= 0:
+        return 0.0
+
+    paid_to_financed = flt(paid_amount)
+    if has_down_payment_row:
+        paid_to_financed -= flt(down_payment)
+    paid_to_financed = max(0.0, paid_to_financed)
+
+    repaid_share = min(1.0, paid_to_financed / financed_total)
+    return round(financed * (1.0 - repaid_share), 2)
