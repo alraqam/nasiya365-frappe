@@ -60,3 +60,28 @@ class TestRequireImeiReceipt(unittest.TestCase):
 			{"product": acc.name, "imei": ""},
 		])
 		doc._require_imei_for_phones()  # телефон с IMEI, аксессуар без — ОК
+
+	def test_whitespace_imei_throws(self):
+		phone = _product(allow_installment=1)
+		doc = _ste("Поступление", [{"product": phone.name, "imei": "   "}])
+		with self.assertRaises(frappe.exceptions.ValidationError):
+			doc._require_imei_for_phones()
+
+	def test_unset_product_row_skipped(self):
+		doc = _ste("Поступление", [{"product": None, "imei": ""}])
+		doc._require_imei_for_phones()  # без product — пропускаем, без исключения
+
+	def test_submitted_receipt_not_blocked(self):
+		phone = _product(allow_installment=1)
+		doc = _ste("Поступление", [{"product": phone.name, "imei": ""}])
+		doc.docstatus = 1  # уже проведённая (старая) запись
+		doc._require_imei_for_phones()  # не блокируем редактирование старых
+
+	def test_in_import_bypassed(self):
+		phone = _product(allow_installment=1)
+		doc = _ste("Поступление", [{"product": phone.name, "imei": ""}])
+		frappe.flags.in_import = True
+		try:
+			doc._require_imei_for_phones()  # импорт — не блокируем
+		finally:
+			frappe.flags.in_import = False

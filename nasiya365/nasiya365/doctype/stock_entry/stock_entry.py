@@ -84,6 +84,13 @@ class StockEntry(Document):
 		"""Телефон (Product.allow_installment=1) при приёме обязан иметь IMEI — иначе
 		его невозможно списать со склада при продаже (сопоставление идёт по IMEI).
 		Уникальность НЕ проверяем: тот же IMEI законно приходуется повторно при выкупе."""
+		# Массовый импорт / миграции / патчи — не блокируем (легаси-данные).
+		if frappe.flags.in_import or frappe.flags.in_patch or frappe.flags.in_migrate:
+			return
+		# Только новые приёмы: уже проведённое поступление (редактирование старой записи)
+		# не блокируем, даже если у него нет IMEI.
+		if self.docstatus == 1:
+			return
 		if (self.entry_type or "").strip() != "Поступление":
 			return
 		for item in self.items:
