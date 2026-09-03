@@ -78,6 +78,26 @@ class StockEntry(Document):
 		self.set_items_summary()
 		self.set_business_status()
 		self.set_payment_status()
+		self._require_imei_for_phones()
+
+	def _require_imei_for_phones(self):
+		"""Телефон (Product.allow_installment=1) при приёме обязан иметь IMEI — иначе
+		его невозможно списать со склада при продаже (сопоставление идёт по IMEI).
+		Уникальность НЕ проверяем: тот же IMEI законно приходуется повторно при выкупе."""
+		if (self.entry_type or "").strip() != "Поступление":
+			return
+		for item in self.items:
+			if not item.product:
+				continue
+			if not frappe.get_cached_value("Product", item.product, "allow_installment"):
+				continue
+			if (item.imei or "").strip():
+				continue
+			product_name = frappe.get_cached_value("Product", item.product, "product_name") or item.product
+			frappe.throw(frappe._(
+				"Укажите IMEI для телефона «{0}» (строка {1}). "
+				"Без IMEI телефон невозможно списать со склада при продаже."
+			).format(product_name, item.idx))
 
 	def _has_business_status_field(self):
 		return bool(self.meta.get_field("business_status"))
